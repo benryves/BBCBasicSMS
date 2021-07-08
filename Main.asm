@@ -13,10 +13,53 @@
 	jp Boot
 
 .org $38
-	reti
+	jp Interrupt
 
 .org $66
 	retn
+
+Interrupt:
+	push af
+	
+	in a,($BF)
+	bit 7,a
+	jr z,NotFrameInterrupt
+
+FrameInterrupt:
+	
+	ld a,(VDU.QueueSize)
+	or a
+	jr z,NotFrameInterrupt
+
+	push bc
+	push de
+	push hl
+	
+	ld a,%01100000
+	ld a,%00000000
+	ld b,1
+	call Video.SetReg
+	
+-:	call VDU.Dequeue
+	call VDU.PutChar
+	
+	ld a,(VDU.QueueSize)
+	or a
+	jr nz,-
+	
+	ld a,%01100000
+	ld b,1
+	call Video.SetReg
+	
+	in a,($BF)
+	
+	pop hl
+	pop de
+	pop bc
+	
+NotFrameInterrupt:
+	pop af
+	reti
 
 ; Libraries:
 .include "Video.asm"
@@ -24,6 +67,7 @@
 .include "AT.asm"
 .include "Keyboard.asm"
 .include "UK.inc"
+.include "VDU.asm"
 
 Boot:
 	; Make sure SP points somewhere sensible.
@@ -47,7 +91,7 @@ Main:
 	call Video.ClearAll
 	
 	; Load the font.
-	ld hl,FontTileIndex*8
+	ld hl,VDU.FontTileIndex*8
 	call Video.GotoHL
 	
 	ld hl,Font
@@ -68,19 +112,25 @@ LoadCharRow:
 	; Load the palette
 	call LoadPalette
 	
-	call Video.ScreenOn	
+	; Get the VDU queue ready
+	call VDU.ClearQueue
+	
+	; Screen on, frame interrupts.
+	ld a,%01100000
+	ld b,$01
+	call Video.SetReg
 	
 	xor a
-	ld (MinRow),a
-	ld (CurRow),a
+	ld (VDU.MinRow),a
+	ld (VDU.CurRow),a
 	ld a,24
-	ld (MaxRow),a
+	ld (VDU.MaxRow),a
 	
 	ld a,2
-	ld (MinCol),a
-	ld (CurCol),a
+	ld (VDU.MinCol),a
+	ld (VDU.CurCol),a
 	ld a,30
-	ld (MaxCol),a
+	ld (VDU.MaxCol),a
 	
 	; Load the keyboard layout
 	ld hl,KeyboardLayouts.UK
@@ -90,105 +140,13 @@ LoadCharRow:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-FontTileIndex = 0
-FontCharOffset = FontTileIndex-' '
-
-.var ubyte CurRow, CurCol
-.var ubyte MinRow, MaxRow, MinCol, MaxCol
-
-PutMap:
-	push bc
-	push af
-	ld a,(CurRow)
-	ld l,a
-	ld h,0
-	ld b,6
--:	add hl,hl
-	djnz -
-	ld a,(CurCol)
-	add a,a
-	ld e,a
-	ld d,0
-	add hl,de
-	ld de,$3800
-	add hl,de
-	call Video.GotoHL
-	pop af
-	add a,FontCharOffset
-	out (Ports.Video.Data),a
-	xor a
-	out (Ports.Video.Data),a
-	pop bc
-	ret
-	
-PutChar:
-	cp '\r'
-	jr nz,+
-	ld a,(MinCol)
-	ld (CurCol),a
-	jr NewLine
-
-+:	cp '\n'
-	jr nz,+
-	
-	ld a,(MinCol)
-	ld (CurCol),a
-	jr NewLine
-
-+:	call PutMap
-	ld a,(CurCol)
-	inc a
-	push bc
-	ld bc,(MaxCol)
-	cp c
-	pop bc
-	jr nz,+
-	ld a,(MinCol)
-+:	ld (CurCol),a
-	ret nz
-
-NewLine:
-	ld a,(CurRow)
-	inc a
-	push bc
-	ld bc,(MaxRow)
-	cp c
-	pop bc
-	jr nz,+
-	ld a,(MinRow)
-+:	ld (CurRow),a
-	ret
-
-PutString:
-	ld a,(hl)
-	inc hl
-	or a
-	ret z
-	push hl
-	call PutChar
-	pop hl
-	jr PutString
-
-HelloWorld:
-	;   "12345678901234567890123456789012"
-	.db "\n\n\n"
-	.db "   Hello, world!\n"
-	.db "   =============\n\n"
-	
-	.db "   This is running on a\n"
-	.db "   Sega Master System.\n"
-	.db "\n"
-	.db "                      Hooray!"
-	.db "\n"
-	.db 0
-
 PutHexNybble:
 	cp 10
 	jr c,+
 	add a,'A'-10
-	jp PutChar
+	jp VDU.Enqueue
 +:	add a,'0'
-	jp PutChar
+	jp VDU.Enqueue
 
 PutHexByte:
 	push af

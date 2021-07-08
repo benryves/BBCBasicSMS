@@ -58,12 +58,14 @@ OSRDCH
 	push de
 	push bc
 -:	call Keyboard.GetKey
+	ei
 	jr nz,- ; no key
 	jr c,- ; release
 	jp m,- ; non-printable key
 	pop bc
 	pop de
 	pop hl
+	ei
 	ret
 	
 ;------------------------------------------------------------------------------- 
@@ -121,8 +123,10 @@ OSLINE
 	push af
 	call OSWRCH
 	pop af
-	cp "\r"
+	cp '\r'
 	jr nz,OSLINE
+	ld a,'\n'
+	call OSWRCH
 	xor a
 	ret
 	
@@ -141,17 +145,9 @@ OSLINE
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSWRCH
-	push hl
-	push de
 	push af
-	call Video.WaitVBlank
-	call Video.WaitVBlank
+	call VDU.Enqueue
 	pop af
-	push af
-	call PutChar
-	pop af
-	pop de
-	pop hl
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -541,9 +537,9 @@ PUTCSR
 ;
 ;------------------------------------------------------------------------------- 
 GETCSR
-	ld de,(CurCol)
+	ld de,(VDU.CurCol)
 	ld d,0
-	ld hl,(CurRow)
+	ld hl,(VDU.CurRow)
 	ld h,0
 	ret
 
