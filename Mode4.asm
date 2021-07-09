@@ -1,5 +1,7 @@
 .module Mode4
 
+NameTable = $3800
+
 Initialise:
 
 	; The default state from Video.Reset is pretty close to Master System Mode 4 anyway!
@@ -108,6 +110,62 @@ PutMap:
 	ret
 
 Scroll:
-	ret
+	push bc
+	push de
+	push hl
+	
+	call Video.WaitForEmptyQueue
+	
+	ld de,0
+	ld b,23
+	
+	ei
+	halt
 
+-:	ld a,b
+	and %11
+	jr nz,+
+	
+	ei
+	halt
+
++:	push bc
+	
+	ld hl,NameTable + 64 ; Source to copy from
+	add hl,de
+	
+	call Video.SetReadAddress
+	ld hl,(Basic.BBCBASIC_FREE)
+	ld bc,64*256 + Video.Data
+	inir
+	
+	ld hl,NameTable ; Destination to copy to
+	add hl,de
+	call Video.SetWriteAddress
+	
+	ld hl,(Basic.BBCBASIC_FREE)
+	ld bc,64*256 + Video.Data
+	otir
+	
+	ld hl,64
+	add hl,de
+	ex de,hl
+
+	pop bc
+	djnz -
+	
+	ld hl,NameTable+23*64
+	call Video.SetWriteAddress
+	
+	ld b,32
+-:	ld a,' '*1+FontCharOffset
+	out (Video.Data),a
+	xor a
+	out (Video.Data),a
+	djnz -
+	
+	pop hl
+	pop de
+	pop bc
+	ret
 .endmodule

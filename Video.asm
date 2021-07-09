@@ -171,22 +171,14 @@ QueueCapacity = 24
 
 .var ubyte[QueueCapacity * 3] Queue
 .var ubyte QueueSize
-.var uword QueueRead
-.var ubyte QueueReadToEnd
-.var uword QueueWrite
-.var ubyte QueueWriteToEnd
+.var uword QueuePointer
 
 ClearQueue:
+	di
+	ld hl,Queue
+	ld (QueuePointer),hl
 	xor a
 	ld (QueueSize),a
-	
-	ld hl,Queue
-	ld (QueueRead),hl
-	ld (QueueWrite),hl
-	
-	ld a,QueueCapacity
-	ld (QueueReadToEnd),a
-	ld (QueueWriteToEnd),a
 	ret
 
 ; In: DE = address, A = value
@@ -204,7 +196,7 @@ Enqueue:
 	pop af
 	push hl
 	
-	ld hl,(QueueWrite)
+	ld hl,(QueuePointer)
 	ld (hl),e
 	inc hl
 	ld (hl),d
@@ -212,53 +204,10 @@ Enqueue:
 	ld (hl),a
 	inc hl
 	
-	ld a,(QueueWriteToEnd)
-	dec a
-	jr nz,+
-	ld hl,Queue
-	ld a,QueueCapacity
-+:	ld (QueueWrite),hl
-	ld (QueueWriteToEnd),a
+	ld (QueuePointer),hl
 	
 	pop hl
 	ei
-	ret
-
-Dequeue:
-	ld a,(QueueSize)
-	or a
-	jr nz,+
-	dec a
-	ret
-+:
-	di
-	dec a
-	ld (QueueSize),a
-	
-	push hl
-	ld hl,(QueueRead)
-	
-	ld e,(hl)
-	inc hl
-	ld d,(hl)
-	inc hl
-	ld a,(hl)
-	inc hl
-	
-	push af
-	
-	ld a,(QueueReadToEnd)
-	dec a
-	jr nz,+
-	ld hl,Queue
-	ld a,QueueCapacity
-+:	ld (QueueRead),hl
-	ld (QueueReadtoEnd),a
-	
-	pop af
-	pop hl
-	
-	cp a
 	ret
 
 WaitForEmptyQueue:
@@ -278,22 +227,26 @@ FlushQueue:
 	push de
 	push hl
 	
--:	call Video.Dequeue
+	ld b,a
+	ld hl,Queue
+	ld (QueuePointer),hl
 	
-	push af
+-:	ld a,(hl)
+	inc hl
+	out (Control),a
 	
-	ld a,e
-	out (Video.Control),a
+	ld a,(hl)
+	inc hl
+	out (Control),a
 	
-	ld a,d
-	out (Video.Control),a
+	ld a,(hl)
+	inc hl
+	out (Data),a
 	
-	pop af
-	out (Video.Data),a
+	djnz -
 	
-	ld a,(Video.QueueSize)
-	or a
-	jr nz,-
+	xor a
+	ld (QueueSize),a
 
 +:	pop hl
 	pop de
