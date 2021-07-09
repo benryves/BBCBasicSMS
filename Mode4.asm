@@ -10,7 +10,7 @@ Initialise:
 
 	; Load the font.
 	ld hl,0
-	call Video.GotoHL
+	call Video.SetWriteAddress
 	
 	ld hl,Font
 	ld d,(Font.End-Font)/8
@@ -40,6 +40,8 @@ LoadCharRow:
 	; Set up vectors
 	ld hl,PutMap
 	ld (Parent.PutMap+1),hl
+	ld hl,Scroll
+	ld (Parent.Scroll+1),hl
 	
 	; Screen bounds
 	ld a,0
@@ -103,6 +105,9 @@ PutMap:
 	pop bc
 	pop de
 	pop hl
+	ret
+
+Scroll:
 	ret
 
 .endmodule

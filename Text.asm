@@ -42,7 +42,7 @@ Initialise:
 	; Load the font
 	
 	ld hl,0
-	call Video.GotoHL
+	call Video.SetWriteAddress
 	
 	ld hl,Font
 	ld bc,Video.Data ; B = 0, C = Video.Data
@@ -54,6 +54,8 @@ Initialise:
 	; Set up vectors
 	ld hl,PutMap
 	ld (Parent.PutMap+1),hl
+	ld hl,Scroll
+	ld (Parent.Scroll+1),hl
 	
 	ret
 
@@ -89,6 +91,64 @@ PutMap:
 	pop bc
 	pop de
 	pop hl
+	ret
+
+Scroll:
+	push bc
+	push de
+	push hl
+	
+	call Video.WaitForEmptyQueue
+	
+	ld de,0
+	ld b,23
+	
+	ei
+	halt
+
+-:	ld a,b
+	and %111
+	jr nz,+
+	
+	ei
+	halt
+
++:	push bc
+	
+	ld hl,NameTable + 40 ; Source to copy from
+	add hl,de
+	
+	call Video.SetReadAddress
+	ld hl,(Basic.BBCBASIC_FREE)
+	ld bc,40*256 + Video.Data
+	inir
+	
+	ld hl,NameTable ; Destination to copy to
+	add hl,de
+	call Video.SetWriteAddress
+	
+	ld hl,(Basic.BBCBASIC_FREE)
+	ld bc,40*256 + Video.Data
+	otir
+	
+	ld hl,40
+	add hl,de
+	ex de,hl
+
+	pop bc
+	djnz -
+	
+	ld hl,NameTable + 23*40
+	call Video.SetWriteAddress
+	
+	ld a,' '*1+FontCharOffset
+	ld b,40
+-:	out (Video.Data),a
+	djnz -
+	
+	pop hl
+	pop de
+	pop bc
 	ret
 
 Font:

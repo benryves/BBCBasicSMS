@@ -151,10 +151,12 @@ ConvertScancode:
 	ld a,(LedState)
 	xor (hl)
 	ld (LedState),a
+	
 	ld a,$ED
 	call AT.SendSafeByte
 	ld a,(LedState)
 	call AT.SendSafeByte
+	
 	inc hl
 	jr IsNotModifier
 	
@@ -246,7 +248,7 @@ NoStatusModifiers:
 	ld a,(OriginalScanCode)
 	
 	res 7,a ; S
-	jr nc,{+}
+	jr nc,+
 	set 7,a
 +:
 	
@@ -269,16 +271,20 @@ ExitNoKey:
 ;           a    = key code.
 ;           c    = reset for press, set for release.
 ;           s    = set for non-printable key.
-; Destroys: af, bc, de, hl
+; Destroys: af
 ; ---------------------------------------------------------
 	
 GetKey:
+	push hl
+	push de
+	push bc
 	call GetScancode
-	ret nz
+	jr nz,+
 	call ConvertScancode
++:	pop bc
+	pop de
+	pop hl
 	ret
-	
-	
 
 ; .........................................................
 ; Equates for the non-printable key codes

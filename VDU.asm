@@ -10,6 +10,7 @@ Count = 2
 .endmodule
 
 .var ubyte[3] PutMap
+.var ubyte[3] Scroll
 
 Reset:
 	xor a
@@ -19,6 +20,7 @@ SetMode:
 	
 	ld a,$C3 ; JP
 	ld (PutMap),a
+	ld (Scroll),a
 	
 	; Reset all video settings to their defaults.
 	call Video.Reset
@@ -33,7 +35,7 @@ SetMode:
 	
 	; Screen on, enable frame interrupts.
 	call Video.DisplayOn
-	call Video.EnableFrameInterrupts
+	call Video.EnableFrameInterrupt
 	ei
 	
 	ret
@@ -97,7 +99,9 @@ NewLine:
 	cp c
 	pop bc
 	jr nz,+
-	ld a,(MinRow)
+	call Scroll
+	ld a,(MaxRow)
+	dec a
 +:	ld (CurRow),a
 	ret
 

@@ -39,7 +39,8 @@ ResetData:
 .db $00
 .db $FF
 		
-GotoHL: ; Set the VRAM pointer to the address in HL.
+SetWriteAddress: ; Set the VRAM pointer to the address in HL.
+	di
 	in a,(Control)
 	ld a,l
 	out (Control),a
@@ -47,7 +48,16 @@ GotoHL: ; Set the VRAM pointer to the address in HL.
 	or %01000000
 	out (Control),a
 	ret
-		
+
+SetReadAddress: ; Set the VRAM pointer to a read address.
+	di
+	in a,(Control)
+	ld a,l
+	out (Control),a
+	ld a,h
+	out (Control),a
+	ret
+
 SetRegister: ; Set register B to value A.
 
 	; Store a local copy
@@ -79,6 +89,16 @@ GetRegister: ; Retrieve the value of register B in A.
 	pop hl
 	ret
 
+SynchroniseRegisters:
+	ld b,11
+-:	push bc
+	dec b
+	call GetRegister
+	nop
+	call SetRegister
+	pop bc
+	djnz -
+	ret
 
 EnableRegisterBits: ; Set the register B bits with the set values in A (bitwise OR).
 	push bc
@@ -106,7 +126,7 @@ GotoPalette: ; Set the CRAM pointer to colour a.
 	
 ClearAll:
 	ld hl,$0000
-	call GotoHL
+	call SetWriteAddress
 	ld hl,16*1024
 -:	xor a
 	out (Data),a
@@ -136,12 +156,12 @@ DisplayOff:
 	ld b,$01
 	jr DisableRegisterBits
 
-EnableFrameInterrupts:
+EnableFrameInterrupt:
 	ld a,%00100000
 	ld b,$01
 	jr EnableRegisterBits
 
-DisableFrameInterrupts:
+DisableFrameInterrupt:
 	ld a,%11011111
 	ld b,$01
 	jr DisableRegisterBits

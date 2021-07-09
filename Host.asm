@@ -12,6 +12,11 @@
 
 .var uint TIME
 
+.var ubyte Flags
+Pause = 0
+
+.var ubyte TrapKeyboardTimer
+
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
 ; 
@@ -38,6 +43,10 @@ OSINIT
 	ld (TIME+0),hl
 	ld (TIME+2),hl
 	
+	xor a
+	ld (TrapKeyboardTimer),a
+	ld (Flags),a
+	
 	ld de, $dff0 ; HIMEM
 	ld hl, $c400 ; PAGE
 	scf ; don't boot
@@ -60,11 +69,8 @@ OSINIT
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-OSRDCH
-	push hl
-	push de
+OSRDCH:
 	push bc
-	;call VDU.WaitForEmptyQueue
 	
 	ld a,(TIME)
 	ld b,a
@@ -86,6 +92,7 @@ KeyLoop:
 	push bc
 	push af
 	call Video.WaitVBlank
+	call TrapConsoleButtons
 	pop af
 	call VDU.PutMap
 
@@ -96,17 +103,21 @@ NoFlashCursor:
 	ei
 	jr nz,KeyLoop ; no key
 	jr c,KeyLoop  ; release
-	jp m,KeyLoop  ; non-printable key
+	jp p,GotKey   ; printable key
 	
+	cp Keyboard.KeyCode.Escape
+	jr nz,KeyLoop
+	
+	ld a,17 ; Escape
+	call Basic.BBCBASIC_EXTERR
+	.db "Escape", 0
+
+GotKey:
 	push af
 	ld a,' '
 	call VDU.PutMap
-	ei
-	
 	pop af
 	pop bc
-	pop de
-	pop hl
 	ei
 	ret
 	
@@ -132,7 +143,7 @@ NoFlashCursor:
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-OSKEY
+OSKEY:
 	jp OSKEY
 
 ;------------------------------------------------------------------------------- 
@@ -157,7 +168,7 @@ OSKEY
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-OSLINE
+OSLINE:
 	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
 
 OSLINE.Loop:
@@ -226,7 +237,7 @@ OSLINE.Backspace:
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-OSWRCH
+OSWRCH:
 	push af
 	call VDU.PutChar
 	pop af
@@ -249,7 +260,7 @@ OSWRCH
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-PROMPT
+PROMPT:
 	ld a,'>'
 	call OSWRCH
 	ret
@@ -267,7 +278,7 @@ PROMPT
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-LTRAP
+LTRAP:
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
 ; 
@@ -281,7 +292,58 @@ LTRAP
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-TRAP
+TRAP:
+	call TrapConsoleButtons
+	
+	ei
+	
+	ld a,(TrapKeyboardTimer)
+	or a
+	ret nz
+	
+	ld a,10
+	ld (TrapKeyboardTimer),a
+	
+	push bc
+	push de
+	push hl
+	
+	call Keyboard.GetKey
+	
+	jr nz,+ ; No key
+	jr c,+  ; It's being released
+	jp p,+  ; It's a printable key
+	
+	cp Keyboard.KeyCode.Escape
+	jr nz,+
+	
+	ld a,17 ; Escape
+	call Basic.BBCBASIC_EXTERR
+	.db "Escape", 0
+	ret
+	
++:	pop hl
+	pop de
+	pop bc
+	ret
+
+TrapConsoleButtons:
+	; Is reset pressed?
+	in a,($DD)
+	bit 4,a
+	jp z,$0000
+	
+	; Is pause pressed?
+	ld a,(Flags)
+	bit Pause,a
+	ret z
+	
+	res Pause,a
+	ld (Flags),a
+	
+	ld a,17 ; Escape
+	call Basic.BBCBASIC_EXTERR
+	.db "Escape", 0
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -298,6 +360,14 @@ TRAP
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 RESET
+	ld a,(Flags)
+	res Pause,a
+	ld (Flags),a
+	push bc
+	call Video.SynchroniseRegisters
+	ld a,' '
+	call VDU.PutMap
+	pop bc
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -438,6 +508,7 @@ OSBPUT
 ;
 ;------------------------------------------------------------------------------- 
 OSCALL
+	ret
 	jp SORRY
 
 ;------------------------------------------------------------------------------- 
@@ -547,6 +618,9 @@ GETEXT
 ;
 ;------------------------------------------------------------------------------- 
 OSSHUT
+	ld a,e
+	or a
+	ret z
 	jp SORRY
 
 ;------------------------------------------------------------------------------- 
@@ -607,7 +681,38 @@ MODE
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-PUTCSR
+PUTCSR:
+	ld a,d
+	or a
+	ret nz
+	ld a,h
+	or a
+	ret nz
+	
+	ld a,(VDU.MinCol)
+	ld d,a
+	ld a,(VDU.MaxCol)
+	sub d
+	cp e
+	ret z
+	ret c
+	
+	ld a,(VDU.MinRow)
+	ld h,a
+	ld a,(VDU.MaxRow)
+	sub h
+	cp l
+	ret z
+	ret c
+	
+	ld a,(VDU.MinCol)
+	add a,e
+	ld (VDU.CurCol),a
+	
+	ld a,(VDU.MinRow)
+	add a,l
+	ld (VDU.CurRow),a
+	
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -692,7 +797,10 @@ GETIME
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 CLRSCN
-	jp SORRY
+	ei
+	halt
+	call Video.ClearQueue
+	ret
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

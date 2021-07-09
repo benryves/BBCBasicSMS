@@ -13,6 +13,11 @@
 	jp Interrupt
 
 .org $66
+	push af
+	ld a,(Host.Flags)
+	set Host.Pause,a
+	ld (Host.Flags),a
+	pop af
 	retn
 
 .var ubyte FrameCounter
@@ -46,6 +51,14 @@ FrameInterrupt:
 	inc hl
 	ld (Host.TIME+2),hl
 +:	pop hl
+	
+	; Will we need to read the keyboard to trap Escape?
+	ld a,(Host.TrapKeyboardTimer)
+	or a
+	jr z,+
+	dec a
+	ld (Host.TrapKeyboardTimer),a
++:
 	
 	pop af
 	add a,60 ; 60Hz video refresh
