@@ -1,6 +1,54 @@
 .module VDU
 
-QueueCapacity = 8
+.module Modes
+
+.include "Text.asm"
+.include "Mode4.asm"
+
+Count = 2
+
+.endmodule
+
+.var ubyte[3] PutMap
+
+Reset:
+	xor a
+SetMode:
+	di
+	push af
+	
+	ld a,$C3 ; JP
+	ld (PutMap),a
+	
+	; Reset all video settings to their defaults.
+	call Video.Reset
+	
+	pop af
+	
+	; Mode-specific initialisation.
+	call SetModeInitialize
+
+	; Get the VDU queue ready
+	call VDU.ClearQueue
+	
+	; Move to the top-left of the screen.
+	call HomeUp
+
+	; Screen on, enable frame interrupts.
+	call Video.DisplayOn
+	call Video.EnableFrameInterrupts
+	ei
+	
+	ret
+
+SetModeInitialize:
+	or a
+	jp z,Modes.Text.Initialise
+	dec a
+	jp z,Modes.Mode4.Initialise
+	ret
+
+QueueCapacity = 32
 
 .var ubyte[QueueCapacity] Queue
 .var ubyte QueueSize
@@ -88,37 +136,28 @@ Dequeue:
 	cp a
 	ret
 
+WaitForEmptyQueue:
+	ld a,(QueueSize)
+	or a
+	ret z
+	ei
+	halt
+	jr WaitForEmptyQueue
+
 FontTileIndex = 0
 FontCharOffset = FontTileIndex-' '
 
 .var ubyte CurRow, CurCol
 .var ubyte MinRow, MaxRow, MinCol, MaxCol
 
-PutMap:
-	push bc
-	push af
-	ld a,(CurRow)
-	ld l,a
-	ld h,0
-	ld b,6
--:	add hl,hl
-	djnz -
-	ld a,(CurCol)
-	add a,a
-	ld e,a
-	ld d,0
-	add hl,de
-	ld de,$3800
-	add hl,de
-	call Video.GotoHL
-	pop af
-	add a,FontCharOffset
-	out (Ports.Video.Data),a
-	xor a
-	out (Ports.Video.Data),a
-	pop bc
+HomeUp:
+	ld a,(MinCol)
+	ld (CurCol),a
+	ld a,(MinRow)
+	ld (CurRow),a
 	ret
 	
+
 PutChar:
 	cp '\r'
 	jr nz,+
@@ -134,6 +173,9 @@ PutChar:
 	jr NewLine
 
 +:	call PutMap
+	; Fall-through to CursorRight
+
+CursorRight:
 	ld a,(CurCol)
 	inc a
 	push bc
@@ -144,6 +186,7 @@ PutChar:
 	ld a,(MinCol)
 +:	ld (CurCol),a
 	ret nz
+	; Fall-through to NewLine
 
 NewLine:
 	ld a,(CurRow)
@@ -155,6 +198,33 @@ NewLine:
 	jr nz,+
 	ld a,(MinRow)
 +:	ld (CurRow),a
+	ret
+
+CursorLeft:
+	ld a,(CurCol)
+	push bc
+	ld bc,(MinCol)
+	cp c
+	pop bc
+	jr nz,+
+	ld a,(MaxCol)
++:	push af
+	dec a
+	ld (CurCol),a
+	pop af
+	ret nz
++:	; Move up a row
+	ld a,(CurRow)
+	push bc
+	ld bc,(MinRow)
+	cp c
+	pop bc
+	jr nz,+
+	ld a,(MaxRow)
++:	push af
+	dec a
+	ld (CurRow),a
+	pop af
 	ret
 
 PutString:

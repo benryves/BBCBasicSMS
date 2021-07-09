@@ -1,11 +1,8 @@
 ﻿; Script
 .incscript "Scripts.cs"
 
-; Definitions
-.include "System.inc"
-
 ; BBC BASIC's scratch memory will be at RAM ($C000..$C2FF)
-.varloc Memory.Ram + 768, 256
+.varloc $C000+768, 256
 
 .org $00
 	di
@@ -18,6 +15,8 @@
 .org $66
 	retn
 
+.var ubyte FrameCounter
+
 Interrupt:
 	push af
 	
@@ -29,16 +28,13 @@ FrameInterrupt:
 	
 	ld a,(VDU.QueueSize)
 	or a
-	jr z,NotFrameInterrupt
+	jr z,VDUQueueEmpty
 
 	push bc
 	push de
 	push hl
 	
-	ld a,%01100000
-	ld a,%00000000
-	ld b,1
-	call Video.SetReg
+	call Video.DisplayOff
 	
 -:	call VDU.Dequeue
 	call VDU.PutChar
@@ -47,15 +43,38 @@ FrameInterrupt:
 	or a
 	jr nz,-
 	
-	ld a,%01100000
-	ld b,1
-	call Video.SetReg
+	call Video.DisplayOn
 	
 	in a,($BF)
 	
 	pop hl
 	pop de
 	pop bc
+
+VDUQueueEmpty:
+
+	; Handle the 100Hz TIME counter
+	
+	ld a,(FrameCounter)
+	sub 100 ; 100Hz timer
+	
+-:	push af
+	push hl
+	ld hl,(Host.TIME)
+	inc hl
+	ld (Host.TIME),hl
+	ld a,h
+	or l
+	jr nz,+
+	ld hl,(Host.TIME+2)
+	inc hl
+	ld (Host.TIME+2),hl
++:	pop hl
+	
+	pop af
+	add a,60 ; 60Hz video refresh
+	jp m,-
+	ld (FrameCounter),a
 	
 NotFrameInterrupt:
 	pop af
@@ -71,7 +90,7 @@ NotFrameInterrupt:
 
 Boot:
 	; Make sure SP points somewhere sensible.
-	ld sp,Memory.Stack
+	ld sp,$DFF0
 	
 	; Set paging to something sensible.
 	xor a
@@ -90,47 +109,8 @@ Main:
 	; Clear VRAM and palette.
 	call Video.ClearAll
 	
-	; Load the font.
-	ld hl,VDU.FontTileIndex*8
-	call Video.GotoHL
-	
-	ld hl,Font
-	ld d,(Font.End-Font)/8
-LoadChar:
-	ld c,8
-LoadCharRow:
-	ld a,(hl)
-	inc hl
-	ld b,4
--:	out (Ports.Video.Data),a
-	djnz -
-	dec c
-	jr nz,LoadCharRow
-	dec d
-	jr nz,LoadChar
-	
-	; Load the palette
-	call LoadPalette
-	
-	; Get the VDU queue ready
-	call VDU.ClearQueue
-	
-	; Screen on, frame interrupts.
-	ld a,%01100000
-	ld b,$01
-	call Video.SetReg
-	
-	xor a
-	ld (VDU.MinRow),a
-	ld (VDU.CurRow),a
-	ld a,24
-	ld (VDU.MaxRow),a
-	
-	ld a,2
-	ld (VDU.MinCol),a
-	ld (VDU.CurCol),a
-	ld a,30
-	ld (VDU.MaxCol),a
+	; Reset the VDU.
+	call VDU.Reset
 	
 	; Load the keyboard layout
 	ld hl,KeyboardLayouts.UK
@@ -166,28 +146,6 @@ PutHexWord:
 	pop hl
 	ld a,l
 	jr PutHexByte
-
-
-Font:
-.include "bbc"
-Font.End:
-
-LoadPalette:
-	xor a
-	call Video.GotoPalette
-	ld hl,Palette
-	ld b,32
--:	ld a,(hl)
-	inc hl
-	out (Ports.Video.Data),a
-	djnz -
-	ret
-
-Palette:
-.db %010000, %000000, %000000, %000000, %000000, %000000, %000000, %000000 ; Tiles   0..7
-.db %000000, %000000, %000000, %000000, %000000, %000000, %000000, %111111 ; Tiles   8..F
-.db %000000, %011101, %000011, %110000, %000000, %000000, %000000, %000000 ; Sprites 0..7
-.db %000000, %000000, %000000, %000000, %000000, %000000, %000000, %010101 ; Sprites 8..F
 
 ; *TIJUMP,MAIN/P:4100,EXEC,EVAL,FPP,RAM/P:C000
 ; *BBCBASIC/N/Y/E

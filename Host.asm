@@ -10,6 +10,8 @@
 ;------------------------------------------------------------------------------- 
 .module Host
 
+.var uint TIME
+
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
 ; 
@@ -31,6 +33,11 @@
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSINIT
+	
+	ld hl,0
+	ld (TIME+0),hl
+	ld (TIME+2),hl
+	
 	ld de, $dff0 ; HIMEM
 	ld hl, $c400 ; PAGE
 	scf ; don't boot
@@ -57,11 +64,46 @@ OSRDCH
 	push hl
 	push de
 	push bc
--:	call Keyboard.GetKey
+	call VDU.WaitForEmptyQueue
+	
+	ld a,(TIME)
+	ld b,a
+	ld c,'X'
+
+KeyLoop:	
+	push bc
+	
+	ld a,(TIME)
+	sub b
+	and %00010000
+	ld a,127
+	jr z,+
+	ld a,'_'
++:	cp c
+	jr z,NoFlashCursor
+	pop bc
+	ld c,a
+	push bc
+	push af
+	call Video.WaitVBlank
+	pop af
+	call VDU.PutMap
+
+NoFlashCursor:
+	call Keyboard.GetKey
+	
+	pop bc
 	ei
-	jr nz,- ; no key
-	jr c,- ; release
-	jp m,- ; non-printable key
+	jr nz,KeyLoop ; no key
+	jr c,KeyLoop  ; release
+	jp m,KeyLoop  ; non-printable key
+	
+	push af
+	ld a,' '
+	call VDU.PutMap
+	ei
+	
+	pop af
 	pop bc
 	pop de
 	pop hl
@@ -116,20 +158,60 @@ OSKEY
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSLINE
+	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
+
+OSLINE.Loop:
 	call OSRDCH
-	jr nz,OSLINE
+	
+	cp '\b'
+	jr z,OSLINE.Backspace
+	cp 127
+	jr z,OSLINE.Backspace
+
+	ld e,a
+	
+	ld a,c
+	or a
+	jr nz,OSLINE.EnoughSpace
+	
+	; We're out of space... but there's always space for \r, so check
+	ld a,e
+	cp '\r'
+	jr nz,OSLINE.Loop
+
+OSLINE.EnoughSpace:	
+	ld a,e
 	ld (hl),a
 	inc hl
+	
+	inc b
+	dec c
+	
 	push af
 	call OSWRCH
 	pop af
 	cp '\r'
-	jr nz,OSLINE
+	jr nz,OSLINE.Loop
+	
 	ld a,'\n'
 	call OSWRCH
 	xor a
 	ret
+
+OSLINE.Backspace:
+	ld a,b
+	or a
+	jr z,OSLINE.Loop
 	
+	dec b
+	inc c
+	
+	dec hl
+	ld (hl),'\r'
+	
+	call VDU.CursorLeft
+	
+	jr OSLINE.Loop
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -496,7 +578,16 @@ OSCLI
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 MODE
-	jp SORRY
+	call Basic.BBCBASIC_EXPRI
+    exx
+	ld a,l
+	
+	; Check the mode number is in range
+	cp VDU.Modes.Count
+	jp nc,Basic.BBCBASIC_XEQ
+	
+	call VDU.SetMode
+	jp Basic.BBCBASIC_XEQ
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -560,7 +651,9 @@ GETCSR
 ;
 ;------------------------------------------------------------------------------- 
 PUTIME
-	jp SORRY
+	ld (TIME+0),hl
+	ld (TIME+2),de
+	ret
 
 
 ;------------------------------------------------------------------------------- 
@@ -581,7 +674,9 @@ PUTIME
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 GETIME
-	jp SORRY
+	ld hl,(TIME+0)
+	ld de,(TIME+2)
+	ret
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
