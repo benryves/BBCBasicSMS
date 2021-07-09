@@ -26,32 +26,8 @@ Interrupt:
 
 FrameInterrupt:
 	
-	ld a,(VDU.QueueSize)
-	or a
-	jr z,VDUQueueEmpty
-
-	push bc
-	push de
-	push hl
-	
-	call Video.DisplayOff
-	
--:	call VDU.Dequeue
-	call VDU.PutChar
-	
-	ld a,(VDU.QueueSize)
-	or a
-	jr nz,-
-	
-	call Video.DisplayOn
-	
-	in a,($BF)
-	
-	pop hl
-	pop de
-	pop bc
-
-VDUQueueEmpty:
+	; Flush the video queue
+	call Video.FlushQueue
 
 	; Handle the 100Hz TIME counter
 	
@@ -124,9 +100,9 @@ PutHexNybble:
 	cp 10
 	jr c,+
 	add a,'A'-10
-	jp VDU.Enqueue
+	jp VDU.PutChar
 +:	add a,'0'
-	jp VDU.Enqueue
+	jp VDU.PutChar
 
 PutHexByte:
 	push af

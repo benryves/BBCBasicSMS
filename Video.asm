@@ -8,6 +8,8 @@ Control = $BF
 .var ubyte[11] Registers
 
 Reset: ; Preload the VDP registers with sensible data.
+	di
+	
 	ld hl,ResetData 
 	
 	ld b,0
@@ -19,6 +21,8 @@ Reset: ; Preload the VDP registers with sensible data.
 	inc b
 	dec c
 	jr nz,-
+	
+	call ClearQueue
 	
 	jp ClearAll
 
@@ -141,5 +145,139 @@ DisableFrameInterrupts:
 	ld a,%11011111
 	ld b,$01
 	jr DisableRegisterBits
+
+; Data queue system
+QueueCapacity = 24
+
+.var ubyte[QueueCapacity * 3] Queue
+.var ubyte QueueSize
+.var uword QueueRead
+.var ubyte QueueReadToEnd
+.var uword QueueWrite
+.var ubyte QueueWriteToEnd
+
+ClearQueue:
+	xor a
+	ld (QueueSize),a
+	
+	ld hl,Queue
+	ld (QueueRead),hl
+	ld (QueueWrite),hl
+	
+	ld a,QueueCapacity
+	ld (QueueReadToEnd),a
+	ld (QueueWriteToEnd),a
+	ret
+
+; In: DE = address, A = value
+Enqueue:
+	push af
+-:	ld a,(QueueSize)
+	cp QueueCapacity
+	jr nz,+
+	ei
+	halt
+	jr -
++:	di
+	inc a
+	ld (QueueSize),a
+	pop af
+	push hl
+	
+	ld hl,(QueueWrite)
+	ld (hl),e
+	inc hl
+	ld (hl),d
+	inc hl
+	ld (hl),a
+	inc hl
+	
+	ld a,(QueueWriteToEnd)
+	dec a
+	jr nz,+
+	ld hl,Queue
+	ld a,QueueCapacity
++:	ld (QueueWrite),hl
+	ld (QueueWriteToEnd),a
+	
+	pop hl
+	ei
+	ret
+
+Dequeue:
+	ld a,(QueueSize)
+	or a
+	jr nz,+
+	dec a
+	ret
++:
+	di
+	dec a
+	ld (QueueSize),a
+	
+	push hl
+	ld hl,(QueueRead)
+	
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld a,(hl)
+	inc hl
+	
+	push af
+	
+	ld a,(QueueReadToEnd)
+	dec a
+	jr nz,+
+	ld hl,Queue
+	ld a,QueueCapacity
++:	ld (QueueRead),hl
+	ld (QueueReadtoEnd),a
+	
+	pop af
+	pop hl
+	
+	cp a
+	ret
+
+WaitForEmptyQueue:
+	ld a,(QueueSize)
+	or a
+	ret z
+	ei
+	halt
+	jr WaitForEmptyQueue
+
+FlushQueue:
+	ld a,(Video.QueueSize)
+	or a
+	ret z
+
+	push bc
+	push de
+	push hl
+	
+-:	call Video.Dequeue
+	
+	push af
+	
+	ld a,e
+	out (Video.Control),a
+	
+	ld a,d
+	out (Video.Control),a
+	
+	pop af
+	out (Video.Data),a
+	
+	ld a,(Video.QueueSize)
+	or a
+	jr nz,-
+
++:	pop hl
+	pop de
+	pop bc
+	ret
 
 .endmodule

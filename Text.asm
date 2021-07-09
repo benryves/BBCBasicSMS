@@ -80,12 +80,12 @@ PutMap:
 	ld e,a
 	ld d,0
 	add hl,de
-	ld de,NameTable
+	ld de,NameTable | $4000
 	add hl,de
-	call Video.GotoHL
+	ex de,hl
 	pop af
 	add a,FontCharOffset
-	out (Video.Data),a
+	call Video.Enqueue
 	pop bc
 	pop de
 	pop hl

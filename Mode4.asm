@@ -70,6 +70,7 @@ PutMap:
 	push de
 	push bc
 	push af
+
 	ld a,(CurRow)
 	ld l,a
 	ld h,0
@@ -81,17 +82,24 @@ PutMap:
 	
 	ld a,(CurCol)
 	add a,a
+	
 	ld e,a
 	ld d,0
 	add hl,de
-	ld de,$3800
+	
+	ld de,$3800|$4000
 	add hl,de
-	call Video.GotoHL
+	ex de,hl
+	
 	pop af
 	add a,FontCharOffset
-	out (Video.Data),a
+	
+	call Video.Enqueue
+	
 	xor a
-	out (Video.Data),a
+	inc de
+	call Video.Enqueue
+	
 	pop bc
 	pop de
 	pop hl

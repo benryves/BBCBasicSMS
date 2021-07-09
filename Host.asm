@@ -64,7 +64,7 @@ OSRDCH
 	push hl
 	push de
 	push bc
-	call VDU.WaitForEmptyQueue
+	;call VDU.WaitForEmptyQueue
 	
 	ld a,(TIME)
 	ld b,a
@@ -228,7 +228,7 @@ OSLINE.Backspace:
 ;------------------------------------------------------------------------------- 
 OSWRCH
 	push af
-	call VDU.Enqueue
+	call VDU.PutChar
 	pop af
 	ret
 

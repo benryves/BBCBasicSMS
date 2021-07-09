@@ -27,13 +27,10 @@ SetMode:
 	
 	; Mode-specific initialisation.
 	call SetModeInitialize
-
-	; Get the VDU queue ready
-	call VDU.ClearQueue
 	
 	; Move to the top-left of the screen.
 	call HomeUp
-
+	
 	; Screen on, enable frame interrupts.
 	call Video.DisplayOn
 	call Video.EnableFrameInterrupts
@@ -47,102 +44,6 @@ SetModeInitialize:
 	dec a
 	jp z,Modes.Mode4.Initialise
 	ret
-
-QueueCapacity = 32
-
-.var ubyte[QueueCapacity] Queue
-.var ubyte QueueSize
-.var uword QueueRead
-.var ubyte QueueReadToEnd
-.var uword QueueWrite
-.var ubyte QueueWriteToEnd
-
-ClearQueue:
-	xor a
-	ld (QueueSize),a
-	
-	ld hl,Queue
-	ld (QueueRead),hl
-	ld (QueueWrite),hl
-	
-	ld a,QueueCapacity
-	ld (QueueReadToEnd),a
-	ld (QueueWriteToEnd),a
-	ret
-
-Enqueue:
-	push af
--:	ld a,(QueueSize)
-	cp QueueCapacity
-	jr nz,+
-	ei
-	halt
-	jr -
-+:	di
-	inc a
-	ld (QueueSize),a
-	pop af
-	push hl
-	
-	ld hl,(QueueWrite)
-	ld (hl),a
-	inc hl
-	
-	ld a,(QueueWriteToEnd)
-	dec a
-	jr nz,+
-	ld hl,Queue
-	ld a,QueueCapacity
-+:	ld (QueueWrite),hl
-	ld (QueueWriteToEnd),a
-	
-	pop hl
-	ei
-	ret
-	
-	
-Dequeue:
-	ld a,(QueueSize)
-	or a
-	jr nz,+
-	dec a
-	ret
-+:
-	di
-	
-	dec a
-	ld (QueueSize),a
-	
-	push hl
-	ld hl,(QueueRead)
-	ld a,(hl)
-	
-	inc hl
-	
-	push af
-	
-	ld a,(QueueReadToEnd)
-	dec a
-	jr nz,+
-	ld hl,Queue
-	ld a,QueueCapacity
-+:	ld (QueueRead),hl
-	ld (QueueReadtoEnd),a
-	
-	pop af
-	
-	pop hl
-	
-	cp a
-	ret
-
-WaitForEmptyQueue:
-	ld a,(QueueSize)
-	or a
-	ret z
-	ei
-	halt
-	jr WaitForEmptyQueue
 
 FontTileIndex = 0
 FontCharOffset = FontTileIndex-' '
