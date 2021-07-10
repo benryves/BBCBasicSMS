@@ -1,19 +1,36 @@
 .module VDU
 
+; Mode files
 .module Modes
 
 .include "Text.asm"
+.include "GraphicsII.asm"
 .include "Mode4.asm"
 
-Count = 2
+Count = 3
+
+.endmodule
+
+; Font data
+.module Fonts
+
+Font8x8:
+.include "bbc"
+
+Font6x8:
+.incbin "Font6x8.bin"
 
 .endmodule
 
 .var ubyte[3] PutMap
 .var ubyte[3] Scroll
+.var ubyte[3] SetTextColour
+
+.var ubyte TextColour
 
 Reset:
 	xor a
+	inc a
 SetMode:
 	di
 	push af
@@ -21,6 +38,18 @@ SetMode:
 	ld a,$C3 ; JP
 	ld (PutMap),a
 	ld (Scroll),a
+	ld (SetTextColour),a
+	
+	ld hl,Stub
+	ld (PutMap+1),hl
+	ld (Scroll+1),hl
+	
+	ld hl,SetTextColourDefault
+	ld (SetTextColour+1),hl
+	
+	; Sensible text colour
+	ld a,%11110100
+	ld (TextColour),a
 	
 	; Reset all video settings to their defaults.
 	call Video.Reset
@@ -37,14 +66,14 @@ SetMode:
 	call Video.DisplayOn
 	call Video.EnableFrameInterrupt
 	ei
-	
+
+Stub:
 	ret
 
 SetModeInitialize:
-	or a
-	jp z,Modes.Text.Initialise
-	dec a
-	jp z,Modes.Mode4.Initialise
+	or a  \ jp z,Modes.Text.Initialise
+	dec a \ jp z,Modes.GraphicsII.Initialise
+	dec a \ jp z,Modes.Mode4.Initialise
 	ret
 
 FontTileIndex = 0
@@ -143,5 +172,32 @@ PutString:
 	jr PutString
 
 	
+SetTextColourDefault:
+	push bc
+	push af
+	call Video.WaitForEmptyQueue
+	pop af
+	bit 7,a
+	jr nz,SetTextBackgroundColour
+SetTextForegroundColour:
+	ld b,4
+-:	add a,a
+	djnz -
+	ld b,a
+	ld a,(VDU.TextColour)
+	and $0F
+	or b
+	ld (VDU.TextColour),a
+	jr DoneSetTextColour
+SetTextBackgroundColour:
+	and $0F
+	ld b,a
+	ld a,(VDU.TextColour)
+	and $F0
+	or b
+	ld (VDU.TextColour),a
+DoneSetTextColour:
+	pop bc
+	ret
 
 .endmodule

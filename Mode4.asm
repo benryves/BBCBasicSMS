@@ -14,8 +14,8 @@ Initialise:
 	ld hl,0
 	call Video.SetWriteAddress
 	
-	ld hl,Font
-	ld d,(Font.End-Font)/8
+	ld hl,VDU.Fonts.Font8x8
+	ld d,128
 LoadChar:
 	ld c,8
 LoadCharRow:
@@ -57,11 +57,6 @@ LoadCharRow:
 	ld (MaxCol),a
 
 	ret
-
-Font:
-.include "bbc"
-Font.End:
-
 
 Palette:
 .db %010000, %000000, %000000, %000000, %000000, %000000, %000000, %000000 ; Tiles   0..7

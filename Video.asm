@@ -4,6 +4,8 @@
 Data = $BE
 Control = $BF
 
+Video.OutData = $08
+
 ; Local copy of registers
 .var ubyte[11] Registers
 
@@ -139,12 +141,6 @@ ClearAll:
 -:	out (Data),a
 	djnz -
 	ret
-
-WaitVBlank:
-	in a,(Control)
-	bit 7,a
-	ret nz
-	jr WaitVBlank
 
 DisplayOn:
 	ld a,%01000000

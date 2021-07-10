@@ -44,7 +44,7 @@ Initialise:
 	ld hl,0
 	call Video.SetWriteAddress
 	
-	ld hl,Font
+	ld hl,VDU.Fonts.Font6x8
 	ld bc,Video.Data ; B = 0, C = Video.Data
 	
 	otir
@@ -150,8 +150,5 @@ Scroll:
 	pop de
 	pop bc
 	ret
-
-Font:
-	.incbin "Font6x8.bin"
 
 .endmodule

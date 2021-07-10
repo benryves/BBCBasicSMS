@@ -91,7 +91,10 @@ KeyLoop:
 	ld c,a
 	push bc
 	push af
-	call Video.WaitVBlank
+	
+	ei
+	halt
+	
 	call TrapConsoleButtons
 	pop af
 	call VDU.PutMap
@@ -835,7 +838,12 @@ POINT
 ;
 ;------------------------------------------------------------------------------- 
 COLOUR
-	jp SORRY
+	call Basic.BBCBASIC_EXPRI
+	exx
+	ld a,l
+	
+	call VDU.SetTextColour
+	jp Basic.BBCBASIC_XEQ
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
