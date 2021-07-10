@@ -107,7 +107,17 @@ PutMap:
 	push af
 
 	; Row *32, *8 = * 256
-	ld hl,(CurRow-1)
+	ld a,(CurRow)
+	ld l,a	
+	and %11111000
+	ld h,a
+	
+	ld a,(ScrollValue)
+	add a,l
+	and %00000111
+	or h
+	ld h,a
+	
 	ld l,0
 
 	; Column *8
@@ -120,12 +130,18 @@ PutMap:
 	ld d,0
 	add hl,de
 	
+	; Scroll offset
+	ld de,(ScrollValue-1)
+	ld e,0
+	ld de,0
+	add hl,de
+	
 	pop af  ; Get the character number again
 	push hl ; We'll need the address offset for the colour too
 	
-	ld de,PatternGenerator | $4000 ; Write
+	ld de,PatternGenerator
 	add hl,de
-	ex de,hl
+	call Video.SetWriteAddress
 	
 	; Get the address of the data in the font.
 	add a,FontCharOffset
@@ -139,24 +155,24 @@ PutMap:
 
 	; Write the font data
 	ld b,8	
--:	ld a,(hl)
-	call Video.Enqueue
-	inc hl
-	inc de
-	djnz -
+-:	ld a,(hl)           ; 7
+	out (Video.Data),a  ; 11
+	inc hl              ; 6
+	djnz -              ; 13 = 37 clocks
 	
 	; Write the colour data
 	pop hl
 	
-	ld de,ColourTable | $4000
+	ld de,ColourTable
 	add hl,de
-	ex de,hl
+	call Video.SetWriteAddress
 	
 	ld a,(VDU.TextColour)
 	ld b,8	
--:	call Video.Enqueue
-	inc de
-	djnz -
+-:	out (Video.Data),a  ; 11
+	nop                 ; 4
+	nop                 ; 4
+	djnz -              ; 13 = 32 clocks
 	
 	pop bc
 	pop de
@@ -168,27 +184,125 @@ Scroll:
 	push de
 	push hl
 	
-	call Video.WaitForEmptyQueue
-	
 	; Fill name table with sensible data
 	ld hl,NameTable
 	call Video.SetWriteAddress
 	
 	; 768 bytes (3*256) that just count up from 0..255 and loop.
 	ld a,(ScrollValue)
-	add a,32
-	ld (ScrollValue),a
 	
-	ld bc,3
--:	out (Video.Data),a
+	ld d,a ; for later...
+	ld e,0
+	
 	inc a
-	djnz -
-	dec c
-	jr nz,-
+	and 7
+	ld (ScrollValue),a	
+	
+	; Top window
+	
+	ld hl,NameTable + 0 * 32
+	call RotateWindow
+	
+	ld hl,PatternGenerator + 8 * 256
+	call CopyToWindowAbove
+	
+	ld hl,ColourTable + 8 * 256
+	call CopyToWindowAbove
+	
+	; Middle window
+	
+	ld hl,NameTable + 8 * 32
+	call RotateWindow
+	
+	ld hl,PatternGenerator + 16 * 256
+	call CopyToWindowAbove
 
+	ld hl,ColourTable + 16 * 256
+	call CopyToWindowAbove
+
+	; Bottom window
+	
+	ld hl,NameTable + 16 * 32
+	call RotateWindow
+	
+	; Clear bottom row
+	
+	ld hl,PatternGenerator + 16 * 256
+	add hl,de
+	call Video.SetWriteAddress
+	ei
+
+	ld b,0
+	xor a
+-:	out (Video.Data),a ; 11
+	nop                ; 4
+	nop                ; 4
+	djnz -             ; 13 = 32
+	
+	ld hl,ColourTable + 16 * 256
+	add hl,de
+	call Video.SetWriteAddress
+	ei
+	
+	ld b,0
+	ld a,(VDU.TextColour)
+-:	out (Video.Data),a ; 11
+	nop                ; 4
+	nop                ; 4
+	djnz -             ; 13 = 32
 	
 	pop hl
 	pop de
 	pop bc
 	ret
+
+; HL = address of nametable window to rotate
+RotateWindow:
+	; Multiply by 32.
+	ld a,(ScrollValue)
+	ld b,5
+-:	add a,a
+	djnz -
+	
+	call Video.SetWriteAddress
+	ei
+
+-:	out (Video.Data),a ; 11
+	inc a              ; 4
+	djnz -             ; 13 = 28
+	
+	ret
+
+; HL = address of where to copy data from
+; DE = offset into scrolled area (previous scroll value * 256)
+CopyToWindowAbove:
+	push hl
+	add hl,de
+	call Video.SetReadAddress
+	ei
+	
+	ld hl,(Basic.BBCBASIC_FREE)
+	ld b,0
+-:	in a,(Video.Data) ; 11
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 13 = 37
+	
+	pop hl
+	ld bc,-8*256
+	add hl,bc
+	
+	add hl,de
+	call Video.SetWriteAddress
+	ei
+	
+	ld hl,(Basic.BBCBASIC_FREE)
+	ld b,0
+-:	ld a,(hl)          ; 7
+	out (Video.Data),a ; 11
+	inc hl             ; 6
+	djnz -             ; 13 = 37
+	
+	ret
+
 .endmodule

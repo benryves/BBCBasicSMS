@@ -9,16 +9,6 @@
 	im 1
 	jp Boot
 
-.org $08
-	; Worst-case scenario is an 8uS wait between accesses.
-	; Worst-case clock speed is 3579540Hz
-	; That's 3579540 * 8e-6 = 28.64 clocks
-	; RST = 11 clock cycles
-	; RET = 10 clock cycles
-	; OUT (PORT), VALUE = 11 clock cycles = 32 clocks.
-	out (Video.Data),a
-	ret
-
 .org $38
 	jp Interrupt
 
@@ -40,9 +30,6 @@ Interrupt:
 	jr z,NotFrameInterrupt
 
 FrameInterrupt:
-	
-	; Flush the video queue
-	call Video.FlushQueue
 
 	; Handle the 100Hz TIME counter
 	

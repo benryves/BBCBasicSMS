@@ -84,10 +84,10 @@ PutMap:
 	add hl,de
 	ld de,NameTable | $4000
 	add hl,de
-	ex de,hl
+	call Video.SetWriteAddress
 	pop af
 	add a,FontCharOffset
-	call Video.Enqueue
+	out (Video.Data),a
 	pop bc
 	pop de
 	pop hl
@@ -97,8 +97,6 @@ Scroll:
 	push bc
 	push de
 	push hl
-	
-	call Video.WaitForEmptyQueue
 	
 	ld de,0
 	ld b,23
@@ -149,6 +147,7 @@ Scroll:
 	pop hl
 	pop de
 	pop bc
+	ei
 	ret
 
 .endmodule

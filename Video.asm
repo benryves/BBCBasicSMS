@@ -4,8 +4,6 @@
 Data = $BE
 Control = $BF
 
-Video.OutData = $08
-
 ; Local copy of registers
 .var ubyte[11] Registers
 
@@ -24,8 +22,6 @@ Reset: ; Preload the VDP registers with sensible data.
 	dec c
 	jr nz,-
 	
-	call ClearQueue
-	
 	jp ClearAll
 
 ResetData:
@@ -43,21 +39,23 @@ ResetData:
 		
 SetWriteAddress: ; Set the VRAM pointer to the address in HL.
 	di
-	in a,(Control)
+	push af
 	ld a,l
 	out (Control),a
 	ld a,h
 	or %01000000
 	out (Control),a
+	pop af
 	ret
 
 SetReadAddress: ; Set the VRAM pointer to a read address.
 	di
-	in a,(Control)
+	push af
 	ld a,l
 	out (Control),a
 	ld a,h
 	out (Control),a
+	pop af
 	ret
 
 SetRegister: ; Set register B to value A.
@@ -161,92 +159,5 @@ DisableFrameInterrupt:
 	ld a,%11011111
 	ld b,$01
 	jr DisableRegisterBits
-
-; Data queue system
-QueueCapacity = 24
-
-.var ubyte[QueueCapacity * 3] Queue
-.var ubyte QueueSize
-.var uword QueuePointer
-
-ClearQueue:
-	di
-	ld hl,Queue
-	ld (QueuePointer),hl
-	xor a
-	ld (QueueSize),a
-	ret
-
-; In: DE = address, A = value
-Enqueue:
-	push af
--:	ld a,(QueueSize)
-	cp QueueCapacity
-	jr nz,+
-	ei
-	halt
-	jr -
-+:	di
-	inc a
-	ld (QueueSize),a
-	pop af
-	push hl
-	
-	ld hl,(QueuePointer)
-	ld (hl),e
-	inc hl
-	ld (hl),d
-	inc hl
-	ld (hl),a
-	inc hl
-	
-	ld (QueuePointer),hl
-	
-	pop hl
-	ei
-	ret
-
-WaitForEmptyQueue:
-	ld a,(QueueSize)
-	or a
-	ret z
-	ei
-	halt
-	jr WaitForEmptyQueue
-
-FlushQueue:
-	ld a,(Video.QueueSize)
-	or a
-	ret z
-
-	push bc
-	push de
-	push hl
-	
-	ld b,a
-	ld hl,Queue
-	ld (QueuePointer),hl
-	
--:	ld a,(hl)
-	inc hl
-	out (Control),a
-	
-	ld a,(hl)
-	inc hl
-	out (Control),a
-	
-	ld a,(hl)
-	inc hl
-	out (Data),a
-	
-	djnz -
-	
-	xor a
-	ld (QueueSize),a
-
-+:	pop hl
-	pop de
-	pop bc
-	ret
 
 .endmodule

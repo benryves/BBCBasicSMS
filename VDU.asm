@@ -30,7 +30,6 @@ Font6x8:
 
 Reset:
 	xor a
-	inc a
 SetMode:
 	di
 	push af
@@ -89,7 +88,6 @@ HomeUp:
 	ld (CurRow),a
 	ret
 	
-
 PutChar:
 	cp '\r'
 	jr nz,+
@@ -175,7 +173,6 @@ PutString:
 SetTextColourDefault:
 	push bc
 	push af
-	call Video.WaitForEmptyQueue
 	pop af
 	bit 7,a
 	jr nz,SetTextBackgroundColour
