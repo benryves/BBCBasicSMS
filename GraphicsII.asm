@@ -85,6 +85,8 @@ Initialise:
 	ld (Parent.PutMap+1),hl
 	ld hl,Scroll
 	ld (Parent.Scroll+1),hl
+	ld hl,SetPixel
+	ld (Parent.SetPixel+1),hl
 	
 	; Screen bounds
 	ld a,0
@@ -130,17 +132,13 @@ PutMap:
 	ld d,0
 	add hl,de
 	
-	; Scroll offset
-	ld de,(ScrollValue-1)
-	ld e,0
-	ld de,0
-	add hl,de
-	
 	pop af  ; Get the character number again
 	push hl ; We'll need the address offset for the colour too
 	
+.if PatternGenerator != 0
 	ld de,PatternGenerator
 	add hl,de
+.endif
 	call Video.SetWriteAddress
 	
 	; Get the address of the data in the font.
@@ -302,6 +300,97 @@ CopyToWindowAbove:
 	out (Video.Data),a ; 11
 	inc hl             ; 6
 	djnz -             ; 13 = 37
+	
+	ret
+
+SetPixel:
+
+	; IN (D,E) = (X,Y)
+
+	; Character row = Y / 8
+	
+	; Row *32, *8 = * 256
+	ld a,e
+	srl a
+	srl a
+	srl a
+	ld l,a	
+	and %11111000
+	ld h,a
+	
+	ld a,(ScrollValue)
+	add a,l
+	and %00000111
+	or h
+	ld h,a
+	
+	; Offset by row value
+	ld a,e
+	and %00000111
+	ld l,a
+
+	; Character column = X / 8
+
+	; Column / 8, * 8 = truncate
+	ld a,d
+	and %11111000
+	
+	ld c,a
+	ld b,0
+	add hl,bc
+	
+	; HL -> offset into VRAM to set pixel
+
+	push hl ; Store offset
+
+.if PatternGenerator != 0
+	ld de,PatternGenerator
+	add hl,bc
+.endif
+
+	
+	; Bitmask
+	ld c,%10000000
+	
+	ld a,d
+	and %00000111
+	jr z,+
+	ld b,a
+-:	srl c
+	djnz -
++:
+
+	call Video.SetReadAddress
+	in a,(Video.Data)
+
+	or c
+	
+	call Video.SetWriteAddress
+	out (Video.Data),a
+	
+	ei
+	
+	pop hl ; Restore offset into VRAM
+
+.if ColourTable != 0
+	ld bc,ColourTable
+	add hl,bc
+.endif
+
+	call Video.SetReadAddress
+	in a,(Video.Data)
+	
+	and %00001111
+	ld c,a
+	
+	ld a,(VDU.GraphicsColour)
+	and %11110000
+	or c
+	
+	call Video.SetWriteAddress
+	out (Video.Data),a
+	
+	ei
 	
 	ret
 

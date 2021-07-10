@@ -863,7 +863,31 @@ CLG
 ;
 ;------------------------------------------------------------------------------- 
 DRAW
-	jp SORRY
+	call Basic.BBCBASIC_EXPRI
+	exx
+	push hl
+	
+	call Basic.BBCBASIC_COMMA
+	call Basic.BBCBASIC_EXPRI
+	exx
+	
+	pop de
+	ex de,hl
+	call VDU.EnqueueGraphicsCursor
+	
+	ld a,(VDU.GraphicsCursorQueue + 0)
+	ld h,a
+	ld a,(VDU.GraphicsCursorQueue + 2)
+	ld l,a
+	
+	ld a,(VDU.GraphicsCursorQueue + 4)
+	ld d,a
+	ld a,(VDU.GraphicsCursorQueue + 6)
+	ld e,a
+
+	call VDU.DrawLine
+	
+	jp Basic.BBCBASIC_XEQ
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -875,7 +899,12 @@ DRAW
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 GCOL
-	jp SORRY
+	call Basic.BBCBASIC_EXPRI
+	exx
+	ld a,l
+	
+	call VDU.SetGraphicsColour
+	jp Basic.BBCBASIC_XEQ
 
 
 ;------------------------------------------------------------------------------- 
@@ -931,7 +960,20 @@ GETIMS
 ;
 ;------------------------------------------------------------------------------- 
 MOVE
-	jp SORRY
+	call Basic.BBCBASIC_EXPRI
+	exx
+	push hl
+	
+	call Basic.BBCBASIC_COMMA
+	call Basic.BBCBASIC_EXPRI
+	exx
+	
+	pop de
+	ex de,hl
+	
+	call VDU.EnqueueGraphicsCursor
+	
+	jp Basic.BBCBASIC_XEQ
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

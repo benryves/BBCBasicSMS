@@ -82,8 +82,10 @@ PutMap:
 	ld e,a
 	ld d,0
 	add hl,de
-	ld de,NameTable | $4000
+.if NameTable != 0
+	ld de,NameTable
 	add hl,de
+.endif
 	call Video.SetWriteAddress
 	pop af
 	add a,FontCharOffset

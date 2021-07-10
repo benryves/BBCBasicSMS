@@ -138,6 +138,8 @@ PutHexWord:
 
 .if $>$4000
 .echoln "Too much code :("
+.else
+.echoln $4000-$
 .endif
 
 .org $4000

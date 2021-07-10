@@ -96,8 +96,10 @@ PutMap:
 	ld d,0
 	add hl,de
 	
+.if NameTable != 0
 	ld de,NameTable
 	add hl,de
+.endif
 	
 	call Video.SetWriteAddress
 	ei
@@ -147,8 +149,10 @@ Scroll:
 -	add hl,hl
 	djnz -
 	
+.if NameTable != 0
 	ld bc,NameTable
 	add hl,bc
+.endif
 	
 	call Video.SetWriteAddress
 	ei
