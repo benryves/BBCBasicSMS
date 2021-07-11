@@ -31,12 +31,26 @@ Font6x8:
 GraphicsCursorQueueLength = 2
 .var uword[GraphicsCursorQueueLength * 2] GraphicsCursorQueue
 
+.struct BoundingBox
+	ubyte MinX,
+	ubyte MaxX,
+	ubyte MinY,
+	ubyte MaxY
+
+.var BoundingBox GraphicsBounds
+
+.define g_wndXMin GraphicsBounds.MinX ; The g_wnd* variables must appear
+.define g_wndXMax GraphicsBounds.MaxX ; in this order.
+.define g_wndYMin GraphicsBounds.MinY
+.define g_wndYMax GraphicsBounds.MaxY
+
 .var ubyte TextColour
 .var ubyte GraphicsColour
 
+.include "Clip.asm"
+
 Reset:
 	xor a
-	inc a ; <- DEFAULT MODE
 SetMode:
 	di
 	push af
@@ -85,6 +99,15 @@ SetMode:
 	ld de,GraphicsCursorQueue+1
 	ld bc,GraphicsCursorQueueLength*4-1
 	ldir
+	
+	; Set default graphics bounds
+	xor a
+	ld (GraphicsBounds.MinX),a
+	ld (GraphicsBounds.MinY),a
+	dec a
+	ld (GraphicsBounds.MaxX),a
+	ld a,191
+	ld (GraphicsBounds.MaxY),a
 	
 	; Screen on, enable frame interrupts.
 	call Video.DisplayOn
@@ -265,7 +288,16 @@ EnqueueGraphicsCursor:
 	ld (GraphicsCursorQueue+0),hl
 	ld (GraphicsCursorQueue+2),de
 	ret
+
+
+PlotLine:
+	ld hl,GraphicsCursorQueue + 0
+	ld de,GraphicsCursorQueue + 4
+	call Clip.Clip2DLine16
+	ret c
 	
+	ld h,b
+	ld l,c
 
 ; Draw a line from (D,E) to (H,L)
 DrawLine:

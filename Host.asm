@@ -875,17 +875,7 @@ DRAW
 	ex de,hl
 	call VDU.EnqueueGraphicsCursor
 	
-	ld a,(VDU.GraphicsCursorQueue + 0)
-	ld h,a
-	ld a,(VDU.GraphicsCursorQueue + 2)
-	ld l,a
-	
-	ld a,(VDU.GraphicsCursorQueue + 4)
-	ld d,a
-	ld a,(VDU.GraphicsCursorQueue + 6)
-	ld e,a
-
-	call VDU.DrawLine
+	call VDU.PlotLine
 	
 	jp Basic.BBCBASIC_XEQ
 
