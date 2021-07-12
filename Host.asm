@@ -718,6 +718,22 @@ OSSHUT
 OSCLI
 	ld hl,SerialTerminal
 	call VDU.PutString
+	
+	ld bc,5*256+5
+-:	push bc
+	ld a,b
+	call Serial.SendByte
+	pop bc
+	djnz -
+	
+	ld a,6
+	call Serial.SendByte
+	
+-:	call Serial.GetByte
+	jr nz,-
+	call PutHexByte
+	jr -
+	
 -:	call Serial.GetByte
 	jr z,+
 	

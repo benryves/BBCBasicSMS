@@ -20,6 +20,12 @@
 .var ubyte[3] HalfDelay
 .var ubyte[3] BitDelay
 
+SerialReadBuffer.Capacity = 255
+
+.define SerialReadBuffer Basic.BBCBASIC_BUFFER ; or ACC$ ?
+.var ubyte SerialReadBuffer.Count
+.var uword SerialReadBuffer.Pointer
+
 Reset:
 	
 	; Set TxD as an output
@@ -29,10 +35,12 @@ Reset:
 	or  %10000000 ; TH (TxD) = high,   TR (RTS) = high
 	ld (IOControl),a
 	out ($3F),a
-
-	; Reset to 4800 baud
 	
-	ld hl,4800
+	xor a
+	ld (SerialReadBuffer.Count),a
+
+	; Reset to 9600 baud
+	ld hl,9600
 	; Fall-through to SetRate
 
 SetRate:
@@ -108,8 +116,6 @@ SendByteRaw:
 	
 	ld d,a
 	
-	in a,(
-	
 	; Include the stop bit from the previously-sent byte.
 	; This is because sometimes we need to start receiving a byte as soon as we've sent one.
 	; (e.g. after XON) so can't afford to wait a while bit time after sending the byte.
@@ -153,8 +159,6 @@ GetByte:
 	;call SendByte
 	;ret nz
 	
-
-	
 	call GetByteRaw
 	
 	push af
@@ -167,6 +171,33 @@ GetByte:
 	ret
 
 GetByteRaw:
+
+	; Is there a buffered value?
+	; If so, return that and shift the buffer.
+	ld a,(SerialReadBuffer.Count)
+	or a
+	jr z,SerialReadBufferEmpty
+	dec a
+	ld (SerialReadBuffer.Count),a
+	
+	
+	; Load the value from the buffer
+	push hl
+	ld hl,(SerialReadBuffer.Pointer)
+	ld a,(hl)
+	
+	jr nz,+
+	
+	pop hl
+	ret
+	
++:	inc hl
+	ld (SerialReadBuffer.Pointer),hl
+	pop hl
+	cp a
+	ret
+	
+SerialReadBufferEmpty:
 
 	di
 
@@ -188,10 +219,45 @@ GetByteRaw:
 	and %10111011     ; TR = output, low
 	out ($3F),a
 
-	; Wait for RxD to go low (start bit)
-	
+	; Get a byte with a long timeout.
 	ld bc,0       ; 10
+
+	; Try to get the byte
+	call GetByteBuffered
+	ret nz
 	
+	; Even though we've de-asserted RTS, some devices still continue to send data.
+	; Double check with a short timeout.
+	
+	push af ; Store the first value.
+	push hl
+	
+	ld b,SerialReadBuffer.Capacity
+	ld hl,SerialReadBuffer
+	ld (SerialReadBuffer.Pointer),hl
+	
+-:	push bc
+	ld bc,1
+	call GetByteBuffered
+	pop bc
+	
+	jr nz,+ ; No, false alarm!
+	
+	; Store the byte in the read buffer
+	ld (hl),a
+	inc hl
+	ld a,(SerialReadBuffer.Count)
+	inc a
+	ld (SerialReadBuffer.Count),a
+	djnz -
+
++:	
+	pop hl
+	pop af ; Return the original value.
+	ret
+
+GetByteBuffered:
+
 -:	in a,($DC)    ; 11
 	add a,a       ; 4
 	jr nc,+       ; 12/7
@@ -204,20 +270,19 @@ GetByteRaw:
 	
 	; De-assert RTS by restoring original state of IO control.
 	ld a,(IOControl)
-	out ($3F),a
 	or %01000000 ; TR = high
 	out ($3F),a
 	ld (IOControl),a
 	
 	xor a
 	inc a
+	ld a,$FE
 	ret
 
 +:
 	
 	; De-assert RTS
 	ld (IOControl),a ; 13
-	out ($3F),a      ; 11
 	or %01000000     ; 7
 	out ($3F),a      ; 11
 	ld (IOControl),a ; 13
@@ -245,6 +310,20 @@ GetByteRaw:
 	add a,a       ; 4
 	rr c          ; 8
 	djnz -        ; 13
+	
+	; Ensure that we receive a stop bit
+	
+	call BitDelay
+	in a,($DC)
+	add a,a
+	jr c,+
+	
+	; No stop bit: failure!
+	ld a,2
+	cp 0
+	ret
+
++:
 	
 	; We now have the data in C.
 	; Copy to A and set Z flag.
