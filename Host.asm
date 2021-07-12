@@ -716,7 +716,18 @@ OSSHUT
 ;
 ;------------------------------------------------------------------------------- 
 OSCLI
-	jp SORRY
+	ld hl,SerialTerminal
+	call VDU.PutString
+-:	call Serial.GetByte
+	jr nz,-
+	push af
+	call Serial.SendByte
+	pop af
+	call VDU.PutChar
+	jr -
+
+SerialTerminal:
+	.db "Testing serial port...\r\n", 0
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

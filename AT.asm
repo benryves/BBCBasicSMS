@@ -51,6 +51,7 @@ SendByte:
 	ld a,(IOControl)
 	or %00100010 ; A.TH (data) = input high
 	and %11101110 ; A.TR (clock) = output low
+	ld (IOControl),a
 	out ($3F),a
 
 	nop
@@ -58,6 +59,7 @@ SendByte:
 	; Set data low too
 	ld a,(IOControl)
 	and %11001100 ; A.TH (data) and A.TR (clock) = output low
+	ld (IOControl),a
 	out ($3F),a
 	
 	nop
@@ -66,6 +68,7 @@ SendByte:
 	ld a,(IOControl)
 	or %00010001 ; A.TR (clock) = input high
 	and %11011101 ; A.TH (data) = output low
+	ld (IOControl),a
 	out ($3F),a
 
 	ld e,8
@@ -81,7 +84,8 @@ SendLowBit:
 	jr +
 SendHighBit:
 	or %00100010
-+:	out ($3F),a
++:	ld (IOControl),a
+	out ($3F),a
 	call WaitBitHigh
 	
 	dec e
@@ -102,7 +106,8 @@ SendParityEven:
 	jr +
 SendParityOdd:
 	and %11011101
-+:	out ($3F),a
++:	ld (IOControl),a
+	out ($3F),a
 	call WaitBitHigh
 
 	; Send the stop bit
@@ -110,6 +115,7 @@ SendParityOdd:
 	call WaitBitLow
 	ld a,(IOControl)
 	or %00110011 ; A.TH, A.TR = input, high
+	ld (IOControl),a
 	out ($3F),a
 	call WaitBitHigh
 
@@ -119,15 +125,15 @@ SendParityOdd:
 	ld a,(IOControl)
 	or %00010001 ; A.TR (clock) = input high
 	and %11011101 ; A.TH (data) = output low
+	ld (IOControl),a
 	out ($3F),a
 	call WaitBitHigh
 
 	ld a,(IOControl)
 	or %00100010 ; A.TH (data) = input high
 	and %11101110 ; A.TR (clock) = output low
-	out ($3F),a
-	
 	ld (IOControl),a
+	out ($3F),a
 	
 	xor a
 	ret
