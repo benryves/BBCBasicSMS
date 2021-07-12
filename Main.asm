@@ -136,6 +136,8 @@ PutHexWord:
 ; *TIJUMP,MAIN/P:4100,EXEC,EVAL,FPP,RAM/P:C000
 ; *BBCBASIC/N/Y/E
 
+.include "Programs.inc"
+
 .if $>$4000
 .echoln "Too much code :("
 .else
