@@ -48,7 +48,7 @@ SendByte:
 	; Issue RTS:
 
 	; Set clock low
-	in a,($3F)
+	ld a,(IOControl)
 	or %00100010 ; A.TH (data) = input high
 	and %11101110 ; A.TR (clock) = output low
 	out ($3F),a
@@ -56,14 +56,14 @@ SendByte:
 	nop
 
 	; Set data low too
-	in a,($3F)
+	ld a,(IOControl)
 	and %11001100 ; A.TH (data) and A.TR (clock) = output low
 	out ($3F),a
 	
 	nop
 
 	; Release clock again
-	in a,($3F)
+	ld a,(IOControl)
 	or %00010001 ; A.TR (clock) = input high
 	and %11011101 ; A.TH (data) = output low
 	out ($3F),a
@@ -73,7 +73,7 @@ SendByte:
 
 -:	call WaitBitLow
 
-	in a,($3F)
+	ld a,(IOControl)
 	srl c
 	jr c,SendHighBit
 SendLowBit:
@@ -91,7 +91,7 @@ SendHighBit:
 
 	call WaitBitLow
 	
-	in a,($3F)
+	ld a,(IOControl)
 	ld c,a
 	ld a,d
 	or a
@@ -108,7 +108,7 @@ SendParityOdd:
 	; Send the stop bit
 
 	call WaitBitLow
-	in a,($3F)
+	ld a,(IOControl)
 	or %00110011 ; A.TH, A.TR = input, high
 	out ($3F),a
 	call WaitBitHigh
@@ -116,16 +116,18 @@ SendParityOdd:
 	; Send the ACK bit
 
 	call WaitBitLow
-	in a,($3F)
+	ld a,(IOControl)
 	or %00010001 ; A.TR (clock) = input high
 	and %11011101 ; A.TH (data) = output low
 	out ($3F),a
 	call WaitBitHigh
 
-	in a,($3F)
+	ld a,(IOControl)
 	or %00100010 ; A.TH (data) = input high
 	and %11101110 ; A.TR (clock) = output low
 	out ($3F),a
+	
+	ld (IOControl),a
 	
 	xor a
 	ret
@@ -192,7 +194,7 @@ GetByte:
 	di
 	
 	; Clear Link port
-	in a,($3F)
+	ld a,(IOControl)
 	or %00110011 ; A.TH, A.TR = input, high
 	out ($3F),a
 
@@ -233,10 +235,11 @@ GetByte:
 	call WaitBitHigh
 
 	; Clear flags, load code into accumulator and exit
-	in a,($3F)
+	ld a,(IOControl)
 	or %00100010 ; A.TH (data) = input high
 	and %11101110 ; A.TR (clock) = output low
 	out ($3F),a
+	ld (IOControl),a
 	xor a
 	ld a,c
 	ret
@@ -285,10 +288,11 @@ WaitDelay:
 ; Stops device sending data, returns nz (failure).
 Fail:
 	; Set nz to indicate failure, return.
-	in a,($3F)
+	ld a,(IOControl)
 	or %00100010 ; A.TH (data) = input high
 	and %11101110 ; A.TR (clock) = output low
 	out ($3F),a
+	ld (IOControl),a
 	or 1
 	ret
 

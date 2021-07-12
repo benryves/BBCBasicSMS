@@ -72,12 +72,36 @@ OSINIT
 OSRDCH:
 	push bc
 	
+	call InitKeyLoop
+
+-:	call RunKeyLoop
+	jr c,-
+
+	call EndKeyLoop
+	
+	pop bc
+	ei
+	ret
+
+
+InitKeyLoop:
 	ld a,(TIME)
 	ld b,a
 	ld c,'X'
+	ret
 
-KeyLoop:	
+RunKeyLoop:
 	push bc
+	
+	; If C has been modified to 0, it indicates we want to skip the cursor on the initial loop.
+	ld a,c
+	or a
+	jr nz,+
+	pop bc
+	ld c,'X'
+	push bc
+	jr NoFlashCursor
++:
 	
 	ld a,(TIME)
 	sub b
@@ -104,25 +128,35 @@ NoFlashCursor:
 	
 	pop bc
 	ei
-	jr nz,KeyLoop ; no key
-	jr c,KeyLoop  ; release
+	jr nz,NoKey   ; no key at all
+	jr c,NoKey    ; key released
 	jp p,GotKey   ; printable key
 	
 	cp Keyboard.KeyCode.Escape
-	jr nz,KeyLoop
+	jr nz,NoKey
 	
 	ld a,17 ; Escape
 	call Basic.BBCBASIC_EXTERR
 	.db "Escape", 0
 
+NoKey:
+	scf
+	ret
+
 GotKey:
+	or a
+	ret
+
+EndKeyLoop:
 	push af
+	ld a,c
+	or a
+	jr z,+
 	ld a,' '
 	call VDU.PutMap
-	pop af
-	pop bc
-	ei
++:	pop af
 	ret
+
 	
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -147,7 +181,44 @@ GotKey:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSKEY:
-	jp OSKEY
+	push bc
+	push de
+	
+	; Calculate the end time-1 (easier to check for <0 instead of <=0 later)
+	ld de,(TIME)
+	dec de
+	add hl,de
+	
+	call InitKeyLoop
+
+	ld c,0 ; Skip the flashing cursor on the first loop.
+
+-:	call RunKeyLoop
+	jr nc,GotTimedKey ; We have a key!
+	
+	; Has the timer expired?
+	push hl
+	ld de,(TIME)
+	or a
+	sbc hl,de
+	ex de,hl
+	pop hl
+	
+	; Check if timer has gone native.
+	bit 7,d
+	jr nz,KeyTimedOut
+
+KeyTimedOut:
+	scf ; Timed out, so pretend we dont 
+	
+GotTImedKey:
+	ccf
+	call EndKeyLoop
+	
+	pop de
+	pop bc
+	ei
+	ret
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -265,8 +336,7 @@ OSWRCH:
 ;------------------------------------------------------------------------------- 
 PROMPT:
 	ld a,'>'
-	call OSWRCH
-	ret
+	jp OSWRCH
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

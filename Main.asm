@@ -4,6 +4,8 @@
 ; BBC BASIC's scratch memory will be at RAM ($C000..$C2FF)
 .varloc $C000+768, 256
 
+.var ubyte IOControl
+
 .org $00
 	di
 	im 1
@@ -73,6 +75,7 @@ NotFrameInterrupt:
 .include "Keyboard.asm"
 .include "UK.inc"
 .include "VDU.asm"
+.include "Serial.asm"
 
 Boot:
 	; Make sure SP points somewhere sensible.
@@ -86,6 +89,11 @@ Boot:
 	ld ($FFFE),a
 	inc a
 	ld ($FFFF),a
+	
+	; Set up the IOControl mirror
+	ld a,%11111111
+	ld (IOControl),a
+	out ($3F),a
 
 Main:
 	
@@ -102,6 +110,9 @@ Main:
 	ld hl,KeyboardLayouts.UK
 	call Keyboard.LoadManualLayout
 	
+	; Serial port initialisation
+	call Serial.Reset
+		
 	jp Basic.BBCBASIC_START
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
