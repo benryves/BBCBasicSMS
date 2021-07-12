@@ -1,8 +1,10 @@
 .module Serial
 
 ; Pins:
-; RxD = 2 Port B Down ($DC.7)
 ; TxD = 7 Port B TH ($3F.7)
+; RxD = 2 Port B Down ($DC.7)
+; RTS = 9 Port B TR ($3F.6)
+; CTS = 1 Port B Up ($DC.6)
 
 ; Z80 CPU Frequency = 3546893 Hz (PAL), 3579540 Hz (NTSC)
 ; Assume it's 3563217
@@ -23,14 +25,14 @@ Reset:
 	; Set TxD as an output
 	di
 	ld a,(IOControl)
-	and %11110111 ; TH = output
-	or  %10000000 ; TH = high
+	and %11110111 ; TH (TxD) = output, TR (RTS) = output
+	or  %10000000 ; TH (TxD) = high,   TR (RTS) = high
 	ld (IOControl),a
 	out ($3F),a
 
-	; Reset to 9600 baud
+	; Reset to 4800 baud
 	
-	ld hl,9600
+	ld hl,4800
 	; Fall-through to SetRate
 
 SetRate:
@@ -98,12 +100,22 @@ SetRate:
 	ret
 
 
-
 SendByte:
+	di
+
+SendByteRaw:
 	di
 	
 	ld d,a
-	ld b,10 ; +1 for initial DJNZ
+	
+	in a,(
+	
+	; Include the stop bit from the previously-sent byte.
+	; This is because sometimes we need to start receiving a byte as soon as we've sent one.
+	; (e.g. after XON) so can't afford to wait a while bit time after sending the byte.
+	call BitDelay
+	
+	ld b,10
 	
 	; Send the start bit
 	
@@ -130,9 +142,31 @@ SendLoop:
 	out ($3F),a   ; 11
 	
 	djnz SendLoop ; 13
+	
+	cp a ; Set the Z flag
 	ret
 
 GetByte:
+	di
+	
+	;ld a,$11 ; XON
+	;call SendByte
+	;ret nz
+	
+
+	
+	call GetByteRaw
+	
+	push af
+	
+	
+	;ld a,$13 ; XOFF
+	;call SendByte
+	
+	pop af
+	ret
+
+GetByteRaw:
 
 	di
 
@@ -149,6 +183,11 @@ GetByte:
 	
 +:
 
+	; Issue RTS
+	ld a,(IOControl)
+	and %10111011     ; TR = output, low
+	out ($3F),a
+
 	; Wait for RxD to go low (start bit)
 	
 	ld bc,0       ; 10
@@ -162,29 +201,32 @@ GetByte:
 	jr nz,-       ; 12/7
 	
 	; We've timed out, force NZ to denote error.
+	
+	; De-assert RTS by restoring original state of IO control.
+	ld a,(IOControl)
+	out ($3F),a
+	or %01000000 ; TR = high
+	out ($3F),a
+	ld (IOControl),a
+	
 	xor a
 	inc a
 	ret
 
 +:
 	
+	; De-assert RTS
+	ld (IOControl),a ; 13
+	out ($3F),a      ; 11
+	or %01000000     ; 7
+	out ($3F),a      ; 11
+	ld (IOControl),a ; 13
+	
 	; Now we need to delay for around half a bit.
-	; This is so we samples in the middle of the bit, not at the transitions.
+	; This is so we sample in the middle of the bit, not at the transitions.
 
 	call HalfDelay
-
-	; Dummy code to slightly better mirror the loop below and match the timing.
 	
-	or 0          ; 7
-	
-	inc hl        ; 6
-	dec hl        ; 6
-	nop           ; 4
-
-	inc hl        ; 6
-	dec hl        ; 6
-	nop           ; 4
-
 	ld b,8        ; 7
 
 -:	call BitDelay

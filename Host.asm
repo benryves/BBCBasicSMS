@@ -719,10 +719,22 @@ OSCLI
 	ld hl,SerialTerminal
 	call VDU.PutString
 -:	call Serial.GetByte
-	jr nz,-
-	push af
+	jr z,+
+	
+	ei
+	halt
+	jr -
+	
++:	push af
 	call Serial.SendByte
 	pop af
+	
+	push af
+	call VDU.PutChar
+	pop af
+	cp '\r'
+	jr nz,-
+	ld a,'\n'
 	call VDU.PutChar
 	jr -
 
