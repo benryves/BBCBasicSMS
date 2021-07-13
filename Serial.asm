@@ -17,14 +17,16 @@
 ;   600 :  5939
 ;   300 : 11877
 
-.var ubyte[3] HalfDelay
-.var ubyte[3] BitDelay
+
+
+HalfDelay = allocVar(3)
+BitDelay = allocVar(3)
 
 SerialReadBuffer.Capacity = 255
 
 .define SerialReadBuffer Basic.BBCBASIC_BUFFER ; or ACC$ ?
-.var ubyte SerialReadBuffer.Count
-.var uword SerialReadBuffer.Pointer
+SerialReadBuffer.Count = allocVar(1)
+SerialReadBuffer.Pointer = allocVar(2)
 
 Reset:
 	
@@ -226,7 +228,7 @@ SerialReadBufferEmpty:
 
 	; Get a byte with a long timeout.
 	ld bc,0       ; 10
-
+	
 	; Try to get the byte
 	call GetByteBuffered
 	ret nz

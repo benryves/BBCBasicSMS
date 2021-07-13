@@ -43,25 +43,24 @@ GetScancode:
 	pop af
 	ret
 
-.var uword LayoutFileDescription
+LayoutFileDescription = allocVar(2)
 
-.struct LayoutInformation
-	uword StandardTableSize,    ; Number of standard scancodes.
-	uword ExtendedTableSize,    ; Number of extended scancodes.
-	uword ModifiersLookup,      ; Address of modifier lookup list.
-	uword ModifiersJumpTable,   ; Address of modifier jump table.
-	uword StandardTableAddress, ; Address of standard scancode table.
-	uword ExtendedTableAddress, ; Address of extended scancode table.
-	uword KeyOffsetTable,       ; Address of key jump table.
-	uword KeyDataTable,         ; Address of key data table.
-	uword KeyTypeTable          ; Address of the key type table.
+LayoutFile = allocVar(0)
+LayoutFile.StandardTableSize = allocVar(2)    ; Number of standard scancodes.
+LayoutFile.ExtendedTableSize = allocVar(2)    ; Number of extended scancodes.
+LayoutFile.ModifiersLookup = allocVar(2)      ; Address of modifier lookup list.
+LayoutFile.ModifiersJumpTable = allocVar(2)   ; Address of modifier jump table.
+LayoutFile.StandardTableAddress = allocVar(2) ; Address of standard scancode table.
+LayoutFile.ExtendedTableAddress = allocVar(2) ; Address of extended scancode table.
+LayoutFile.KeyOffsetTable = allocVar(2)       ; Address of key jump table.
+LayoutFile.KeyDataTable = allocVar(2)         ; Address of key data table.
+LayoutFile.KeyTypeTable = allocVar(2)         ; Address of the key type table.
+LayoutFile.Size = allocVar(0) - LayoutFile
 
-.var LayoutInformation LayoutFile
+Status = allocVar(1)
+LedState = allocVar(1)
 
-.var ubyte Status
-.var ubyte LedState
-
-.var uword OriginalScancode
+OriginalScancode = allocVar(2)
 
 
 ; ---------------------------------------------------------
@@ -74,13 +73,13 @@ GetScancode:
 LoadManualLayout:
 	ld (OriginalScancode),hl ; Temp
 	ld de,LayoutFile
-	ld bc,SizeOf(LayoutFile)
+	ld bc,LayoutFile.Size
 	ldir
 	ld (LayoutFileDescription),hl
 	
 	ld ix,LayoutFile + 4
 	
-	ld b,(SizeOf(LayoutFile) / 2) - 2
+	ld b,(LayoutFile.Size / 2) - 2
 -:	ld e,(ix+0) \ ld d,(ix+1)
 	ld hl,(OriginalScancode)
 	add hl,de

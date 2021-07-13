@@ -3,7 +3,6 @@
 
 	
 	<plugins>
-		<collection source="Variables.dll" />
 		<collection source="Scripting.dll" />
 	</plugins>
 

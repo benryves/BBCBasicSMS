@@ -2,9 +2,15 @@
 .incscript "Scripts.cs"
 
 ; BBC BASIC's scratch memory will be at RAM ($C000..$C2FF)
-.varloc $C000+768, 256
+Variables      = $C300
+EndOfVariables = $C400
 
-.var ubyte IOControl
+.function allocVar(size)
+	allocVar = Variables
+	Variables += size
+.endfunction
+
+IOControl = allocVar(1)
 
 .org $00
 	di
@@ -22,7 +28,7 @@
 	pop af
 	retn
 
-.var ubyte FrameCounter
+FrameCounter = allocVar(1)
 
 Interrupt:
 	push af
@@ -150,6 +156,12 @@ PutHexWord:
 ; *BBCBASIC/N/Y/E
 
 ;.include "Programs.inc"
+
+.if Variables > EndOfVariables
+	.echoln "Too many variables!"
+.else
+	.echoln strformat("{0} bytes free for variables.", EndOfVariables - Variables)
+.endif
 
 .if $>$4000
 .echoln "Too much code :("

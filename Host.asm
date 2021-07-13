@@ -10,12 +10,12 @@
 ;------------------------------------------------------------------------------- 
 .module Host
 
-.var uint TIME
+TIME = allocVar(4)
 
-.var ubyte Flags
+Flags = allocVar(1)
 Pause = 0
 
-.var ubyte TrapKeyboardTimer
+TrapKeyboardTimer = allocVar(1)
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -47,8 +47,9 @@ OSINIT
 	ld (TrapKeyboardTimer),a
 	ld (Flags),a
 	
-	ld de, $dff0 ; HIMEM
-	ld hl, $c400 ; PAGE
+	ld de, $DFF0 ; HIMEM
+	ld hl, $C400 ; PAGE
+	
 	scf ; don't boot
 	ret
 
@@ -467,44 +468,13 @@ RESET
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSLOAD
+
 	push de
 	call PCLink2.GetFile
 	pop hl
 	jp nz,Sorry
 	ccf
-	ret nc
-	
-	; hl->start of file
-	; de->end of file
-	
-	ex de,hl
-	or a
-	sbc hl,de
-	
--:	push hl
-	push de
-	
-	ld a,(de)
-	push af
-	call PutHexByte
-	pop af
-	push af
-	call Serial.SendByte
-	pop af
-	
-	pop de
-	pop hl
-	
-	inc de
-	dec hl
-	ld a,h
-	or l
-	jr nz,-
-	
-	
-	scf
 	ret
-	
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

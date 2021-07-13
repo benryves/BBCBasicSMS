@@ -1,5 +1,9 @@
 .module PCLink2
 
+TempPtr = allocVar(2)
+TempSize = allocVar(2)
+TempChecksum = allocVar(2)
+
 ; ---------------------------------------------------------
 ; Sync -> Synchronises the PC LINK 2 protocol.
 ; ---------------------------------------------------------
@@ -481,7 +485,6 @@ List.NotEscapeCode:
 	call VDU.PutChar
 	jr -
 	
-	
 ; ---------------------------------------------------------
 ; GetFile -> Gets a file.
 ; ---------------------------------------------------------
@@ -493,24 +496,21 @@ List.NotEscapeCode:
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
 GetFile:
+	ld (TempPtr),de
+	ld (TempSize),bc
+	ld bc,0
+	ld (TempChecksum),bc
+	
 	; Sync.
 	push hl
-	push de
-	push bc
 	call Sync
-	pop bc
-	pop de
 	pop hl
 	jr nz,GetFile.ProtocolError
 	
 	; Send the list request.
 	push hl
-	push de
-	push bc
 	ld a,'G'
 	call SendEscapeCode
-	pop bc
-	pop de
 	pop hl
 	jr nz,GetFile.ProtocolError
 
@@ -525,11 +525,7 @@ GetFile.SendPath:
 	jr z,GetFile.PathSent
 	
 	push hl
-	push de
-	push bc
 	call SendDataByte
-	pop bc
-	pop de
 	pop hl
 	jr nz,GetFile.ProtocolError
 	
@@ -540,20 +536,14 @@ GetFile.PathSent:
 	
 	; End the path with a 'Z' escape code.
 	ld a,'Z'
-	push de
-	push bc
 	call SendEscapeCode
-	pop bc
-	pop de
 	jr nz,GetFile.ProtocolError
 	
 	; Start reading the file.
+
 GetFile.ReceiveFileLoop:
-	push de
-	push bc
+
 	call GetDataByte
-	pop bc
-	pop de
 	
 	jr nz,GetFile.ProtocolError
 	jr nc,GetFile.NotEscapeCode
@@ -564,18 +554,27 @@ GetFile.ReceiveFileLoop:
 	ret
 
 GetFile.NotEscapeCode:
+
+	ld e,a
+	ld d,0
+	ld hl,(TempChecksum)
+	add hl,de
+	ld (TempChecksum),hl
 	
-	ld l,a
+	ld bc,(TempSize)
 	
 	ld a,b
 	or c
 	jr z,GetFile.SizeError
 	
-	ld a,l
-	ld (de),a
+	ld hl,(TempPtr)
+	ld (hl),e
 	
-	inc de
-	dec bc
+	inc hl
+	dec de
+	ld (TempPtr),hl
+	ld (TempSize),hl
+	
 	jr GetFile.ReceiveFileLoop
 
 GetFile.SizeError:

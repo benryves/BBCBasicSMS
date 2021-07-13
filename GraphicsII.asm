@@ -14,7 +14,7 @@ NameTable        = $3800 ; 768 bytes
 .echoln "Bad address for Graphics II Pattern Generator"
 .endif
 
-.var ubyte ScrollValue
+ScrollValue = allocVar(1)
 
 Initialise:
 

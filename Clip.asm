@@ -15,15 +15,13 @@
 ;
 ;-------------------------------------------------------------------------------
 
-.var ubyte[8] LineVariables
+g_line16X1 = allocVar(2)
+g_line16Y1 = allocVar(2)
+g_line16X2 = allocVar(2)
+g_line16Y2 = allocVar(2)
 
-.define g_line16X1 LineVariables+0
-.define g_line16Y1 LineVariables+2
-.define g_line16X2 LineVariables+4
-.define g_line16Y2 LineVariables+6
-
-.define g_line16Pt1 g_line16X1
-.define g_line16Pt2 g_line16X2
+g_line16Pt1 = g_line16X1
+g_line16Pt2 = g_line16X2
 
 ;-------------------------------------------------------------------------------
 ;

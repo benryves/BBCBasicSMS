@@ -22,14 +22,14 @@ Font6x8:
 
 .endmodule
 
-.var ubyte[3] PutMap
-.var ubyte[3] Scroll
-.var ubyte[3] SetTextColour
-.var ubyte[3] SetGraphicsColour
-.var ubyte[3] SetPixel
+PutMap = allocVar(3)
+Scroll = allocVar(3)
+SetTextColour = allocVar(3)
+SetGraphicsColour = allocVar(3)
+SetPixel = allocVar(3)
 
 GraphicsCursorQueueLength = 2
-.var uword[GraphicsCursorQueueLength * 2] GraphicsCursorQueue
+GraphicsCursorQueue = allocVar(GraphicsCursorQueueLength * 4)
 
 .struct BoundingBox
 	ubyte MinX,
@@ -37,15 +37,18 @@ GraphicsCursorQueueLength = 2
 	ubyte MinY,
 	ubyte MaxY
 
-.var BoundingBox GraphicsBounds
+GraphicsBounds.MinX = allocVar(1)
+GraphicsBounds.MaxX = allocVar(1)
+GraphicsBounds.MinY = allocVar(1)
+GraphicsBounds.MaxY = allocVar(1)
 
-.define g_wndXMin GraphicsBounds.MinX ; The g_wnd* variables must appear
-.define g_wndXMax GraphicsBounds.MaxX ; in this order.
-.define g_wndYMin GraphicsBounds.MinY
-.define g_wndYMax GraphicsBounds.MaxY
+g_wndXMin = GraphicsBounds.MinX ; The g_wnd* variables must appear
+g_wndXMax = GraphicsBounds.MaxX ; in this order.
+g_wndYMin = GraphicsBounds.MinY
+g_wndYMax = GraphicsBounds.MaxY
 
-.var ubyte TextColour
-.var ubyte GraphicsColour
+TextColour = allocVar(1)
+GraphicsColour = allocVar(1)
 
 .include "Clip.asm"
 
@@ -126,8 +129,13 @@ SetModeInitialize:
 FontTileIndex = 0
 FontCharOffset = FontTileIndex-' '
 
-.var ubyte CurRow, CurCol
-.var ubyte MinRow, MaxRow, MinCol, MaxCol
+CurRow = allocVar(1)
+CurCol = allocVar(1)
+
+MinRow = allocVar(1)
+MaxRow = allocVar(1)
+MinCol = allocVar(1)
+MaxCol = allocVar(1)
 
 HomeUp:
 	ld a,(MinCol)

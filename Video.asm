@@ -5,7 +5,7 @@ Data = $BE
 Control = $BF
 
 ; Local copy of registers
-.var ubyte[11] Registers
+Registers = allocVar(11)
 
 Reset: ; Preload the VDP registers with sensible data.
 	di

@@ -2,7 +2,7 @@
 
 NameTable = $3800
 
-.var ubyte ScrollRowOffset
+ScrollRowOffset = allocVar(1)
 
 Initialise:
 
