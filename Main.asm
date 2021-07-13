@@ -76,6 +76,7 @@ NotFrameInterrupt:
 .include "UK.inc"
 .include "VDU.asm"
 .include "Serial.asm"
+.include "PCLink2.asm"
 
 Boot:
 	; Make sure SP points somewhere sensible.
@@ -96,7 +97,7 @@ Boot:
 	out ($3F),a
 
 Main:
-	
+
 	; Reset the VDP to sensible defaults.
 	call Video.Reset
 	
@@ -106,13 +107,14 @@ Main:
 	; Reset the VDU.
 	call VDU.Reset
 	
-	; Load the keyboard layout
+	; Load the keyboard layout.
 	ld hl,KeyboardLayouts.UK
 	call Keyboard.LoadManualLayout
 	
-	; Serial port initialisation
+	; Serial port initialisation.
 	call Serial.Reset
-		
+
+	; Jump into BASIC.
 	jp Basic.BBCBASIC_START
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -147,7 +149,7 @@ PutHexWord:
 ; *TIJUMP,MAIN/P:4100,EXEC,EVAL,FPP,RAM/P:C000
 ; *BBCBASIC/N/Y/E
 
-.include "Programs.inc"
+;.include "Programs.inc"
 
 .if $>$4000
 .echoln "Too much code :("

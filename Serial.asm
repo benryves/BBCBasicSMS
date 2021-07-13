@@ -152,6 +152,11 @@ SendLoop:
 	cp a ; Set the Z flag
 	ret
 
+EmptyReadBuffer:
+	xor a
+	ld (SerialReadBuffer.Count),a
+	ret
+
 GetByte:
 	di
 	

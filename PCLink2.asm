@@ -1,0 +1,520 @@
+.module PCLink2
+
+.var ubyte[16] CommandLog
+
+ShowDebugInfo = 0
+
+; ---------------------------------------------------------
+; Sync -> Synchronises the PC LINK 2 protocol.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  z on success, nz on failure.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+Sync:
+
+	call Serial.EmptyReadBuffer
+
+	; Send five "5"s.
+	ld bc,$0505
+
+-:	push bc
+	ld a,c
+	call Serial.SendByte
+	pop bc
+	ret nz
+	djnz -
+	
+	; Send one "6".
+	ld a,$06
+	call Serial.SendByte
+	ret nz
+	
+	; Wait for a "5".
+	ld b,16
+
+-:	push bc
+	call Serial.GetByte
+	pop bc
+	ret nz
+	
+	cp 5
+	jr z,+
+	
+	djnz -
+	
+	; We only try 16 times.
+	ret
+	
++:	
+
+	; Get a "6".
+-:	push bc
+	call Serial.GetByte
+	pop bc
+	ret nz
+	
+	; Are we still getting fives?
+	cp 5
+	jr nz,+
+	djnz -
+	
++:	
+	; If it's not a "5", it must be a "6"...
+	cp 6
+	ret nz
+	
+	; If there's still a character in the serial buffer,
+	; We'll allow it if it's a NUL.
+-:	ld a,(Serial.SerialReadBuffer.Count)
+	or a
+	ret z
+	
+	call Serial.GetByte
+	ret nz
+	
+	or a
+	ret nz
+	jr -
+
+; ---------------------------------------------------------
+; SendAcknowledgedByte -> Sends and checks acknowledgement.
+; ---------------------------------------------------------
+; Inputs:   a = byte to send.
+; Outputs:  z on success, nz on failure.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+SendAcknowledgedByte:
+
+.if ShowDebugInfo
+	push af
+	ld a,'>'
+	call VDU.PutChar
+	pop af	
+	push af
+	call PutHexByte
+	pop af
+.endif
+
+	call Serial.SendByte
+	ret nz
+
+.if ShowDebugInfo
+	ld a,'@'
+	call VDU.PutChar
+.endif
+
+	call Serial.GetByte
+	ret nz
+
+.if ShowDebugInfo
+	push af
+	call PutHexByte
+	pop af
+.endif
+
+	or a
+	ret
+
+; ---------------------------------------------------------
+; SendDataByte -> Sends a data byte.
+; ---------------------------------------------------------
+; This function acknowledges every raw byte and generates
+; escape codes as required.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  z on success, nz on failure.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+SendDataByte:
+	; Special control codes that can be unescaped.
+	cp '\t'
+	jr z,SendAcknowledgedByte
+	cp '\r'
+	jr z,SendAcknowledgedByte
+	cp '\n'
+	jr z,SendAcknowledgedByte
+	
+	; Is it in the range $20..$7F
+	cp $20
+	jr c,SendDataByte.Escaped
+	cp $80
+	jr c,SendAcknowledgedByte
+
+SendDataByte.Escaped:
+	
+	ld c,a
+	
+	ld a,$1B ; ESC
+	push bc
+	call SendAcknowledgedByte
+	pop bc
+	ret nz
+	
+	ld a,'B' ; Binary
+	push bc
+	call SendAcknowledgedByte
+	pop bc
+	ret nz
+	
+	; Send the most significant nybble.
+	ld a,c
+	srl a
+	srl a
+	srl a
+	srl a
+	call EncodeHexNybble
+	push bc
+	call SendAcknowledgedByte
+	pop bc
+	ret nz
+	
+	; Send the least significant nybble.
+	ld a,c
+	and $0F
+	call EncodeHexNybble
+	jp SendAcknowledgedByte
+
+EncodeHexNybble:
+	cp 10
+	jr c,+
+	add a,'A'-10
+	ret
++:	add a,'0'
+	ret
+
+; ---------------------------------------------------------
+; GetAcknowledgedByte -> Gets a byte and acknowledges it.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  z on success, nz on failure.
+;           a = received byte.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+GetAcknowledgedByte:
+
+.if ShowDebugInfo
+	ld a,'<'
+	call VDU.PutChar
+.endif
+	
+	call Serial.GetByte
+	ret nz
+	
+	push af
+
+.if ShowDebugInfo
+	call PutHexByte
+.endif
+	
+	xor a
+	call Serial.SendByte
+	jr nz,+
+	
+	pop af
+	ret
+
++:	pop af
+	ld a,$5A ; Non-zero error
+	or a
+	ret
+
+
+; ---------------------------------------------------------
+; GetDataByte -> Gets a data byte.
+; ---------------------------------------------------------
+; This function acknowledges every raw byte and handles
+; escape codes.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  z on success, nz on failure.
+;           a = received byte.
+;           c = set if it's an escape character.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+GetDataByte:
+	
+	; Get the initial byte.
+	call GetAcknowledgedByte
+	ret nz
+	
+	cp $1B ; ESC
+	jr z,GetDataByte.Escaped
+
+	cp a ; Set zero, clear the carry flag
+	ret
+
+GetDataByte.Escaped:
+	
+	; Get the data byte.
+	call GetAcknowledgedByte
+	ret nz
+	
+	cp 'B'
+	jr z,GetDataByte.Hex
+	
+	cp a ; Set zero
+	scf  ; Set carry
+	
+	ret
+
+GetDataByte.Hex:
+	
+	; Get the most significant nybble.
+	call GetAcknowledgedByte
+	ret nz
+	
+	; Convert from hex to decimal.
+	call ParseHexNybble
+	ret nz
+	
+	add a,a
+	add a,a
+	add a,a
+	add a,a
+	ld b,a
+	
+	
+	; Get the least significant nybble.
+	push bc
+	call GetAcknowledgedByte
+	pop bc
+	ret nz
+	
+	; Convert from hex to decimal.
+	call ParseHexNybble
+	ret nz
+	
+	; Combine with the most significant nybble.
+	add a,b
+	
+	cp a ; Set zero, clear carry.
+	ret
+
+ParseHexNybble:
+
+	; a will be either '0'-'9' or 'A'-'F'.
+	
+	cp '0'
+	ret c
+	cp '9'*1+1
+	jr nc,ParseHexNybble.NotDecimal
+	
+	sub '0'
+	cp a
+	ret
+
+ParseHexNybble.NotDecimal:
+
+	cp 'A'
+	ret c
+	cp 'F'*1+1
+	jr c,ParseHexNybble.Alpha
+	
+	dec a
+	ret
+
+ParseHexNybble.Alpha:
+	
+	sub 'A'
+	cp a
+	ret
+
+
+; ---------------------------------------------------------
+; SendEscapeCode -> Sends an escape sequence
+; ---------------------------------------------------------
+; Inputs:   a = escaped character to send.
+; Outputs:  z on success, nz on failure.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+SendEscapeCode:
+	ld c,a
+	push bc
+	
+	ld a,$1B ; ESC
+	call SendAcknowledgedByte
+	
+	pop bc
+	ret nz
+
+	ld a,c ; The escaped character
+	jp SendAcknowledgedByte
+
+; ---------------------------------------------------------
+; GetEscapeCode -> Gets an escape sequence
+; ---------------------------------------------------------
+; Inputs:   None
+; Outputs:  z on success, nz on failure.
+;           a = received code.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+GetEscapeCode:
+
+	call GetAcknowledgedByte
+	ret nz
+	
+	cp $1B ; ESC
+	ret nz
+	
+	call GetAcknowledgedByte
+	ret
+
+; ---------------------------------------------------------
+; Hello -> Asks if the computer is there and responding.
+; ---------------------------------------------------------
+; Inputs:   None
+; Outputs:  z on success, nz on failure.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+Hello:
+	call Sync
+	ret nz
+		
+	ld a,'A' ; Are you there?
+	call SendEscapeCode
+	ret nz
+	
+	call GetEscapeCode
+	ret nz
+	
+	cp 'Y' ; Yes, I'm here!
+	ret
+
+; ---------------------------------------------------------
+; Goodbye -> Ends a session.
+; ---------------------------------------------------------
+; Inputs:   None
+; Outputs:  z on success, nz on failure.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+Goodbye:
+	call Sync
+	ret nz
+	
+	ld a,'Q' ; Quit
+	call SendEscapeCode
+	ret nz
+	
+	call GetEscapeCode
+	ret nz
+	
+	cp 'Y' ; Yes, I'm here!
+	ret
+
+
+; ---------------------------------------------------------
+; ListDevices -> Shows a list of devices.
+; ---------------------------------------------------------
+; Inputs:   None
+; Outputs:  z on success, nz on failure.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+ListDevices:
+	ld c,'H'
+	ld hl,0
+	jr ListItems
+
+; ---------------------------------------------------------
+; ListDirectories -> Shows a list of directories.
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to path and pattern.
+; Outputs:  z on success, nz on failure.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+ListDirectories:
+	ld c,'D'
+	jr ListItems
+
+; ---------------------------------------------------------
+; ListFiles -> Shows a list of files.
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to path and pattern.
+; Outputs:  z on success, nz on failure.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+ListFiles:
+	ld c,'N'
+	; Fall-through
+
+; ---------------------------------------------------------
+; ListFiles -> Shows a list of items.
+; ---------------------------------------------------------
+; Inputs:   c = type of item do list.
+;           hl = pointer to path and pattern or 0 to omit.
+; Outputs:  z on success, nz on failure.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+ListItems:
+	; Sync.
+	push hl
+	push bc
+	call Sync
+	pop bc
+	pop hl
+	ret nz
+	
+	; Send the list request.
+	push hl
+	push bc
+	ld a,c
+	call SendEscapeCode
+	pop bc
+	pop hl
+	ret nz
+
+	; Is there a path to send?
+	ld a,h
+	or l
+	jr z,ListItems.NoPath
+	
+ListItems.SendPath:
+
+	ld a,(hl)
+	or a
+	jr z,ListItems.PathSent
+	cp '\r'
+	jr z,ListItems.PathSent
+	
+	push hl
+	call SendDataByte
+	pop hl
+	ret nz
+	
+	inc hl
+	jr ListItems.SendPath
+	
+ListItems.PathSent:
+	
+	; End the path with a 'Z' escape code.
+	ld a,'Z'
+	call SendEscapeCode
+	ret nz
+
+ListItems.NoPath:
+	
+-:	call GetDataByte
+	ret nz
+	
+	jr nc,List.NotEscapeCode
+	
+	cp 'Z' ; End of list.
+	jr nz,+
+	call VDU.NewLine
+	xor a ; Set z.
+	ret
++:
+	
+	cp 'N' ; Item name.
+	call VDU.NewLine
+	jr -
+
+List.NotEscapeCode:
+	
+	call VDU.PutChar
+	jr -
+	
+	
+	call 
+
+.endmodule

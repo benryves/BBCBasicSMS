@@ -467,7 +467,8 @@ RESET
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSLOAD
-	ld hl,Programs.Mndlbaum
+	jp Sorry
+	;ld hl,Programs.Mndlbaum
 	ldir
 	ccf
 	ret
@@ -716,32 +717,155 @@ OSSHUT
 ;
 ;------------------------------------------------------------------------------- 
 OSCLI
+	
+	ld a,(hl)
+	cp 'S'
+	jp z,Sync
+	cp 'H'
+	jp z,Hello
+	cp 'G'
+	jp z,Goodbye
+	cp 'V'
+	jp z,ListDevices
+	cp 'D'
+	jp z,ListDirectories
+	cp 'F'
+	jp z,ListFiles
+	cp 'T'
+	jp z,Terminal
+	
+	ret
+
+Sync:
+	ld hl,Sync.Text
+	call VDU.PutString
+	call PCLink2.Sync
+	ld hl,Sync.OK
+	jr z,+
+	ld hl,Sync.Failed
++:	call VDU.PutString
+	ret
+
+Sync.Text:
+	.db "Sync...",0
+Sync.OK:
+	.db "OK\n",0
+Sync.Failed:
+	.db "Failed\n",0
+
+Hello:
+	ld hl,Hello.Text
+	call VDU.PutString
+	ld a,'?'
+	call VDU.PutChar
+	call VDU.NewLine
+	
+	call PCLink2.Hello
+	ret nz
+
+	call VDU.NewLine
+	ld hl,Hello.Text
+	call VDU.PutString
+	ld a,'!'
+	call VDU.PutChar
+	call VDU.NewLine
+	ret
+	
+Hello.Text:
+.db "Hello",0
+
+Goodbye:
+	ld hl,Goodbye.Text
+	call VDU.PutString
+	ld a,'?'
+	call VDU.PutChar
+	call VDU.NewLine
+	
+	call PCLink2.Goodbye
+	ret nz
+
+	call VDU.NewLine
+	ld hl,Goodbye.Text
+	call VDU.PutString
+	ld a,'!'
+	call VDU.PutChar
+	call VDU.NewLine
+	ret
+	
+Goodbye.Text
+.db "Goodbye",0
+
+ListDevices:
+	ld hl,ListDevices.Text
+	call VDU.PutString
+	call PCLink2.ListDevices
+	ld hl,Sync.OK
+	jr z,+
+	ld hl,Sync.Failed
++:	call VDU.PutString
+	ret
+ListDevices.Text:
+.db "List Devices...",0
+
+ListDirectories:
+	push hl
+	ld hl,ListDirectories.Text
+	call VDU.PutString
+	pop hl
+	inc hl
+	call PCLink2.ListDirectories
+	ld hl,Sync.OK
+	jr z,+
+	ld hl,Sync.Failed
++:	call VDU.PutString
+	ret
+ListDirectories.Text:
+.db "List Directories...",0
+
+ListFiles:
+	push hl
+	ld hl,ListFiles.Text
+	call VDU.PutString
+	pop hl
+	inc hl
+	call PCLink2.ListFiles
+	ld hl,Sync.OK
+	jr z,+
+	ld hl,Sync.Failed
++:	call VDU.PutString
+	ret
+ListFiles.Text:
+.db "List Files...",0
+
+Terminal:
 	ld hl,SerialTerminal
 	call VDU.PutString
-	
-	ld bc,5*256+5
--:	push bc
-	ld a,b
-	call Serial.SendByte
-	pop bc
-	djnz -
-	
-	ld a,6
-	call Serial.SendByte
-	
--:	call Serial.GetByte
-	jr nz,-
-	call PutHexByte
-	jr -
-	
--:	call Serial.GetByte
-	jr z,+
+
+Terminal.Loop:
+	ld a,127
+	call VDU.PutMap
+	call Serial.GetByte
+	push af
+	ld a,' '
+	call VDU.PutMap
+	pop af
+	jr z,Terminal.GotByte
 	
 	ei
 	halt
+
+	in a,($DD)
+	bit 4,a
+	jr nz,Terminal.Loop
+-:	in a,($DD)
+	bit 4,a
+	ret nz
 	jr -
+	ret
+
+Terminal.GotByte:
 	
-+:	push af
+	push af
 	call Serial.SendByte
 	pop af
 	
@@ -749,13 +873,17 @@ OSCLI
 	call VDU.PutChar
 	pop af
 	cp '\r'
-	jr nz,-
+	jr nz,Terminal.Loop
+	
 	ld a,'\n'
-	call VDU.PutChar
-	jr -
+	call Serial.SendByte
+	
+	call VDU.NewLine
+	
+	jr Terminal.Loop
 
 SerialTerminal:
-	.db "Testing serial port...\r\n", 0
+	.db "Testing serial port...\n", 0
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

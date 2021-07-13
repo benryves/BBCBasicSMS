@@ -144,11 +144,7 @@ PutChar:
 	ret
 
 +:	cp '\n'
-	jr nz,+
-	
-	ld a,(MinCol)
-	ld (CurCol),a
-	jr NewLine
+	jr z,NewLine
 
 +:	call PutMap
 	; Fall-through to CursorRight
@@ -167,6 +163,10 @@ CursorRight:
 	; Fall-through to NewLine
 
 NewLine:
+	ld a,(MinCol)
+	ld (CurCol),a
+
+CursorDown:
 	ld a,(CurRow)
 	inc a
 	push bc
