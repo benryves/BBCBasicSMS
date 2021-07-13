@@ -17,8 +17,6 @@
 ;   600 :  5939
 ;   300 : 11877
 
-
-
 HalfDelay = allocVar(3)
 BitDelay = allocVar(3)
 
@@ -27,6 +25,10 @@ SerialReadBuffer.Capacity = 255
 .define SerialReadBuffer Basic.BBCBASIC_BUFFER ; or ACC$ ?
 SerialReadBuffer.Count = allocVar(1)
 SerialReadBuffer.Pointer = allocVar(2)
+
+Status = allocVar(1)
+Status.XOnXOff.Enabled = 0
+Status.XOnXOff.WriteInhibited = 1
 
 Reset:
 	
@@ -40,6 +42,7 @@ Reset:
 	
 	xor a
 	ld (SerialReadBuffer.Count),a
+	ld (Status),a
 
 	; Reset to 9600 baud
 	ld hl,9600
@@ -161,20 +164,44 @@ EmptyReadBuffer:
 
 GetByte:
 	di
-	
-	;ld a,$11 ; XON
-	;call SendByte
-	;ret nz
-	
+
+	; Try to get a byte directly.
 	call GetByteRaw
+	ret nz
+
+	; Do we need to handle XON/XOFF?
+	ld b,a
+	ld a,(Status)
+	ld c,a
+	ld a,b
 	
-	push af
+	bit Status.XOnXOff.Enabled,c
+	jr z,GetByte.NoXOnXOff
 	
+	cp $11 ; XON
+	jr nz,+
 	
-	;ld a,$13 ; XOFF
-	;call SendByte
+	; Permit writes.
+	ld a,c
+	res Status.XOnXOff.WriteInhibited,a
+	ld (Status),a
+	jr GetByte.HandledXOnXOff
+
++:	cp $13 ; XOFF
+	jr nz,GetByte.NoXOnXOff
 	
-	pop af
+	; Inhibit writes.
+	ld a,c
+	set Status.XOnXOff.WriteInhibited,a
+	ld (Status),a
+	
+GetByte.HandledXOnXOff:
+	; We've handled XON or XOFF.
+	; Now try to return a meaningful value instead.
+	jr nz,GetByteRaw
+
+GetByte.NoXOnXOff:
+	cp a
 	ret
 
 GetByteRaw:
@@ -215,8 +242,7 @@ SerialReadBufferEmpty:
 	jr c,+        ; 12/7
 	
 	; Force NZ to denote error.
-	xor a
-	dec a
+	or $FF
 	ret
 	
 +:
@@ -270,6 +296,13 @@ GetByteBuffered:
 	jr nc,+       ; 12/7
 	
 	djnz -        ; 13/8
+
+-:	in a,($DC)    ; 11
+	add a,a       ; 4
+	jr nc,+       ; 12/7
+	
+	djnz -        ; 13/8
+	
 	dec c         ; 4
 	jr nz,-       ; 12/7
 	
@@ -281,9 +314,7 @@ GetByteBuffered:
 	out ($3F),a
 	ld (IOControl),a
 	
-	xor a
-	inc a
-	ld a,$FE
+	or $FF
 	ret
 
 +:

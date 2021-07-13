@@ -164,9 +164,9 @@ PutHexWord:
 .endif
 
 .if $>$4000
-.echoln "Too much code :("
+	.echoln "Too much code :("
 .else
-.echoln $4000-$
+	.echoln strformat("{0} bytes free for code.", $4000 - $)
 .endif
 
 .org $4000

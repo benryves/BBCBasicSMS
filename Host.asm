@@ -766,7 +766,6 @@ Hello:
 	call PCLink2.Hello
 	ret nz
 
-	call VDU.NewLine
 	ld hl,Hello.Text
 	call VDU.PutString
 	ld a,'!'
@@ -786,8 +785,7 @@ Goodbye:
 	
 	call PCLink2.Goodbye
 	ret nz
-
-	call VDU.NewLine
+	
 	ld hl,Goodbye.Text
 	call VDU.PutString
 	ld a,'!'

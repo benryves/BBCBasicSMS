@@ -1,8 +1,12 @@
 .module PCLink2
 
 TempPtr = allocVar(2)
-TempSize = allocVar(2)
+TempCapacity = allocVar(2)
 TempChecksum = allocVar(2)
+TempSize = allocVar(2)
+
+QueuedEscapeByte.Received = allocVar(1)
+QueuedEscapeByte.Value = allocVar(1)
 
 ; ---------------------------------------------------------
 ; Sync -> Synchronises the PC LINK 2 protocol.
@@ -14,6 +18,9 @@ TempChecksum = allocVar(2)
 Sync:
 
 	call Serial.EmptyReadBuffer
+	
+	xor a
+	ld (QueuedEscapeByte.Received),a
 
 	; Send five "5"s.
 	ld bc,$0505
@@ -171,8 +178,19 @@ EncodeHexNybble:
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
 GetAcknowledgedByte:
+	
+	; Is there an escaped byte in the queue?
+	ld a,(QueuedEscapeByte.Received)
+	or a
+	jr z,+
+	
+	xor a
+	ld (QueuedEscapeByte.Received),a
+	ld a,(QueuedEscapeByte.Value)
+	cp a
+	ret
 
-	call Serial.GetByte
++:	call Serial.GetByte
 	ret nz
 	
 	push af
@@ -185,7 +203,7 @@ GetAcknowledgedByte:
 	ret
 
 +:	pop af
-	ld a,$5A ; Non-zero error
+	ld a,$27 ; Non-zero error
 	or a
 	ret
 
@@ -216,12 +234,34 @@ GetDataByte:
 
 GetDataByte.Escaped:
 	
+	ld a,'#'
+	call VDU.PutChar
+	
 	; Get the data byte.
 	call GetAcknowledgedByte
 	ret nz
 	
 	cp 'B'
 	jr z,GetDataByte.Hex
+	
+	cp 'Z' ; EOF
+	jr GetDataByte.PermittedEscape
+	
+	; If we get this far, it's an escape code, but not one we recognise...
+	; Store it for later and return a literal $1B.
+	ld (QueuedEscapeByte.Value),a
+	
+	call PutHexByte
+	ld a,'~'
+	call VDU.PutChar
+	
+	ld a,$1B
+	ld (QueuedEscapeByte.Received),a
+	cp a
+	ret z
+	
+
+GetDataByte.PermittedEscape:
 	
 	cp a ; Set zero
 	scf  ; Set carry
@@ -497,22 +537,23 @@ List.NotEscapeCode:
 ; ---------------------------------------------------------
 GetFile:
 	ld (TempPtr),de
-	ld (TempSize),bc
+	ld (TempCapacity),bc
 	ld bc,0
 	ld (TempChecksum),bc
+	ld (TempSize),bc
 	
 	; Sync.
 	push hl
 	call Sync
 	pop hl
-	jr nz,GetFile.ProtocolError
+	jp nz,GetFile.ProtocolError
 	
 	; Send the list request.
 	push hl
 	ld a,'G'
 	call SendEscapeCode
 	pop hl
-	jr nz,GetFile.ProtocolError
+	jp nz,GetFile.ProtocolError
 
 	; Is there a path to send?
 	
@@ -546,10 +587,14 @@ GetFile.ReceiveFileLoop:
 	call GetDataByte
 	
 	jr nz,GetFile.ProtocolError
-	jr nc,GetFile.NotEscapeCode
+	
+	jr nc,GetFile.NotEscapeCode ; <- Are we 
 	
 	cp 'Z' ; End of file.
 	jr nz,GetFile.ProtocolError
+	
+	call GetFile.CompareChecksum ; Debugging
+	
 	xor a ; Set z.
 	ret
 
@@ -561,7 +606,7 @@ GetFile.NotEscapeCode:
 	add hl,de
 	ld (TempChecksum),hl
 	
-	ld bc,(TempSize)
+	ld bc,(TempCapacity)
 	
 	ld a,b
 	or c
@@ -573,6 +618,10 @@ GetFile.NotEscapeCode:
 	inc hl
 	dec de
 	ld (TempPtr),hl
+	ld (TempCapacity),hl
+	
+	ld hl,(TempSize)
+	inc hl
 	ld (TempSize),hl
 	
 	jr GetFile.ReceiveFileLoop
@@ -597,5 +646,115 @@ GetFile.ProtocolError:
 	scf
 	ccf
 	ret
+
+GetFile.CompareChecksum:
+	ld a,'S'
+	call VDU.PutChar
+	ld a,'='
+	call VDU.PutChar
+	ld hl,(TempSize)
+	call PutHexWord
+	call VDU.NewLine
+	
+	ld a,'C'
+	call VDU.PutChar
+	ld a,'='
+	call VDU.PutChar
+	ld hl,(TempChecksum)
+	call PutHexWord
+	call VDU.NewLine
+	
+	; Is the received data the same size as the checksum test file?
+	ld hl,(TempSize)
+	ld de,ChecksumTestFile.Size
+	or a
+	sbc hl,de
+	ld a,h
+	or l
+	ret nz
+	
+	; Start from the beginning of the file.
+	ld hl,(TempPtr)
+	ld de,-ChecksumTestFile.Size
+	add hl,de
+	ld de,ChecksumTestFile
+	
+	ld bc,ChecksumTestFile.Size
+	
+-:	ld a,(de)
+	cp (hl)
+	jr z,+
+	
+	push hl
+	push de
+	push bc
+	
+	ld a,'E'
+	call VDU.PutChar
+	ld a,'@'
+	call VDU.PutChar
+	
+	ld hl,(TempSize)
+	pop bc
+	push bc
+	or a
+	sbc hl,bc
+	call PutHexWord
+	
+	ld a,' '
+	call VDU.PutChar
+	ld a,':'
+	call VDU.PutChar
+	ld a,')'
+	call VDU.PutChar
+	ld a,'='
+	call VDU.PutChar
+	
+	pop bc
+	pop de
+	push de
+	push bc
+	
+	ld a,(de)
+	call PutHexByte
+	
+	ld a,' '
+	call VDU.PutChar
+	ld a,':'
+	call VDU.PutChar
+	ld a,'('
+	call VDU.PutChar
+	ld a,'='
+	call VDU.PutChar
+	
+	pop bc
+	pop de
+	pop hl
+	push hl
+	push de
+	push bc
+	
+	ld a,(hl)
+	call PutHexByte
+	
+	call VDU.NewLine
+	
+	pop bc
+	pop de
+	pop hl
+
++:	inc hl
+	inc de
+	dec bc
+	ld a,b
+	or c
+	jr nz,-
+	
+	ret
+
+ChecksumTestFile:
+.incbin "Programs/CHECKSUM.BBC"
+ChecksumTestFile.End:
+ChecksumTestFile.Size = ChecksumTestFile.End - ChecksumTestFile
 
 .endmodule
