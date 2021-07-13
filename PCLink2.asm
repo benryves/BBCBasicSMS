@@ -5,9 +5,6 @@ TempCapacity = allocVar(2)
 TempChecksum = allocVar(2)
 TempSize = allocVar(2)
 
-QueuedEscapeByte.Received = allocVar(1)
-QueuedEscapeByte.Value = allocVar(1)
-
 ; ---------------------------------------------------------
 ; Sync -> Synchronises the PC LINK 2 protocol.
 ; ---------------------------------------------------------
@@ -18,9 +15,6 @@ QueuedEscapeByte.Value = allocVar(1)
 Sync:
 
 	call Serial.EmptyReadBuffer
-	
-	xor a
-	ld (QueuedEscapeByte.Received),a
 
 	; Send five "5"s.
 	ld bc,$0505
@@ -178,19 +172,8 @@ EncodeHexNybble:
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
 GetAcknowledgedByte:
-	
-	; Is there an escaped byte in the queue?
-	ld a,(QueuedEscapeByte.Received)
-	or a
-	jr z,+
-	
-	xor a
-	ld (QueuedEscapeByte.Received),a
-	ld a,(QueuedEscapeByte.Value)
-	cp a
-	ret
 
-+:	call Serial.GetByte
+	call Serial.GetByte
 	ret nz
 	
 	push af
@@ -203,7 +186,7 @@ GetAcknowledgedByte:
 	ret
 
 +:	pop af
-	ld a,$27 ; Non-zero error
+	ld a,$5A ; Non-zero error
 	or a
 	ret
 
@@ -234,34 +217,12 @@ GetDataByte:
 
 GetDataByte.Escaped:
 	
-	ld a,'#'
-	call VDU.PutChar
-	
 	; Get the data byte.
 	call GetAcknowledgedByte
 	ret nz
 	
 	cp 'B'
 	jr z,GetDataByte.Hex
-	
-	cp 'Z' ; EOF
-	jr GetDataByte.PermittedEscape
-	
-	; If we get this far, it's an escape code, but not one we recognise...
-	; Store it for later and return a literal $1B.
-	ld (QueuedEscapeByte.Value),a
-	
-	call PutHexByte
-	ld a,'~'
-	call VDU.PutChar
-	
-	ld a,$1B
-	ld (QueuedEscapeByte.Received),a
-	cp a
-	ret z
-	
-
-GetDataByte.PermittedEscape:
 	
 	cp a ; Set zero
 	scf  ; Set carry
@@ -273,6 +234,14 @@ GetDataByte.Hex:
 	; Get the most significant nybble.
 	call GetAcknowledgedByte
 	ret nz
+	
+	push af
+	push af
+	ld a,'('
+	call VDU.PutChar
+	pop af
+	call VDU.PutChar
+	pop af
 	
 	; Convert from hex to decimal.
 	call ParseHexNybble
@@ -291,12 +260,24 @@ GetDataByte.Hex:
 	pop bc
 	ret nz
 	
+	push af
+	call VDU.PutChar
+	ld a,'='
+	call VDU.PutChar
+	pop af
+	
 	; Convert from hex to decimal.
 	call ParseHexNybble
 	ret nz
 	
 	; Combine with the most significant nybble.
 	add a,b
+	
+	push af
+	call PutHexByte
+	ld a,')'
+	call VDU.PutChar
+	pop af
 	
 	cp a ; Set zero, clear carry.
 	ret
@@ -326,7 +307,7 @@ ParseHexNybble.NotDecimal:
 
 ParseHexNybble.Alpha:
 	
-	sub 'A'
+	sub 'A'-10
 	cp a
 	ret
 
@@ -585,7 +566,6 @@ GetFile.PathSent:
 GetFile.ReceiveFileLoop:
 
 	call GetDataByte
-	
 	jr nz,GetFile.ProtocolError
 	
 	jr nc,GetFile.NotEscapeCode ; <- Are we 
@@ -648,6 +628,8 @@ GetFile.ProtocolError:
 	ret
 
 GetFile.CompareChecksum:
+	call VDU.NewLine
+	
 	ld a,'S'
 	call VDU.PutChar
 	ld a,'='
