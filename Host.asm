@@ -467,11 +467,44 @@ RESET
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSLOAD
-	jp Sorry
-	;ld hl,Programs.Mndlbaum
-	ldir
+	push de
+	call PCLink2.GetFile
+	pop hl
+	jp nz,Sorry
 	ccf
+	ret nc
+	
+	; hl->start of file
+	; de->end of file
+	
+	ex de,hl
+	or a
+	sbc hl,de
+	
+-:	push hl
+	push de
+	
+	ld a,(de)
+	push af
+	call PutHexByte
+	pop af
+	push af
+	call Serial.SendByte
+	pop af
+	
+	pop de
+	pop hl
+	
+	inc de
+	dec hl
+	ld a,h
+	or l
+	jr nz,-
+	
+	
+	scf
 	ret
+	
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

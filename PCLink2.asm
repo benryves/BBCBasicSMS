@@ -1,9 +1,5 @@
 .module PCLink2
 
-.var ubyte[16] CommandLog
-
-ShowDebugInfo = 0
-
 ; ---------------------------------------------------------
 ; Sync -> Synchronises the PC LINK 2 protocol.
 ; ---------------------------------------------------------
@@ -85,34 +81,13 @@ Sync:
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
 SendAcknowledgedByte:
-
-.if ShowDebugInfo
-	push af
-	ld a,'>'
-	call VDU.PutChar
-	pop af	
-	push af
-	call PutHexByte
-	pop af
-.endif
-
+	
 	call Serial.SendByte
 	ret nz
-
-.if ShowDebugInfo
-	ld a,'@'
-	call VDU.PutChar
-.endif
-
+	
 	call Serial.GetByte
 	ret nz
-
-.if ShowDebugInfo
-	push af
-	call PutHexByte
-	pop af
-.endif
-
+	
 	or a
 	ret
 
@@ -193,19 +168,10 @@ EncodeHexNybble:
 ; ---------------------------------------------------------
 GetAcknowledgedByte:
 
-.if ShowDebugInfo
-	ld a,'<'
-	call VDU.PutChar
-.endif
-	
 	call Serial.GetByte
 	ret nz
 	
 	push af
-
-.if ShowDebugInfo
-	call PutHexByte
-.endif
 	
 	xor a
 	call Serial.SendByte
@@ -418,7 +384,7 @@ ListDevices:
 ; ---------------------------------------------------------
 ; ListDirectories -> Shows a list of directories.
 ; ---------------------------------------------------------
-; Inputs:   hl = pointer to path and pattern.
+; Inputs:   hl = pointer to full path string.
 ; Outputs:  z on success, nz on failure.
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
@@ -429,7 +395,7 @@ ListDirectories:
 ; ---------------------------------------------------------
 ; ListFiles -> Shows a list of files.
 ; ---------------------------------------------------------
-; Inputs:   hl = pointer to path and pattern.
+; Inputs:   hl = pointer to full path string.
 ; Outputs:  z on success, nz on failure.
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
@@ -441,7 +407,7 @@ ListFiles:
 ; ListFiles -> Shows a list of items.
 ; ---------------------------------------------------------
 ; Inputs:   c = type of item do list.
-;           hl = pointer to path and pattern or 0 to omit.
+;           hl = pointer to path or 0 to omit.
 ; Outputs:  z on success, nz on failure.
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
@@ -506,6 +472,7 @@ ListItems.NoPath:
 +:
 	
 	cp 'N' ; Item name.
+	ret nz
 	call VDU.NewLine
 	jr -
 
@@ -515,6 +482,121 @@ List.NotEscapeCode:
 	jr -
 	
 	
-	call 
+; ---------------------------------------------------------
+; GetFile -> Gets a file.
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to path and pattern or 0 to omit.
+;           de = pointer to RAM to store the file in.
+;           bc = maximum file size that can be loaded.
+; Outputs:  z on success, nz on failure.
+;           c is 
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+GetFile:
+	; Sync.
+	push hl
+	push de
+	push bc
+	call Sync
+	pop bc
+	pop de
+	pop hl
+	jr nz,GetFile.ProtocolError
+	
+	; Send the list request.
+	push hl
+	push de
+	push bc
+	ld a,'G'
+	call SendEscapeCode
+	pop bc
+	pop de
+	pop hl
+	jr nz,GetFile.ProtocolError
+
+	; Is there a path to send?
+	
+GetFile.SendPath:
+
+	ld a,(hl)
+	or a
+	jr z,GetFile.PathSent
+	cp '\r'
+	jr z,GetFile.PathSent
+	
+	push hl
+	push de
+	push bc
+	call SendDataByte
+	pop bc
+	pop de
+	pop hl
+	jr nz,GetFile.ProtocolError
+	
+	inc hl
+	jr GetFile.SendPath
+	
+GetFile.PathSent:
+	
+	; End the path with a 'Z' escape code.
+	ld a,'Z'
+	push de
+	push bc
+	call SendEscapeCode
+	pop bc
+	pop de
+	jr nz,GetFile.ProtocolError
+	
+	; Start reading the file.
+GetFile.ReceiveFileLoop:
+	push de
+	push bc
+	call GetDataByte
+	pop bc
+	pop de
+	
+	jr nz,GetFile.ProtocolError
+	jr nc,GetFile.NotEscapeCode
+	
+	cp 'Z' ; End of file.
+	jr nz,GetFile.ProtocolError
+	xor a ; Set z.
+	ret
+
+GetFile.NotEscapeCode:
+	
+	ld l,a
+	
+	ld a,b
+	or c
+	jr z,GetFile.SizeError
+	
+	ld a,l
+	ld (de),a
+	
+	inc de
+	dec bc
+	jr GetFile.ReceiveFileLoop
+
+GetFile.SizeError:
+	
+	; Send a bad ACK.
+	call Serial.GetByte
+	jr nz,+
+	
+	ld a,1 ; Out of room
+	call Serial.SendByte
+	jr nz,+
+	
+	or 1 ; Force NZ
+
++:
+	scf
+	ret
+	
+GetFile.ProtocolError:
+	scf
+	ccf
+	ret
 
 .endmodule
