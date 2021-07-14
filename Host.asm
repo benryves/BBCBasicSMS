@@ -295,7 +295,7 @@ OSLINE.Backspace:
 	dec hl
 	ld (hl),'\r'
 	
-	call VDU.CursorLeft
+	call VDU.Console.CursorLeft
 	
 	jr OSLINE.Loop
 
@@ -314,7 +314,13 @@ OSLINE.Backspace:
 ;------------------------------------------------------------------------------- 
 OSWRCH:
 	push af
+	push bc
+	push de
+	push hl
 	call VDU.PutChar
+	pop hl
+	pop de
+	pop bc
 	pop af
 	ret
 
@@ -761,7 +767,7 @@ Hello:
 	call VDU.PutString
 	ld a,'?'
 	call VDU.PutChar
-	call VDU.NewLine
+	call VDU.Console.NewLine
 	
 	call PCLink2.Hello
 	ret nz
@@ -770,7 +776,7 @@ Hello:
 	call VDU.PutString
 	ld a,'!'
 	call VDU.PutChar
-	call VDU.NewLine
+	call VDU.Console.NewLine
 	ret
 	
 Hello.Text:
@@ -781,7 +787,7 @@ Goodbye:
 	call VDU.PutString
 	ld a,'?'
 	call VDU.PutChar
-	call VDU.NewLine
+	call VDU.Console.NewLine
 	
 	call PCLink2.Goodbye
 	ret nz
@@ -790,7 +796,7 @@ Goodbye:
 	call VDU.PutString
 	ld a,'!'
 	call VDU.PutChar
-	call VDU.NewLine
+	call VDU.Console.NewLine
 	ret
 	
 Goodbye.Text
@@ -885,7 +891,7 @@ Terminal.GotByte:
 	ld a,'\n'
 	call Serial.SendByte
 	
-	call VDU.NewLine
+	call VDU.Console.NewLine
 	
 	jr Terminal.Loop
 
@@ -901,16 +907,12 @@ SerialTerminal:
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-MODE
+MODE:
 	call Basic.BBCBASIC_EXPRI
     exx
-	ld a,l
-	
-	; Check the mode number is in range
-	cp VDU.Modes.Count
-	jp nc,Basic.BBCBASIC_XEQ
-	
-	call VDU.SetMode
+	ld h,l
+	ld l,22
+	call VDU.WriteWord
 	jp Basic.BBCBASIC_XEQ
 
 ;------------------------------------------------------------------------------- 
@@ -932,6 +934,7 @@ MODE
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 PUTCSR:
+	; Quick 16-bit bounds check
 	ld a,d
 	or a
 	ret nz
@@ -939,30 +942,17 @@ PUTCSR:
 	or a
 	ret nz
 	
-	ld a,(VDU.MinCol)
-	ld d,a
-	ld a,(VDU.MaxCol)
-	sub d
-	cp e
-	ret z
-	ret c
+	; VDU 31,X,Y
 	
-	ld a,(VDU.MinRow)
-	ld h,a
-	ld a,(VDU.MaxRow)
-	sub h
-	cp l
-	ret z
-	ret c
+	ld d,l
+	ex de,hl
+	push hl
 	
-	ld a,(VDU.MinCol)
-	add a,e
-	ld (VDU.CurCol),a
+	ld a,31
+	call VDU.WriteByte
 	
-	ld a,(VDU.MinRow)
-	add a,l
-	ld (VDU.CurRow),a
-	
+	pop hl
+	call VDU.WriteWord
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -983,9 +973,9 @@ PUTCSR:
 ;
 ;------------------------------------------------------------------------------- 
 GETCSR
-	ld de,(VDU.CurCol)
+	ld de,(VDU.Console.CurCol)
 	ld d,0
-	ld hl,(VDU.CurRow)
+	ld hl,(VDU.Console.CurRow)
 	ld h,0
 	ret
 
@@ -1047,7 +1037,8 @@ GETIME
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 CLRSCN
-	ret
+	ld a,12
+	jp OSWRCH
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

@@ -90,14 +90,14 @@ Initialise:
 	
 	; Screen bounds
 	ld a,0
-	ld (MinRow),a
+	ld (Console.MinRow),a
 	ld a,24
-	ld (MaxRow),a
+	ld (Console.MaxRow),a
 	
 	ld a,2
-	ld (MinCol),a
+	ld (Console.MinCol),a
 	ld a,30
-	ld (MaxCol),a
+	ld (Console.MaxCol),a
 
 	ret
 
@@ -109,7 +109,7 @@ PutMap:
 	push af
 
 	; Row *32, *8 = * 256
-	ld a,(CurRow)
+	ld a,(Console.CurRow)
 	ld l,a	
 	and %11111000
 	ld h,a
@@ -123,7 +123,7 @@ PutMap:
 	ld l,0
 
 	; Column *8
-	ld a,(CurCol)
+	ld a,(Console.CurCol)
 	add a,a
 	add a,a
 	add a,a

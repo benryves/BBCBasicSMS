@@ -51,14 +51,14 @@ LoadCharRow:
 	
 	; Screen bounds
 	ld a,0
-	ld (MinRow),a
+	ld (Console.MinRow),a
 	ld a,24
-	ld (MaxRow),a
+	ld (Console.MaxRow),a
 	
 	ld a,2
-	ld (MinCol),a
+	ld (Console.MinCol),a
 	ld a,30
-	ld (MaxCol),a
+	ld (Console.MaxCol),a
 
 	ret
 
@@ -74,7 +74,7 @@ PutMap:
 	push bc
 	push af
 
-	ld a,(CurRow)
+	ld a,(Console.CurRow)
 	ld l,a
 	ld a,(ScrollRowOffset)
 	add a,l
@@ -89,7 +89,7 @@ PutMap:
 -:	add hl,hl
 	djnz -
 	
-	ld a,(CurCol)
+	ld a,(Console.CurCol)
 	add a,a
 	
 	ld e,a

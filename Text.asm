@@ -30,14 +30,14 @@ Initialise:
 	call Video.SetRegister
 	
 	ld a,0
-	ld (MinRow),a
+	ld (Console.MinRow),a
 	ld a,24
-	ld (MaxRow),a
+	ld (Console.MaxRow),a
 	
 	ld a,2
-	ld (MinCol),a
+	ld (Console.MinCol),a
 	ld a,40
-	ld (MaxCol),a
+	ld (Console.MaxCol),a
 	
 	; Load the font
 	
@@ -64,7 +64,7 @@ PutMap:
 	push de
 	push bc
 	push af
-	ld a,(CurRow)
+	ld a,(Console.CurRow)
 	ld l,a
 	ld h,0
 	
@@ -78,7 +78,7 @@ PutMap:
 	add hl,hl ; *32
 	add hl,de ; *40
 	
-	ld a,(CurCol)
+	ld a,(Console.CurCol)
 	ld e,a
 	ld d,0
 	add hl,de

@@ -472,14 +472,14 @@ ListItems.NoPath:
 	
 	cp 'Z' ; End of list.
 	jr nz,+
-	call VDU.NewLine
+	call VDU.Console.NewLine
 	xor a ; Set z.
 	ret
 +:
 	
 	cp 'N' ; Item name.
 	ret nz
-	call VDU.NewLine
+	call VDU.Console.NewLine
 	jr -
 
 List.NotEscapeCode:
@@ -704,7 +704,7 @@ SendFile.PathSent:
 .if Debug.ShowChecksum
 
 GetFile.CompareChecksum:
-	call VDU.NewLine
+	call VDU.Console.NewLine
 	
 	ld a,'S'
 	call VDU.PutChar
@@ -712,7 +712,7 @@ GetFile.CompareChecksum:
 	call VDU.PutChar
 	ld hl,(TempSize)
 	call PutHexWord
-	call VDU.NewLine
+	call VDU.Console.NewLine
 	
 	ld a,'C'
 	call VDU.PutChar
@@ -720,7 +720,7 @@ GetFile.CompareChecksum:
 	call VDU.PutChar
 	ld hl,(TempChecksum)
 	call PutHexWord
-	call VDU.NewLine
+	call VDU.Console.NewLine
 	
 	; Is the received data the same size as the checksum test file?
 	ld hl,(TempSize)
@@ -795,7 +795,7 @@ GetFile.CompareChecksum:
 	ld a,(hl)
 	call PutHexByte
 	
-	call VDU.NewLine
+	call VDU.Console.NewLine
 	
 	pop bc
 	pop de
