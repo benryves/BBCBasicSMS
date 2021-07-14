@@ -31,8 +31,6 @@ Status.ReadBuffer.Enabled = 0
 Status.XOnXOff.Enabled = 1
 Status.XOnXOff.WriteInhibited = 2
 
-IdleCallback = allocVar(3)
-
 ; ---------------------------------------------------------
 ; Resets -> Resets the serial port to its default state.
 ; ---------------------------------------------------------
@@ -56,9 +54,6 @@ Reset:
 	ld a,1 << Status.ReadBuffer.Enabled
 	ld (Status),a
 	
-	ld a,$C9 ; RET
-	ld (IdleCallback),a
-
 	; Reset to 9600 baud
 	ld hl,9600
 	; Fall-through to SetRate
@@ -135,51 +130,6 @@ SetRate:
 	ret
 
 ; ---------------------------------------------------------
-; ClearIdleCallback -> Removes the idle callback.
-; ---------------------------------------------------------
-; Inputs:   None.
-; Outputs:  None.
-; Destroys: a, hl
-; ---------------------------------------------------------
-ClearIdleCallback:
-	ld a,$C9 ; RET
-	ld (IdleCallback),a
-	ret
-	
-; ---------------------------------------------------------
-; SetIdleCallback -> Sets the idle callback.
-; ---------------------------------------------------------
-; Inputs:   hl = address of callback, or 0 to clear.
-; Outputs:  None.
-; Destroys: af, hl
-; ---------------------------------------------------------
-SetIdleCallback:
-	ld a,h
-	or l
-	jr z,ClearIdleCallback
-	ld a,$C3 ; JP
-	ld (IdleCallback),a
-	ld (IdleCallback+1),hl
-	ret
-
-; ---------------------------------------------------------
-; GetIdleCallback -> Gets the idle callback.
-; ---------------------------------------------------------
-; Inputs:   None.
-; Outputs:  hl = address of callback, or 0 if none.
-;           z is set if there is no callback.
-; Destroys: a, hl
-; ---------------------------------------------------------
-GetIdleCallback:
-	ld a,(IdleCallback)
-	cp $C9
-	jr nz,+
-	ld hl,0
-	ret
-+:	ld hl,(IdleCallback+1)
-	ret
-
-; ---------------------------------------------------------
 ; SendByteImmediately -> Sends a byte without waiting.
 ; ---------------------------------------------------------
 ; This should only be used in situations where you know
@@ -217,14 +167,6 @@ SendByteRaw:
 	call BitDelay
 
 SendByte.SkipBitDelay:
-	
-	; We still need the idle callback!
-	push af
-	push de
-	call IdleCallback
-	pop de
-	pop af
-	
 	ld b,10
 	
 	; Send the start bit
@@ -447,13 +389,7 @@ GetByteBuffered:
 	
 	djnz -         ; 13/8	
 	dec c          ; 4
-	jr z,+         ; 12/7
-
-	; Invoke the idle callback.
-	push bc
-	call IdleCallback
-	pop bc
-	jr -	
+	jr nz,-        ; 12/7
 
 +:
 	; We've timed out, force NZ to denote error.
