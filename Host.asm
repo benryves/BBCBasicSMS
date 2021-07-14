@@ -273,14 +273,12 @@ OSLINE.EnoughSpace:
 	inc b
 	dec c
 	
-	push af
-	call OSWRCH
-	pop af
+	call VDU.WriteByte
 	cp '\r'
 	jr nz,OSLINE.Loop
 	
 	ld a,'\n'
-	call OSWRCH
+	call VDU.WriteByte
 	xor a
 	ret
 
@@ -313,16 +311,7 @@ OSLINE.Backspace:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSWRCH:
-	push af
-	push bc
-	push de
-	push hl
-	call VDU.PutChar
-	pop hl
-	pop de
-	pop bc
-	pop af
-	ret
+	jp VDU.WriteByte
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -343,7 +332,7 @@ OSWRCH:
 ;------------------------------------------------------------------------------- 
 PROMPT:
 	ld a,'>'
-	jp OSWRCH
+	jp VDU.WriteByte
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -1038,7 +1027,7 @@ GETIME
 ;------------------------------------------------------------------------------- 
 CLRSCN
 	ld a,12
-	jp OSWRCH
+	jp VDU.WriteByte
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

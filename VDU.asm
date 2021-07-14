@@ -133,24 +133,70 @@ SetModeInitialize:
 FontTileIndex = 0
 FontCharOffset = FontTileIndex-' '
 
-
+; ---------------------------------------------------------
+; WriteWord -> Writes a word to the VDU.
+; ---------------------------------------------------------
+; Inputs:   hl = word to write, writing L before H.
+; Outputs:  None.
+; Destroys: None.
+; ---------------------------------------------------------
 WriteWord:
 	push hl
+	push de
+	push bc
+	push af
+	
+	push hl
+	
 	ld a,l
-	call WriteByte
+	call WriteByteDestructive
+	
 	pop hl
+	
 	ld a,h
+	call WriteByteDestructive
+	
+	pop af
+	pop bc
+	pop de
+	pop hl
+	ret
 
+; ---------------------------------------------------------
+; WriteByte -> Writes a byte to the VDU.
+; ---------------------------------------------------------
+; Inputs:   a = value to output.
+; Outputs:  None.
+; Destroys: None.
+; ---------------------------------------------------------
 PutChar:
 WriteByte:
+	push hl
+	push de
+	push bc
+	push af
+	call WriteByteDestructive
+	pop af
+	pop bc
+	pop de
+	pop hl
+	ret
 
+; ---------------------------------------------------------
+; WriteByteDestructive -> Writes a byte to the VDU.
+; ---------------------------------------------------------
+; Inputs:   a = value to output.
+; Outputs:  None.
+; Destroys: af, bc, de, hl.
+; ---------------------------------------------------------
+WriteByteDestructive:
 	; Check to see if we're waiting for anything in the command queue.
 	ld c,a
 	ld a,(CommandQueue.Waiting)
 	or a
 	jr z,VDU.WriteByteNotWaiting
 	
-	
+	; Calculate the offset to the command queue.
 	ld hl,CommandQueue + CommandQueue.Capacity
 	ld e,a
 	ld d,-1
@@ -162,7 +208,7 @@ WriteByte:
 	ld (CommandQueue.Waiting),a
 	
 	ret nz ; Still waiting for more data...
-
+	
 HandleCommand:
 	
 	; At this point we have a multi-byte VDU command stored in the queue.
@@ -173,10 +219,12 @@ HandleCommand:
 	ret nc
 	
 	; Find the address of the command handler in the jump table.
+	
 	call GetCommandJumpTable
 	jp (hl)
 
 WriteByteNotWaiting:
+	
 	; We're not waiting to fill up the command queue before doing something exciting.
 	ld a,c
 	ld (CommandQueue),a
