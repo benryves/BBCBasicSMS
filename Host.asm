@@ -468,10 +468,12 @@ RESET
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSLOAD
+	call VDU.StartSerialIdleAnimation
 
-	push de
 	call PCLink2.GetFile
-	pop hl
+	
+	call VDU.StopSerialIdleAnimation
+	
 	jp nz,Sorry
 	ccf
 	ret
@@ -498,7 +500,7 @@ OSLOAD
 OSSAVE
 	jp SORRY
 
-------------------------------------------------------------------------------- 
+;------------------------------------------------------------------------------- 
 ;@doc:routine 
 ; 
 ; === Host.OSOPEN ===
@@ -842,13 +844,18 @@ Terminal:
 	ld hl,SerialTerminal
 	call VDU.PutString
 
+Terminal.RestartLoop:
+	
+	call VDU.StartSerialIdleAnimation
+	
 Terminal.Loop:
-	ld a,127
-	call VDU.PutMap
+	
 	call Serial.GetByte
 	push af
+	
 	ld a,' '
-	call VDU.PutMap
+	call z,VDU.PutMap
+	
 	pop af
 	jr z,Terminal.GotByte
 	
@@ -858,13 +865,19 @@ Terminal.Loop:
 	in a,($DD)
 	bit 4,a
 	jr nz,Terminal.Loop
+	
+	call VDU.StopSerialIdleAnimation
+	ld a,127
+	call VDU.PutMap
+	
 -:	in a,($DD)
 	bit 4,a
 	ret nz
 	jr -
-	ret
 
 Terminal.GotByte:
+	
+	call VDU.StopSerialIdleAnimation
 	
 	push af
 	call Serial.SendByte
@@ -874,14 +887,14 @@ Terminal.GotByte:
 	call VDU.PutChar
 	pop af
 	cp '\r'
-	jr nz,Terminal.Loop
+	jr nz,Terminal.RestartLoop
 	
 	ld a,'\n'
 	call Serial.SendByte
 	
 	call VDU.NewLine
 	
-	jr Terminal.Loop
+	jr Terminal.RestartLoop
 
 SerialTerminal:
 	.db "Testing serial port...\n", 0

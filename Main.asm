@@ -35,7 +35,10 @@ Interrupt:
 	
 	in a,($BF)
 	bit 7,a
-	jr z,NotFrameInterrupt
+	call nz,FrameInterrupt
+	
+	pop af
+	reti
 
 FrameInterrupt:
 
@@ -69,10 +72,7 @@ FrameInterrupt:
 	add a,60 ; 60Hz video refresh
 	jp m,-
 	ld (FrameCounter),a
-	
-NotFrameInterrupt:
-	pop af
-	reti
+	ret
 
 ; Libraries:
 .include "Video.asm"

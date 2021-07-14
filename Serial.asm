@@ -31,6 +31,15 @@ Status.ReadBuffer.Enabled = 0
 Status.XOnXOff.Enabled = 1
 Status.XOnXOff.WriteInhibited = 2
 
+IdleCallback = allocVar(3)
+
+; ---------------------------------------------------------
+; Resets -> Resets the serial port to its default state.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  None.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
 Reset:
 	
 	; Set TxD as an output
@@ -46,11 +55,21 @@ Reset:
 	
 	ld a,1 << Status.ReadBuffer.Enabled
 	ld (Status),a
+	
+	ld a,$C9 ; RET
+	ld (IdleCallback),a
 
 	; Reset to 9600 baud
 	ld hl,9600
 	; Fall-through to SetRate
 
+; ---------------------------------------------------------
+; SetRate -> Sets the baud rate of the serial port.
+; ---------------------------------------------------------
+; Inputs:   hl = baud rate (300-38400).
+; Outputs:  None.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
 SetRate:
 
 	push hl
@@ -115,11 +134,75 @@ SetRate:
 	pop hl
 	ret
 
+; ---------------------------------------------------------
+; ClearIdleCallback -> Removes the idle callback.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  None.
+; Destroys: a, hl
+; ---------------------------------------------------------
+ClearIdleCallback:
+	ld a,$C9 ; RET
+	ld (IdleCallback),a
+	ret
+	
+; ---------------------------------------------------------
+; SetIdleCallback -> Sets the idle callback.
+; ---------------------------------------------------------
+; Inputs:   hl = address of callback, or 0 to clear.
+; Outputs:  None.
+; Destroys: af, hl
+; ---------------------------------------------------------
+SetIdleCallback:
+	ld a,h
+	or l
+	jr z,ClearIdleCallback
+	ld a,$C3 ; JP
+	ld (IdleCallback),a
+	ld (IdleCallback+1),hl
+	ret
+
+; ---------------------------------------------------------
+; GetIdleCallback -> Gets the idle callback.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  hl = address of callback, or 0 if none.
+;           z is set if there is no callback.
+; Destroys: a, hl
+; ---------------------------------------------------------
+GetIdleCallback:
+	ld a,(IdleCallback)
+	cp $C9
+	jr nz,+
+	ld hl,0
+	ret
++:	ld hl,(IdleCallback+1)
+	ret
+
+; ---------------------------------------------------------
+; SendByteImmediately -> Sends a byte without waiting.
+; ---------------------------------------------------------
+; This should only be used in situations where you know
+; that enough time has passed since the last byte was sent
+; to not mess up your byte framing.
+; ---------------------------------------------------------
+; Inputs:   a = byte to send.
+; Outputs:  None.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
 SendByteImmediately:
 	di
 	ld d,a
 	jr SendByte.SkipBitDelay
 
+
+; ---------------------------------------------------------
+; SendByte -> Sends a byte.
+; ---------------------------------------------------------
+; Inputs:   a = byte to send.
+; Outputs:  None.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
 SendByte:
 	di
 
@@ -134,6 +217,13 @@ SendByteRaw:
 	call BitDelay
 
 SendByte.SkipBitDelay:
+	
+	; We still need the idle callback!
+	push af
+	push de
+	call IdleCallback
+	pop de
+	pop af
 	
 	ld b,10
 	
@@ -166,17 +256,49 @@ SendLoop:
 	cp a ; Set the Z flag
 	ret
 
+; ---------------------------------------------------------
+; EmptyReadBuffer -> Empties the read buffer.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  None.
+; Destroys: af.
+; ---------------------------------------------------------
 EmptyReadBuffer:
 	xor a
 	ld (SerialReadBuffer.Count),a
 	ret
 
+; ---------------------------------------------------------
+; GetSingleByte -> Gets a single byte
+; ---------------------------------------------------------
+; This routine does not wait to see if more bytes are
+; coming after the first one (to top up the buffer) so
+; this should only be used in protocols where you know
+; that a single byte is received at a time (e.g. if the
+; connected device is expecting an acknowledgement byte
+; from you). With a standard PC serial port this function
+; will drop bytes as it won't be able to buffer incoming
+; data.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  z if a byte was received, nz if it timed out.
+;           a = the received byte.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
 GetSingleByte:
 	di
 	ld a,(Status)
 	res Status.ReadBuffer.Enabled,a
 	jr GetByte.SetReadBufferStatus
 
+; ---------------------------------------------------------
+; GetByte -> Gets a byte.
+; ---------------------------------------------------------
+; Inputs:   None
+; Outputs:  z if a byte was received, nz if it timed out.
+;           a = the received byte.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
 GetByte:
 	di
 	
@@ -319,14 +441,21 @@ SerialReadBufferEmpty:
 
 GetByteBuffered:
 
--:	in a,($DC)    ; 11
-	add a,a       ; 4
-	jr nc,+       ; 12/7
+-:	in a,($DC)     ; 11
+	add a,a        ; 4
+	jr nc,GotStart ; 12/7
 	
-	djnz -        ; 13/8	
-	dec c         ; 4
-	jr nz,-       ; 12/7
-	
+	djnz -         ; 13/8	
+	dec c          ; 4
+	jr z,+         ; 12/7
+
+	; Invoke the idle callback.
+	push bc
+	call IdleCallback
+	pop bc
+	jr -	
+
++:
 	; We've timed out, force NZ to denote error.
 	
 	; De-assert RTS by restoring original state of IO control.
@@ -338,7 +467,7 @@ GetByteBuffered:
 	or $FF
 	ret
 
-+:
+GotStart:
 	
 	; De-assert RTS
 	ld (IOControl),a ; 13
@@ -391,7 +520,8 @@ GetByteBuffered:
 	cp a
 	
 	ret
-
+	
+; Here follow the hard-coded bit delay routines.
 BitDelays:
 	.dw BitDelay.19200
 	.dw BitDelay.9600
@@ -468,6 +598,7 @@ BitDelay.300:
 	pop bc
 	ret
 
+; Delay loop to make the above bit delay functions work.
 delay: ; 61+13*BC
 	ld a,b ; 4
 	or a ; 4
