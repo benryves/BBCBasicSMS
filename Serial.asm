@@ -27,8 +27,9 @@ SerialReadBuffer.Count = allocVar(1)
 SerialReadBuffer.Pointer = allocVar(2)
 
 Status = allocVar(1)
-Status.XOnXOff.Enabled = 0
-Status.XOnXOff.WriteInhibited = 1
+Status.ReadBuffer.Enabled = 0
+Status.XOnXOff.Enabled = 1
+Status.XOnXOff.WriteInhibited = 2
 
 Reset:
 	
@@ -42,6 +43,8 @@ Reset:
 	
 	xor a
 	ld (SerialReadBuffer.Count),a
+	
+	ld a,1 << Status.ReadBuffer.Enabled
 	ld (Status),a
 
 	; Reset to 9600 baud
@@ -112,6 +115,10 @@ SetRate:
 	pop hl
 	ret
 
+SendByteImmediately:
+	di
+	ld d,a
+	jr SendByte.SkipBitDelay
 
 SendByte:
 	di
@@ -125,6 +132,8 @@ SendByteRaw:
 	; This is because sometimes we need to start receiving a byte as soon as we've sent one.
 	; (e.g. after XON) so can't afford to wait a while bit time after sending the byte.
 	call BitDelay
+
+SendByte.SkipBitDelay:
 	
 	ld b,10
 	
@@ -162,8 +171,20 @@ EmptyReadBuffer:
 	ld (SerialReadBuffer.Count),a
 	ret
 
+GetSingleByte:
+	di
+	ld a,(Status)
+	res Status.ReadBuffer.Enabled,a
+	jr GetByte.SetReadBufferStatus
+
 GetByte:
 	di
+	
+	ld a,(Status)
+	set Status.ReadBuffer.Enabled,a
+
+GetByte.SetReadBufferStatus:
+	ld (Status),a
 
 	; Try to get a byte directly.
 	call GetByteRaw
@@ -263,8 +284,15 @@ SerialReadBufferEmpty:
 	; Double check with a short timeout.
 	
 	push af ; Store the first value.
-	push hl
 	
+	ld a,(Status)
+	bit Status.ReadBuffer.Enabled,a
+	jr nz,+
+	; The read buffer is disabled!
+	pop af
+	ret
+	
++:	push hl	
 	ld b,SerialReadBuffer.Capacity
 	ld hl,SerialReadBuffer
 	ld (SerialReadBuffer.Pointer),hl
@@ -295,14 +323,7 @@ GetByteBuffered:
 	add a,a       ; 4
 	jr nc,+       ; 12/7
 	
-	djnz -        ; 13/8
-
--:	in a,($DC)    ; 11
-	add a,a       ; 4
-	jr nc,+       ; 12/7
-	
-	djnz -        ; 13/8
-	
+	djnz -        ; 13/8	
 	dec c         ; 4
 	jr nz,-       ; 12/7
 	

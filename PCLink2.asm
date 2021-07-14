@@ -5,6 +5,8 @@ TempCapacity = allocVar(2)
 TempChecksum = allocVar(2)
 TempSize = allocVar(2)
 
+Debug.ShowChecksum = 0
+
 ; ---------------------------------------------------------
 ; Sync -> Synchronises the PC LINK 2 protocol.
 ; ---------------------------------------------------------
@@ -87,10 +89,10 @@ Sync:
 ; ---------------------------------------------------------
 SendAcknowledgedByte:
 	
-	call Serial.SendByte
+	call Serial.SendByteImmediately
 	ret nz
 	
-	call Serial.GetByte
+	call Serial.GetSingleByte
 	ret nz
 	
 	or a
@@ -173,13 +175,13 @@ EncodeHexNybble:
 ; ---------------------------------------------------------
 GetAcknowledgedByte:
 
-	call Serial.GetByte
+	call Serial.GetSingleByte
 	ret nz
 	
 	push af
 	
 	xor a
-	call Serial.SendByte
+	call Serial.SendByteImmediately
 	jr nz,+
 	
 	pop af
@@ -235,14 +237,6 @@ GetDataByte.Hex:
 	call GetAcknowledgedByte
 	ret nz
 	
-	push af
-	push af
-	ld a,'('
-	call VDU.PutChar
-	pop af
-	call VDU.PutChar
-	pop af
-	
 	; Convert from hex to decimal.
 	call ParseHexNybble
 	ret nz
@@ -253,18 +247,11 @@ GetDataByte.Hex:
 	add a,a
 	ld b,a
 	
-	
 	; Get the least significant nybble.
 	push bc
 	call GetAcknowledgedByte
 	pop bc
 	ret nz
-	
-	push af
-	call VDU.PutChar
-	ld a,'='
-	call VDU.PutChar
-	pop af
 	
 	; Convert from hex to decimal.
 	call ParseHexNybble
@@ -272,12 +259,6 @@ GetDataByte.Hex:
 	
 	; Combine with the most significant nybble.
 	add a,b
-	
-	push af
-	call PutHexByte
-	ld a,')'
-	call VDU.PutChar
-	pop af
 	
 	cp a ; Set zero, clear carry.
 	ret
@@ -568,12 +549,14 @@ GetFile.ReceiveFileLoop:
 	call GetDataByte
 	jr nz,GetFile.ProtocolError
 	
-	jr nc,GetFile.NotEscapeCode ; <- Are we 
+	jr nc,GetFile.NotEscapeCode
 	
 	cp 'Z' ; End of file.
 	jr nz,GetFile.ProtocolError
-	
+
+.if Debug.ShowChecksum
 	call GetFile.CompareChecksum ; Debugging
+.endif
 	
 	xor a ; Set z.
 	ret
@@ -613,7 +596,7 @@ GetFile.SizeError:
 	jr nz,+
 	
 	ld a,1 ; Out of room
-	call Serial.SendByte
+	call Serial.SendByteImmediately
 	jr nz,+
 	
 	or 1 ; Force NZ
@@ -626,6 +609,8 @@ GetFile.ProtocolError:
 	scf
 	ccf
 	ret
+
+.if Debug.ShowChecksum
 
 GetFile.CompareChecksum:
 	call VDU.NewLine
@@ -735,8 +720,10 @@ GetFile.CompareChecksum:
 	ret
 
 ChecksumTestFile:
-.incbin "Programs/CHECKSUM.BBC"
+.incbin "Programs/MANDELBAUM.BBC"
 ChecksumTestFile.End:
 ChecksumTestFile.Size = ChecksumTestFile.End - ChecksumTestFile
+
+.endif
 
 .endmodule
