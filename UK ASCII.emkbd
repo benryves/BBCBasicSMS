@@ -1,0 +1,577 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<keyboard version="1" title="UK">
+  <key friendlyname="-" scancode="78" isextended="False" ismodifier="False" modifiermask="5">
+    <value modifier="0" value="45" isnonprintable="False" />
+    <value modifier="1" value="95" isnonprintable="False" />
+    <value modifier="4" value="30" isnonprintable="False" />
+    <value modifier="5" value="31" isnonprintable="False" />
+  </key>
+  <key friendlyname="'" scancode="82" isextended="False" ismodifier="False" modifiermask="5">
+    <value modifier="0" value="39" isnonprintable="False" />
+    <value modifier="1" value="64" isnonprintable="False" />
+    <value modifier="4" value="255" isnonprintable="False" />
+    <value modifier="5" value="255" isnonprintable="False" />
+  </key>
+  <key friendlyname="#" scancode="93" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="35" isnonprintable="False" />
+    <value modifier="1" value="126" isnonprintable="False" />
+  </key>
+  <key friendlyname="," scancode="65" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="44" isnonprintable="False" />
+    <value modifier="1" value="60" isnonprintable="False" />
+  </key>
+  <key friendlyname="." scancode="73" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="46" isnonprintable="False" />
+    <value modifier="1" value="62" isnonprintable="False" />
+  </key>
+  <key friendlyname="/" scancode="74" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="47" isnonprintable="False" />
+    <value modifier="1" value="63" isnonprintable="False" />
+  </key>
+  <key friendlyname=";" scancode="76" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="59" isnonprintable="False" />
+    <value modifier="1" value="58" isnonprintable="False" />
+  </key>
+  <key friendlyname="[" scancode="84" isextended="False" ismodifier="False" modifiermask="5">
+    <value modifier="0" value="91" isnonprintable="False" />
+    <value modifier="1" value="123" isnonprintable="False" />
+    <value modifier="4" value="27" isnonprintable="False" />
+    <value modifier="5" value="27" isnonprintable="False" />
+  </key>
+  <key friendlyname="\" scancode="97" isextended="False" ismodifier="False" modifiermask="5">
+    <value modifier="0" value="92" isnonprintable="False" />
+    <value modifier="1" value="124" isnonprintable="False" />
+    <value modifier="4" value="28" isnonprintable="False" />
+    <value modifier="5" value="28" isnonprintable="False" />
+  </key>
+  <key friendlyname="]" scancode="91" isextended="False" ismodifier="False" modifiermask="5">
+    <value modifier="0" value="93" isnonprintable="False" />
+    <value modifier="1" value="125" isnonprintable="False" />
+    <value modifier="4" value="29" isnonprintable="False" />
+    <value modifier="5" value="29" isnonprintable="False" />
+  </key>
+  <key friendlyname="`" scancode="14" isextended="False" ismodifier="False" modifiermask="3">
+    <value modifier="0" value="39" isnonprintable="False" />
+    <value modifier="1" value="126" isnonprintable="False" />
+    <value modifier="2" value="124" isnonprintable="False" />
+    <value modifier="3" value="255" isnonprintable="False" />
+  </key>
+  <key friendlyname="=" scancode="85" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="61" isnonprintable="False" />
+    <value modifier="1" value="43" isnonprintable="False" />
+  </key>
+  <key friendlyname="0" scancode="69" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="48" isnonprintable="False" />
+    <value modifier="1" value="41" isnonprintable="False" />
+  </key>
+  <key friendlyname="1" scancode="22" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="49" isnonprintable="False" />
+    <value modifier="1" value="33" isnonprintable="False" />
+  </key>
+  <key friendlyname="2" scancode="30" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="50" isnonprintable="False" />
+    <value modifier="1" value="34" isnonprintable="False" />
+  </key>
+  <key friendlyname="3" scancode="38" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="51" isnonprintable="False" />
+    <value modifier="1" value="96" isnonprintable="False" />
+  </key>
+  <key friendlyname="4" scancode="37" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="52" isnonprintable="False" />
+    <value modifier="1" value="36" isnonprintable="False" />
+  </key>
+  <key friendlyname="5" scancode="46" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="53" isnonprintable="False" />
+    <value modifier="1" value="37" isnonprintable="False" />
+  </key>
+  <key friendlyname="6" scancode="54" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="54" isnonprintable="False" />
+    <value modifier="1" value="94" isnonprintable="False" />
+  </key>
+  <key friendlyname="7" scancode="61" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="55" isnonprintable="False" />
+    <value modifier="1" value="38" isnonprintable="False" />
+  </key>
+  <key friendlyname="8" scancode="62" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="56" isnonprintable="False" />
+    <value modifier="1" value="42" isnonprintable="False" />
+  </key>
+  <key friendlyname="9" scancode="70" isextended="False" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="57" isnonprintable="False" />
+    <value modifier="1" value="40" isnonprintable="False" />
+  </key>
+  <key friendlyname="A" scancode="28" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="97" isnonprintable="False" />
+    <value modifier="1" value="65" isnonprintable="False" />
+    <value modifier="4" value="1" isnonprintable="False" />
+    <value modifier="5" value="1" isnonprintable="False" />
+    <value modifier="16" value="65" isnonprintable="False" />
+    <value modifier="17" value="97" isnonprintable="False" />
+    <value modifier="20" value="1" isnonprintable="False" />
+    <value modifier="21" value="1" isnonprintable="False" />
+  </key>
+  <key friendlyname="B" scancode="50" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="98" isnonprintable="False" />
+    <value modifier="1" value="66" isnonprintable="False" />
+    <value modifier="4" value="2" isnonprintable="False" />
+    <value modifier="5" value="2" isnonprintable="False" />
+    <value modifier="16" value="66" isnonprintable="False" />
+    <value modifier="17" value="98" isnonprintable="False" />
+    <value modifier="20" value="2" isnonprintable="False" />
+    <value modifier="21" value="2" isnonprintable="False" />
+  </key>
+  <key friendlyname="C" scancode="33" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="99" isnonprintable="False" />
+    <value modifier="1" value="67" isnonprintable="False" />
+    <value modifier="4" value="3" isnonprintable="False" />
+    <value modifier="5" value="3" isnonprintable="False" />
+    <value modifier="16" value="67" isnonprintable="False" />
+    <value modifier="17" value="99" isnonprintable="False" />
+    <value modifier="20" value="3" isnonprintable="False" />
+    <value modifier="21" value="3" isnonprintable="False" />
+  </key>
+  <key friendlyname="D" scancode="35" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="100" isnonprintable="False" />
+    <value modifier="1" value="68" isnonprintable="False" />
+    <value modifier="4" value="4" isnonprintable="False" />
+    <value modifier="5" value="4" isnonprintable="False" />
+    <value modifier="16" value="68" isnonprintable="False" />
+    <value modifier="17" value="100" isnonprintable="False" />
+    <value modifier="20" value="4" isnonprintable="False" />
+    <value modifier="21" value="4" isnonprintable="False" />
+  </key>
+  <key friendlyname="E" scancode="36" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="101" isnonprintable="False" />
+    <value modifier="1" value="69" isnonprintable="False" />
+    <value modifier="4" value="5" isnonprintable="False" />
+    <value modifier="5" value="5" isnonprintable="False" />
+    <value modifier="16" value="69" isnonprintable="False" />
+    <value modifier="17" value="101" isnonprintable="False" />
+    <value modifier="20" value="5" isnonprintable="False" />
+    <value modifier="21" value="5" isnonprintable="False" />
+  </key>
+  <key friendlyname="F" scancode="43" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="102" isnonprintable="False" />
+    <value modifier="1" value="70" isnonprintable="False" />
+    <value modifier="4" value="6" isnonprintable="False" />
+    <value modifier="5" value="6" isnonprintable="False" />
+    <value modifier="16" value="70" isnonprintable="False" />
+    <value modifier="17" value="102" isnonprintable="False" />
+    <value modifier="20" value="6" isnonprintable="False" />
+    <value modifier="21" value="6" isnonprintable="False" />
+  </key>
+  <key friendlyname="G" scancode="52" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="103" isnonprintable="False" />
+    <value modifier="1" value="71" isnonprintable="False" />
+    <value modifier="4" value="7" isnonprintable="False" />
+    <value modifier="5" value="7" isnonprintable="False" />
+    <value modifier="16" value="71" isnonprintable="False" />
+    <value modifier="17" value="103" isnonprintable="False" />
+    <value modifier="20" value="7" isnonprintable="False" />
+    <value modifier="21" value="7" isnonprintable="False" />
+  </key>
+  <key friendlyname="H" scancode="51" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="104" isnonprintable="False" />
+    <value modifier="1" value="72" isnonprintable="False" />
+    <value modifier="4" value="8" isnonprintable="False" />
+    <value modifier="5" value="8" isnonprintable="False" />
+    <value modifier="16" value="72" isnonprintable="False" />
+    <value modifier="17" value="104" isnonprintable="False" />
+    <value modifier="20" value="8" isnonprintable="False" />
+    <value modifier="21" value="8" isnonprintable="False" />
+  </key>
+  <key friendlyname="I" scancode="67" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="105" isnonprintable="False" />
+    <value modifier="1" value="73" isnonprintable="False" />
+    <value modifier="4" value="9" isnonprintable="False" />
+    <value modifier="5" value="9" isnonprintable="False" />
+    <value modifier="16" value="73" isnonprintable="False" />
+    <value modifier="17" value="105" isnonprintable="False" />
+    <value modifier="20" value="9" isnonprintable="False" />
+    <value modifier="21" value="9" isnonprintable="False" />
+  </key>
+  <key friendlyname="J" scancode="59" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="106" isnonprintable="False" />
+    <value modifier="1" value="74" isnonprintable="False" />
+    <value modifier="4" value="10" isnonprintable="False" />
+    <value modifier="5" value="10" isnonprintable="False" />
+    <value modifier="16" value="74" isnonprintable="False" />
+    <value modifier="17" value="106" isnonprintable="False" />
+    <value modifier="20" value="10" isnonprintable="False" />
+    <value modifier="21" value="10" isnonprintable="False" />
+  </key>
+  <key friendlyname="K" scancode="66" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="107" isnonprintable="False" />
+    <value modifier="1" value="75" isnonprintable="False" />
+    <value modifier="4" value="11" isnonprintable="False" />
+    <value modifier="5" value="11" isnonprintable="False" />
+    <value modifier="16" value="75" isnonprintable="False" />
+    <value modifier="17" value="107" isnonprintable="False" />
+    <value modifier="20" value="11" isnonprintable="False" />
+    <value modifier="21" value="11" isnonprintable="False" />
+  </key>
+  <key friendlyname="L" scancode="75" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="108" isnonprintable="False" />
+    <value modifier="1" value="76" isnonprintable="False" />
+    <value modifier="4" value="12" isnonprintable="False" />
+    <value modifier="5" value="12" isnonprintable="False" />
+    <value modifier="16" value="76" isnonprintable="False" />
+    <value modifier="17" value="108" isnonprintable="False" />
+    <value modifier="20" value="12" isnonprintable="False" />
+    <value modifier="21" value="12" isnonprintable="False" />
+  </key>
+  <key friendlyname="M" scancode="58" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="109" isnonprintable="False" />
+    <value modifier="1" value="77" isnonprintable="False" />
+    <value modifier="4" value="13" isnonprintable="False" />
+    <value modifier="5" value="13" isnonprintable="False" />
+    <value modifier="16" value="77" isnonprintable="False" />
+    <value modifier="17" value="109" isnonprintable="False" />
+    <value modifier="20" value="13" isnonprintable="False" />
+    <value modifier="21" value="13" isnonprintable="False" />
+  </key>
+  <key friendlyname="N" scancode="49" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="110" isnonprintable="False" />
+    <value modifier="1" value="78" isnonprintable="False" />
+    <value modifier="4" value="14" isnonprintable="False" />
+    <value modifier="5" value="14" isnonprintable="False" />
+    <value modifier="16" value="78" isnonprintable="False" />
+    <value modifier="17" value="110" isnonprintable="False" />
+    <value modifier="20" value="14" isnonprintable="False" />
+    <value modifier="21" value="14" isnonprintable="False" />
+  </key>
+  <key friendlyname="O" scancode="68" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="111" isnonprintable="False" />
+    <value modifier="1" value="79" isnonprintable="False" />
+    <value modifier="4" value="15" isnonprintable="False" />
+    <value modifier="5" value="15" isnonprintable="False" />
+    <value modifier="16" value="79" isnonprintable="False" />
+    <value modifier="17" value="111" isnonprintable="False" />
+    <value modifier="20" value="15" isnonprintable="False" />
+    <value modifier="21" value="15" isnonprintable="False" />
+  </key>
+  <key friendlyname="P" scancode="77" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="112" isnonprintable="False" />
+    <value modifier="1" value="80" isnonprintable="False" />
+    <value modifier="4" value="16" isnonprintable="False" />
+    <value modifier="5" value="16" isnonprintable="False" />
+    <value modifier="16" value="80" isnonprintable="False" />
+    <value modifier="17" value="112" isnonprintable="False" />
+    <value modifier="20" value="16" isnonprintable="False" />
+    <value modifier="21" value="16" isnonprintable="False" />
+  </key>
+  <key friendlyname="Q" scancode="21" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="113" isnonprintable="False" />
+    <value modifier="1" value="81" isnonprintable="False" />
+    <value modifier="4" value="17" isnonprintable="False" />
+    <value modifier="5" value="17" isnonprintable="False" />
+    <value modifier="16" value="81" isnonprintable="False" />
+    <value modifier="17" value="113" isnonprintable="False" />
+    <value modifier="20" value="17" isnonprintable="False" />
+    <value modifier="21" value="17" isnonprintable="False" />
+  </key>
+  <key friendlyname="R" scancode="45" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="114" isnonprintable="False" />
+    <value modifier="1" value="82" isnonprintable="False" />
+    <value modifier="4" value="18" isnonprintable="False" />
+    <value modifier="5" value="18" isnonprintable="False" />
+    <value modifier="16" value="82" isnonprintable="False" />
+    <value modifier="17" value="114" isnonprintable="False" />
+    <value modifier="20" value="18" isnonprintable="False" />
+    <value modifier="21" value="18" isnonprintable="False" />
+  </key>
+  <key friendlyname="S" scancode="27" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="115" isnonprintable="False" />
+    <value modifier="1" value="83" isnonprintable="False" />
+    <value modifier="4" value="19" isnonprintable="False" />
+    <value modifier="5" value="19" isnonprintable="False" />
+    <value modifier="16" value="83" isnonprintable="False" />
+    <value modifier="17" value="115" isnonprintable="False" />
+    <value modifier="20" value="19" isnonprintable="False" />
+    <value modifier="21" value="19" isnonprintable="False" />
+  </key>
+  <key friendlyname="T" scancode="44" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="116" isnonprintable="False" />
+    <value modifier="1" value="84" isnonprintable="False" />
+    <value modifier="4" value="20" isnonprintable="False" />
+    <value modifier="5" value="20" isnonprintable="False" />
+    <value modifier="16" value="84" isnonprintable="False" />
+    <value modifier="17" value="116" isnonprintable="False" />
+    <value modifier="20" value="20" isnonprintable="False" />
+    <value modifier="21" value="20" isnonprintable="False" />
+  </key>
+  <key friendlyname="U" scancode="60" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="117" isnonprintable="False" />
+    <value modifier="1" value="85" isnonprintable="False" />
+    <value modifier="4" value="21" isnonprintable="False" />
+    <value modifier="5" value="21" isnonprintable="False" />
+    <value modifier="16" value="85" isnonprintable="False" />
+    <value modifier="17" value="117" isnonprintable="False" />
+    <value modifier="20" value="21" isnonprintable="False" />
+    <value modifier="21" value="21" isnonprintable="False" />
+  </key>
+  <key friendlyname="V" scancode="42" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="118" isnonprintable="False" />
+    <value modifier="1" value="86" isnonprintable="False" />
+    <value modifier="4" value="22" isnonprintable="False" />
+    <value modifier="5" value="22" isnonprintable="False" />
+    <value modifier="16" value="86" isnonprintable="False" />
+    <value modifier="17" value="118" isnonprintable="False" />
+    <value modifier="20" value="22" isnonprintable="False" />
+    <value modifier="21" value="22" isnonprintable="False" />
+  </key>
+  <key friendlyname="W" scancode="29" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="119" isnonprintable="False" />
+    <value modifier="1" value="87" isnonprintable="False" />
+    <value modifier="4" value="22" isnonprintable="False" />
+    <value modifier="5" value="22" isnonprintable="False" />
+    <value modifier="16" value="87" isnonprintable="False" />
+    <value modifier="17" value="119" isnonprintable="False" />
+    <value modifier="20" value="22" isnonprintable="False" />
+    <value modifier="21" value="22" isnonprintable="False" />
+  </key>
+  <key friendlyname="X" scancode="34" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="120" isnonprintable="False" />
+    <value modifier="1" value="88" isnonprintable="False" />
+    <value modifier="4" value="24" isnonprintable="False" />
+    <value modifier="5" value="24" isnonprintable="False" />
+    <value modifier="16" value="88" isnonprintable="False" />
+    <value modifier="17" value="120" isnonprintable="False" />
+    <value modifier="20" value="24" isnonprintable="False" />
+    <value modifier="21" value="24" isnonprintable="False" />
+  </key>
+  <key friendlyname="Y" scancode="53" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="121" isnonprintable="False" />
+    <value modifier="1" value="89" isnonprintable="False" />
+    <value modifier="4" value="25" isnonprintable="False" />
+    <value modifier="5" value="25" isnonprintable="False" />
+    <value modifier="16" value="89" isnonprintable="False" />
+    <value modifier="17" value="121" isnonprintable="False" />
+    <value modifier="20" value="25" isnonprintable="False" />
+    <value modifier="21" value="25" isnonprintable="False" />
+  </key>
+  <key friendlyname="Z" scancode="26" isextended="False" ismodifier="False" modifiermask="21">
+    <value modifier="0" value="122" isnonprintable="False" />
+    <value modifier="1" value="90" isnonprintable="False" />
+    <value modifier="4" value="26" isnonprintable="False" />
+    <value modifier="5" value="26" isnonprintable="False" />
+    <value modifier="16" value="90" isnonprintable="False" />
+    <value modifier="17" value="122" isnonprintable="False" />
+    <value modifier="20" value="26" isnonprintable="False" />
+    <value modifier="21" value="26" isnonprintable="False" />
+  </key>
+  <key friendlyname="F1" scancode="5" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="0" isnonprintable="True" />
+  </key>
+  <key friendlyname="F2" scancode="6" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="1" isnonprintable="True" />
+  </key>
+  <key friendlyname="F3" scancode="4" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="2" isnonprintable="True" />
+  </key>
+  <key friendlyname="F4" scancode="12" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="3" isnonprintable="True" />
+  </key>
+  <key friendlyname="F5" scancode="11" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="4" isnonprintable="True" />
+  </key>
+  <key friendlyname="F6" scancode="3" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="5" isnonprintable="True" />
+  </key>
+  <key friendlyname="F7" scancode="131" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="6" isnonprintable="True" />
+  </key>
+  <key friendlyname="F8" scancode="10" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="7" isnonprintable="True" />
+  </key>
+  <key friendlyname="F9" scancode="1" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="8" isnonprintable="True" />
+  </key>
+  <key friendlyname="Alt" scancode="17" isextended="False" ismodifier="True" modifierindex="1" istoggle="False">
+    <value modifier="0" value="24" isnonprintable="True" />
+  </key>
+  <key friendlyname="F10" scancode="9" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="9" isnonprintable="True" />
+  </key>
+  <key friendlyname="F11" scancode="120" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="10" isnonprintable="True" />
+  </key>
+  <key friendlyname="F12" scancode="7" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="11" isnonprintable="True" />
+  </key>
+  <key friendlyname="Tab" scancode="13" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="9" isnonprintable="False" />
+  </key>
+  <key friendlyname="Up" scancode="117" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="12" isnonprintable="True" />
+  </key>
+  <key friendlyname="End" scancode="105" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="21" isnonprintable="True" />
+  </key>
+  <key friendlyname="Down" scancode="114" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="13" isnonprintable="True" />
+  </key>
+  <key friendlyname="Enter" scancode="90" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="13" isnonprintable="False" />
+  </key>
+  <key friendlyname="Home" scancode="108" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="20" isnonprintable="True" />
+  </key>
+  <key friendlyname="Left" scancode="107" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="14" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num -" scancode="123" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="45" isnonprintable="False" />
+  </key>
+  <key friendlyname="Num *" scancode="124" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="42" isnonprintable="False" />
+  </key>
+  <key friendlyname="Num ." scancode="113" isextended="False" ismodifier="False" modifiermask="33">
+    <value modifier="0" value="127" isnonprintable="False" />
+    <value modifier="1" value="8" isnonprintable="False" />
+    <value modifier="32" value="46" isnonprintable="False" />
+    <value modifier="33" value="127" isnonprintable="False" />
+  </key>
+  <key friendlyname="Num +" scancode="121" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="43" isnonprintable="False" />
+  </key>
+  <key friendlyname="Num 0" scancode="112" isextended="False" ismodifier="False" modifiermask="33">
+    <value modifier="0" value="18" isnonprintable="True" />
+    <value modifier="1" value="255" isnonprintable="False" />
+    <value modifier="32" value="48" isnonprintable="False" />
+    <value modifier="33" value="18" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num 1" scancode="105" isextended="False" ismodifier="False" modifiermask="33">
+    <value modifier="0" value="21" isnonprintable="True" />
+    <value modifier="1" value="255" isnonprintable="False" />
+    <value modifier="32" value="49" isnonprintable="False" />
+    <value modifier="33" value="21" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num 2" scancode="114" isextended="False" ismodifier="False" modifiermask="33">
+    <value modifier="0" value="13" isnonprintable="True" />
+    <value modifier="1" value="255" isnonprintable="False" />
+    <value modifier="32" value="50" isnonprintable="False" />
+    <value modifier="33" value="13" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num 3" scancode="122" isextended="False" ismodifier="False" modifiermask="33">
+    <value modifier="0" value="17" isnonprintable="True" />
+    <value modifier="1" value="255" isnonprintable="False" />
+    <value modifier="32" value="51" isnonprintable="False" />
+    <value modifier="33" value="17" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num 4" scancode="107" isextended="False" ismodifier="False" modifiermask="33">
+    <value modifier="0" value="14" isnonprintable="True" />
+    <value modifier="1" value="255" isnonprintable="False" />
+    <value modifier="32" value="52" isnonprintable="False" />
+    <value modifier="33" value="14" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num 5" scancode="115" isextended="False" ismodifier="False" modifiermask="33">
+    <value modifier="0" value="255" isnonprintable="False" />
+    <value modifier="1" value="255" isnonprintable="False" />
+    <value modifier="32" value="53" isnonprintable="False" />
+    <value modifier="33" value="255" isnonprintable="False" />
+  </key>
+  <key friendlyname="Num 6" scancode="116" isextended="False" ismodifier="False" modifiermask="33">
+    <value modifier="0" value="15" isnonprintable="True" />
+    <value modifier="1" value="255" isnonprintable="False" />
+    <value modifier="32" value="54" isnonprintable="False" />
+    <value modifier="33" value="15" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num 7" scancode="108" isextended="False" ismodifier="False" modifiermask="33">
+    <value modifier="0" value="20" isnonprintable="True" />
+    <value modifier="1" value="255" isnonprintable="False" />
+    <value modifier="32" value="55" isnonprintable="False" />
+    <value modifier="33" value="20" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num 8" scancode="117" isextended="False" ismodifier="False" modifiermask="33">
+    <value modifier="0" value="12" isnonprintable="True" />
+    <value modifier="1" value="255" isnonprintable="False" />
+    <value modifier="32" value="56" isnonprintable="False" />
+    <value modifier="33" value="12" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num 9" scancode="125" isextended="False" ismodifier="False" modifiermask="33">
+    <value modifier="0" value="16" isnonprintable="True" />
+    <value modifier="1" value="255" isnonprintable="False" />
+    <value modifier="32" value="57" isnonprintable="False" />
+    <value modifier="33" value="16" isnonprintable="True" />
+  </key>
+  <key friendlyname="Pause" scancode="225" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="0" isnonprintable="False" />
+  </key>
+  <key friendlyname="Space" scancode="41" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="32" isnonprintable="False" />
+  </key>
+  <key friendlyname="AltGr" scancode="17" isextended="True" ismodifier="True" modifierindex="1" istoggle="False">
+    <value modifier="0" value="25" isnonprintable="True" />
+  </key>
+  <key friendlyname="Escape" scancode="118" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="37" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num /" scancode="74" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="47" isnonprintable="False" />
+  </key>
+  <key friendlyname="Power" scancode="55" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="34" isnonprintable="True" />
+  </key>
+  <key friendlyname="Right" scancode="116" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="15" isnonprintable="True" />
+  </key>
+  <key friendlyname="Sleep" scancode="63" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="35" isnonprintable="True" />
+  </key>
+  <key friendlyname="Delete" scancode="113" isextended="True" ismodifier="False" modifiermask="1">
+    <value modifier="0" value="127" isnonprintable="False" />
+    <value modifier="1" value="8" isnonprintable="False" />
+  </key>
+  <key friendlyname="Insert" scancode="112" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="18" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num Lock" scancode="119" isextended="False" ismodifier="True" modifierindex="5" istoggle="True" led="1">
+    <value modifier="0" value="31" isnonprintable="True" />
+  </key>
+  <key friendlyname="Page Up" scancode="125" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="16" isnonprintable="True" />
+  </key>
+  <key friendlyname="Wake Up" scancode="94" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="36" isnonprintable="True" />
+  </key>
+  <key friendlyname="Backspace" scancode="102" isextended="False" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="8" isnonprintable="False" />
+  </key>
+  <key friendlyname="Caps Lock" scancode="88" isextended="False" ismodifier="True" modifierindex="4" istoggle="True" led="2">
+    <value modifier="0" value="30" isnonprintable="True" />
+  </key>
+  <key friendlyname="Num Enter" scancode="90" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="13" isnonprintable="False" />
+  </key>
+  <key friendlyname="Page Down" scancode="122" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="17" isnonprintable="True" />
+  </key>
+  <key friendlyname="Ctrl (Left)" scancode="20" isextended="False" ismodifier="True" modifierindex="2" istoggle="False">
+    <value modifier="0" value="22" isnonprintable="True" />
+  </key>
+  <key friendlyname="Scroll Lock" scancode="126" isextended="False" ismodifier="True" modifierindex="6" istoggle="True" led="0">
+    <value modifier="0" value="32" isnonprintable="True" />
+  </key>
+  <key friendlyname="Application" scancode="47" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="33" isnonprintable="True" />
+  </key>
+  <key friendlyname="Shift (Left)" scancode="18" isextended="False" ismodifier="True" modifierindex="0" istoggle="False">
+    <value modifier="0" value="26" isnonprintable="True" />
+  </key>
+  <key friendlyname="Ctrl (Right)" scancode="20" isextended="True" ismodifier="True" modifierindex="2" istoggle="False">
+    <value modifier="0" value="23" isnonprintable="True" />
+  </key>
+  <key friendlyname="Print Screen" scancode="124" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="19" isnonprintable="True" />
+  </key>
+  <key friendlyname="Shift (Right)" scancode="89" isextended="False" ismodifier="True" modifierindex="0" istoggle="False">
+    <value modifier="0" value="27" isnonprintable="True" />
+  </key>
+  <key friendlyname="Windows (Left)" scancode="31" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="28" isnonprintable="True" />
+  </key>
+  <key friendlyname="Windows (Right)" scancode="39" isextended="True" ismodifier="False" modifiermask="0">
+    <value modifier="0" value="29" isnonprintable="True" />
+  </key>
+</keyboard>

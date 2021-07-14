@@ -15,7 +15,7 @@ Count = 3
 .module Fonts
 
 Font8x8:
-.include "bbc"
+.incbin "Font8x8.bin"
 
 Font6x8:
 .incbin "Font6x8.bin"
