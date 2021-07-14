@@ -490,10 +490,13 @@ OSLOAD
 ; DESTROYED:
 ;   REGISTERS:
 ;   * AF, BC, DE, HL
+;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSSAVE
-	jp SORRY
+	call PCLink2.SendFile
+	jp nz,Sorry
+	ret
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

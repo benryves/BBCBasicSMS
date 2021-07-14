@@ -490,11 +490,11 @@ List.NotEscapeCode:
 ; ---------------------------------------------------------
 ; GetFile -> Gets a file.
 ; ---------------------------------------------------------
-; Inputs:   hl = pointer to path and pattern or 0 to omit.
+; Inputs:   hl = pointer to file name NUL/CR terminated.
 ;           de = pointer to RAM to store the file in.
 ;           bc = maximum file size that can be loaded.
 ; Outputs:  z on success, nz on failure.
-;           c is 
+;           c is set if the error is "No room".
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
 GetFile:
@@ -510,14 +510,14 @@ GetFile:
 	pop hl
 	jp nz,GetFile.ProtocolError
 	
-	; Send the list request.
+	; Send the "get file" request.
 	push hl
 	ld a,'G'
 	call SendEscapeCode
 	pop hl
 	jp nz,GetFile.ProtocolError
 
-	; Is there a path to send?
+	; Send the path.
 	
 GetFile.SendPath:
 
@@ -609,6 +609,97 @@ GetFile.ProtocolError:
 	scf
 	ccf
 	ret
+
+; ---------------------------------------------------------
+; SendFile -> Sends a file.
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to file name NUL/CR terminated.
+;           de = pointer to RAM to get the file from.
+;           bc = size of the file to send.
+; Outputs:  z on success, nz on failure.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+SendFile:
+
+	ld (TempPtr),de
+	ld (TempSize),bc
+	
+	; Sync.
+	push hl
+	call Sync
+	pop hl
+	ret nz
+	
+	; Send the "send file" request.
+	push hl
+	ld a,'S'
+	call SendEscapeCode
+	pop hl
+	ret nz
+	
+	; Send the path.
+	
+	push hl
+	ld a,'N'
+	call SendEscapeCode
+	pop hl
+	ret nz
+	
+SendFile.SendPath:
+
+	ld a,(hl)
+	or a
+	jr z,SendFile.PathSent
+	cp '\r'
+	jr z,SendFile.PathSent
+	
+	push hl
+	call SendDataByte
+	pop hl
+	ret nz
+	
+	inc hl
+	jr SendFile.SendPath
+
+SendFile.PathSent:
+	
+	; Now start sending the file with an F escape code.
+	ld a,'F'
+	call SendEscapeCode
+	ret nz
+	
+	; Start sending the file data.
+	
+	ld hl,(TempPtr)
+	ld bc,(TempSize)
+	
+	; Send each byte in turn.
+-:	push hl
+	push bc
+	
+	ld a,(hl)
+	call SendDataByte
+	
+	pop bc
+	pop hl
+	ret nz
+	
+	inc hl
+	dec bc
+	ld a,b
+	or c
+	jr nz,-
+	
+	
+	; End of file.
+	ld a,'E'
+	call SendEscapeCode
+	ret nz
+	
+	; Only one file, so end with a 'Z' escape code.
+	ld a,'Z'
+	jp SendEscapeCode
+
 
 .if Debug.ShowChecksum
 
