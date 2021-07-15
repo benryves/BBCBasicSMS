@@ -16,6 +16,9 @@ NameTable        = $3800 ; 768 bytes
 
 ScrollValue = allocVar(1)
 
+ManipulatePixelBitmask = allocVar(3)
+ManipulatePixelColour = allocVar(3)
+
 Initialise:
 
 	; Switch video mode to TMS9918 GRAPHICS II
@@ -44,7 +47,7 @@ Initialise:
 	call Video.SetRegister
 	
 	; Set background/foreground colour
-	ld a,(VDU.TextColour) ; TC, BG
+	ld a,(VDU.Console.Colour) ; TC, BG
 	ld b,$07
 	call Video.SetRegister
 
@@ -68,9 +71,9 @@ Initialise:
 	call Video.SetWriteAddress
 	
 	; Make text background colour transparent.
-	ld a,(VDU.TextColour)
+	ld a,(VDU.Console.Colour)
 	and %11110000
-	ld (VDU.TextColour),a
+	ld (VDU.Console.Colour),a
 	
 	; 6KB of colour data
 	ld bc,kb(6)/256
@@ -85,8 +88,20 @@ Initialise:
 	ld (Parent.PutMap+1),hl
 	ld hl,Scroll
 	ld (Parent.Scroll+1),hl
-	ld hl,SetPixel
-	ld (Parent.SetPixel+1),hl
+	
+	ld hl,SetForegroundPixel
+	ld (Parent.SetForegroundPixel+1),hl
+	
+	ld hl,SetBackgroundPixel
+	ld (Parent.SetBackgroundPixel+1),hl
+	
+	ld hl,InvertPixel
+	ld (Parent.InvertPixel+1),hl
+	
+	; Set up my own vectors!
+	ld a,$C3
+	ld (ManipulatePixelBitmask),a
+	ld (ManipulatePixelColour),a
 	
 	; Screen bounds
 	ld a,0
@@ -165,7 +180,7 @@ PutMap:
 	add hl,de
 	call Video.SetWriteAddress
 	
-	ld a,(VDU.TextColour)
+	ld a,(VDU.Console.Colour)
 	ld b,8	
 -:	out (Video.Data),a  ; 11
 	nop                 ; 4
@@ -243,7 +258,7 @@ Scroll:
 	ei
 	
 	ld b,0
-	ld a,(VDU.TextColour)
+	ld a,(VDU.Console.Colour)
 -:	out (Video.Data),a ; 11
 	nop                ; 4
 	nop                ; 4
@@ -303,8 +318,28 @@ CopyToWindowAbove:
 	
 	ret
 
-SetPixel:
 
+InvertPixel:
+	ld hl,ManipulatePixelColour.Invert
+	ld (ManipulatePixelColour+1),hl
+	ld hl,ManipulatePixelBitmask.Invert
+	ld (ManipulatePixelBitmask+1),hl
+	jr SetPixel
+	
+SetBackgroundPixel:
+	ld hl,ManipulatePixelColour.SetBackground
+	ld (ManipulatePixelColour+1),hl
+	ld hl,ManipulatePixelBitmask.SetBackground
+	ld (ManipulatePixelBitmask+1),hl
+	jr SetPixel
+
+SetForegroundPixel:
+	ld hl,ManipulatePixelColour.SetForeground
+	ld (ManipulatePixelColour+1),hl
+	ld hl,ManipulatePixelBitmask.SetForeground
+	ld (ManipulatePixelBitmask+1),hl
+
+SetPixel:
 	; IN (D,E) = (X,Y)
 
 	; Character row = Y / 8
@@ -363,7 +398,7 @@ SetPixel:
 	call Video.SetReadAddress
 	in a,(Video.Data)
 
-	or c
+	call ManipulatePixelBitmask
 	
 	call Video.SetWriteAddress
 	out (Video.Data),a
@@ -380,12 +415,7 @@ SetPixel:
 	call Video.SetReadAddress
 	in a,(Video.Data)
 	
-	and %00001111
-	ld c,a
-	
-	ld a,(VDU.GraphicsColour)
-	and %11110000
-	or c
+	call ManipulatePixelColour
 	
 	call Video.SetWriteAddress
 	out (Video.Data),a
@@ -393,5 +423,39 @@ SetPixel:
 	ei
 	
 	ret
+
+ManipulatePixelColour.SetForeground:
+	and %00001111
+	ld c,a
+	ld a,(VDU.Graphics.Colour)
+	and %11110000
+	or c
+	ret
+
+ManipulatePixelColour.SetBackground:
+	and %11110000
+	ld c,a
+	ld a,(VDU.Graphics.Colour)
+	and %00001111
+	or c
+	ret
+
+ManipulatePixelColour.Invert:
+	ret
+
+ManipulatePixelBitmask.SetForeground:
+	or c
+	ret
+	
+ManipulatePixelBitmask.SetBackground:
+	cpl
+	or c
+	cpl
+	ret
+
+ManipulatePixelBitmask.Invert:
+	xor c
+	ret
+
 
 .endmodule

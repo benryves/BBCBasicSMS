@@ -363,7 +363,7 @@ LTRAP:
 ;------------------------------------------------------------------------------- 
 TRAP:
 	call TrapConsoleButtons
-	
+	ret
 	ei
 	
 	ld a,(TrapKeyboardTimer)
@@ -1064,9 +1064,11 @@ POINT
 COLOUR
 	call Basic.BBCBASIC_EXPRI
 	exx
-	ld a,l
 	
-	call VDU.SetTextColour
+	ld h,l
+	ld l,17
+	
+	call VDU.WriteWord
 	jp Basic.BBCBASIC_XEQ
 
 ;------------------------------------------------------------------------------- 
@@ -1089,22 +1091,9 @@ CLG
 ;   Draw a line.
 ;
 ;------------------------------------------------------------------------------- 
-DRAW
-	call Basic.BBCBASIC_EXPRI
-	exx
-	push hl
-	
-	call Basic.BBCBASIC_COMMA
-	call Basic.BBCBASIC_EXPRI
-	exx
-	
-	pop de
-	ex de,hl
-	call VDU.EnqueueGraphicsCursor
-	
-	call VDU.PlotLine
-	
-	jp Basic.BBCBASIC_XEQ
+DRAW:
+	ld hl,5
+	jp PLOT.CommandInHL
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -1118,9 +1107,18 @@ DRAW
 GCOL
 	call Basic.BBCBASIC_EXPRI
 	exx
-	ld a,l
 	
-	call VDU.SetGraphicsColour
+	push hl
+	
+	ld h,0
+	ld l,18
+	
+	call VDU.WriteWord
+	
+	pop hl
+	ld a,l
+	call VDU.WriteByte
+	
 	jp Basic.BBCBASIC_XEQ
 
 
@@ -1176,21 +1174,9 @@ GETIMS
 ;   Move graphics cursor.
 ;
 ;------------------------------------------------------------------------------- 
-MOVE
-	call Basic.BBCBASIC_EXPRI
-	exx
-	push hl
-	
-	call Basic.BBCBASIC_COMMA
-	call Basic.BBCBASIC_EXPRI
-	exx
-	
-	pop de
-	ex de,hl
-	
-	call VDU.EnqueueGraphicsCursor
-	
-	jp Basic.BBCBASIC_XEQ
+MOVE:
+	ld hl,4
+	jp PLOT.CommandInHL
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -1201,7 +1187,41 @@ MOVE
 ;
 ;------------------------------------------------------------------------------- 
 PLOT
-	jp SORRY
+	call Basic.BBCBASIC_EXPRI
+	exx
+	call Basic.BBCBASIC_COMMA
+	
+PLOT.CommandInHL:
+	push hl
+	
+	call Basic.BBCBASIC_EXPRI
+	exx
+	push hl
+	
+	call Basic.BBCBASIC_COMMA
+	
+	call Basic.BBCBASIC_EXPRI
+	exx
+	
+	; At this point, we can load the data directly into the VDU buffer.
+	
+	ld (VDUQ(3, 5)),hl ; Y
+	pop hl
+	ld (VDUQ(1, 5)),hl ; X
+	pop hl
+	
+	ld h,l
+	ld l,25 ; PLOT
+	call VDU.WriteWord
+	
+	ld hl,(VDUQ(1, 5)) ; X
+	call VDU.WriteWord
+	
+	ld hl,(VDUQ(3, 5)) ; Y
+	call VDU.WriteWord
+	
+	jp Basic.BBCBASIC_XEQ
+
 
 SORRY
 	xor a

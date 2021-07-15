@@ -1,56 +1,42 @@
 .module VDU
 
+; Dependencies
+.include "Console.asm"
+.include "Graphics.asm"
+
 ; Mode files
 .module Modes
 
-.include "Text.asm"
-.include "GraphicsII.asm"
-.include "Mode4.asm"
+	.include "Text.asm"
+	.include "GraphicsII.asm"
+	.include "Mode4.asm"
 
-Count = 3
+	Count = 3
 
 .endmodule
 
 ; Font data
 .module Fonts
 
-Font8x8:
-.incbin "Font8x8.bin"
+	Font8x8:
+	.incbin "Font8x8.bin"
 
-Font6x8:
-.incbin "Font6x8.bin"
+	Font6x8:
+	.incbin "Font6x8.bin"
 
 .endmodule
 
 ; Mode-specific vectors.
 PutMap = allocVar(3)
 Scroll = allocVar(3)
-SetTextColour = allocVar(3)
-SetGraphicsColour = allocVar(3)
-SetPixel = allocVar(3)
 
-GraphicsCursorQueueLength = 2
-GraphicsCursorQueue = allocVar(GraphicsCursorQueueLength * 4)
-
-GraphicsBounds.MinX = allocVar(1)
-GraphicsBounds.MaxX = allocVar(1)
-GraphicsBounds.MinY = allocVar(1)
-GraphicsBounds.MaxY = allocVar(1)
-
-g_wndXMin = GraphicsBounds.MinX ; The g_wnd* variables must appear
-g_wndXMax = GraphicsBounds.MaxX ; in this order.
-g_wndYMin = GraphicsBounds.MinY
-g_wndYMax = GraphicsBounds.MaxY
+SetForegroundPixel = allocVar(3)
+SetBackgroundPixel = allocVar(3)
+InvertPixel = allocVar(3)
 
 CommandQueue.Capacity = 10
 CommandQueue = allocVar(CommandQueue.Capacity)
 CommandQueue.Waiting = allocVar(1)
-
-TextColour = allocVar(1)
-GraphicsColour = allocVar(1)
-
-.include "Console.asm"
-.include "Clip.asm"
 
 Reset:
 	xor a
@@ -61,28 +47,21 @@ SetMode:
 	ld a,$C3 ; JP
 	ld (PutMap),a
 	ld (Scroll),a
-	ld (SetTextColour),a
-	ld (SetGraphicsColour),a
-	ld (SetPixel),a
+	ld (SetForegroundPixel),a
+	ld (SetBackgroundPixel),a
+	ld (InvertPixel),a
 	
 	ld hl,Stub
 	ld (PutMap+1),hl
 	ld (Scroll+1),hl
-	ld (SetPixel+1),hl
+	ld (SetForegroundPixel+1),hl
+	ld (SetBackgroundPixel+1),hl
+	ld (InvertPixel+1),hl
+
 	
-	ld hl,SetTextColourDefault
-	ld (SetTextColour+1),hl
+	call Console.Reset
+	call Graphics.Reset
 	
-	ld hl,SetGraphicsColourDefault
-	ld (SetGraphicsColour+1),hl
-	
-	; Sensible text colour
-	ld a,%11110100
-	ld (TextColour),a
-	
-	; Sensible graphics colour
-	ld a,%11110000
-	ld (GraphicsColour),a
 	
 	; Reset all video settings to their defaults.
 	call Video.Reset
@@ -96,25 +75,13 @@ SetMode:
 	call Console.HomeUp
 	
 	; Clear the point queue
-	xor a
-	ld (GraphicsCursorQueue),a
-	ld hl,GraphicsCursorQueue
-	ld de,GraphicsCursorQueue+1
-	ld bc,GraphicsCursorQueueLength*4-1
-	ldir
+	call Graphics.Reset
 	
 	; Clear the command queue.
+	xor a
 	ld (CommandQueue),a
 	ld (CommandQueue.Waiting),a
 	
-	; Set default graphics bounds
-	xor a
-	ld (GraphicsBounds.MinX),a
-	ld (GraphicsBounds.MinY),a
-	dec a
-	ld (GraphicsBounds.MaxX),a
-	ld a,191
-	ld (GraphicsBounds.MaxY),a
 	
 	; Screen on, enable frame interrupts.
 	call Video.DisplayOn
@@ -271,42 +238,42 @@ GetCommandJumpTable:
 	or a
 	ret
 	
-CommandJumpTable: 
-	.dw Stub                \ .db  0 ;  0 NUL
-	.dw Stub                \ .db  0 ;  1 Data -> Printer
-	.dw Stub                \ .db  0 ;  2 Enable printer.
-	.dw Stub                \ .db  0 ;  3 Disable printer.
-	.dw Stub                \ .db  0 ;  4 Write text at text cursor position.
-	.dw Stub                \ .db  0 ;  5 Write text at graphics cursor position.
-	.dw Stub                \ .db  0 ;  6 Enable output to the screen.
-	.dw Stub                \ .db  0 ;  7 BEL
-	.dw Console.CursorLeft  \ .db  0 ;  8 Move text cursor backwards one character.
-	.dw Console.CursorRight \ .db  0 ;  9 Move text cursor forwards one character.
-	.dw Console.CursorDown  \ .db  0 ; 10 Move text cursor down a line.
-	.dw Console.CursorUp    \ .db  0 ; 11 Move text cursor up a line.
-	.dw Console.Clear       \ .db  0 ; 12 Clear the text area (CLS).
-	.dw Console.HomeLeft    \ .db  0 ; 13 Move text cursor to start of current line.
-	.dw Stub                \ .db  0 ; 14 Enable the auto-paging mode.
-	.dw Stub                \ .db  0 ; 15 Disable the auto-paging mode.
-	.dw Stub                \ .db  0 ; 16 Clear the graphics area (CLG).
-	.dw Stub                \ .db -1 ; 17 Define a text colour (COLOUR).
-	.dw Stub                \ .db -2 ; 18 Define a graphics colour (CGOL).
-	.dw Stub                \ .db -5 ; 19 Select a colour palette.
-	.dw Stub                \ .db  0 ; 20 Restore default logical colours.
-	.dw Stub                \ .db  0 ; 21 Disable output to the screen.
-	.dw ModeCommand         \ .db -1 ; 22 Set the screen mode (MODE).
-	.dw Stub                \ .db -9 ; 23 User-defined characters and screen modes.
-	.dw Stub                \ .db -8 ; 24 Define a graphics viewport.
-	.dw Stub                \ .db -5 ; 25 PLOT
-	.dw Stub                \ .db  0 ; 26 Restore default viewports.
-	.dw PutLiteralChar      \ .db -1 ; 27 Send the next character to the screen.
-	.dw Stub                \ .db -4 ; 28 Define a text viewport.
-	.dw Stub                \ .db -4 ; 29 Set the graphics origin.
-	.dw Console.HomeUp      \ .db  0 ; 30 Home the cursor to the top-left of the screen.
-	.dw TabCommand          \ .db -2 ; 31 Move the text cursor (TAB(x,y)).
+CommandJumpTable:
+	.dw Stub                  \ .db  0 ;  0 NUL
+	.dw Stub                  \ .db  0 ;  1 Data -> Printer
+	.dw Stub                  \ .db  0 ;  2 Enable printer.
+	.dw Stub                  \ .db  0 ;  3 Disable printer.
+	.dw Stub                  \ .db  0 ;  4 Write text at text cursor position.
+	.dw Stub                  \ .db  0 ;  5 Write text at graphics cursor position.
+	.dw Stub                  \ .db  0 ;  6 Enable output to the screen.
+	.dw Stub                  \ .db  0 ;  7 BEL
+	.dw Console.CursorLeft    \ .db  0 ;  8 Move text cursor backwards one character.
+	.dw Console.CursorRight   \ .db  0 ;  9 Move text cursor forwards one character.
+	.dw Console.CursorDown    \ .db  0 ; 10 Move text cursor down a line.
+	.dw Console.CursorUp      \ .db  0 ; 11 Move text cursor up a line.
+	.dw Console.Clear         \ .db  0 ; 12 Clear the text area (CLS).
+	.dw Console.HomeLeft      \ .db  0 ; 13 Move text cursor to start of current line.
+	.dw Stub                  \ .db  0 ; 14 Enable the auto-paging mode.
+	.dw Stub                  \ .db  0 ; 15 Disable the auto-paging mode.
+	.dw Stub                  \ .db  0 ; 16 Clear the graphics area (CLG).
+	.dw TextColourCommand     \ .db -1 ; 17 Define a text colour (COLOUR).
+	.dw GraphicsColourCommand \ .db -2 ; 18 Define a graphics colour (CGOL).
+	.dw Stub                  \ .db -5 ; 19 Select a colour palette.
+	.dw ResetColourCommand    \ .db  0 ; 20 Restore default logical colours.
+	.dw Stub                  \ .db  0 ; 21 Disable output to the screen.
+	.dw ModeCommand           \ .db -1 ; 22 Set the screen mode (MODE).
+	.dw Stub                  \ .db -9 ; 23 User-defined characters and screen modes.
+	.dw Stub                  \ .db -8 ; 24 Define a graphics viewport.
+	.dw PlotCommand           \ .db -5 ; 25 PLOT
+	.dw Stub                  \ .db  0 ; 26 Restore default viewports.
+	.dw PutLiteralChar        \ .db -1 ; 27 Send the next character to the screen.
+	.dw Stub                  \ .db -4 ; 28 Define a text viewport.
+	.dw SetOriginCommand      \ .db -4 ; 29 Set the graphics origin.
+	.dw Console.HomeUp        \ .db  0 ; 30 Home the cursor to the top-left of the screen.
+	.dw TabCommand            \ .db -2 ; 31 Move the text cursor (TAB(x,y)).
 
 .function VDUQ(offset, commandLength)
-	VDUQ = CommandQueue + offset + CommandQueue.Capacity - commandLength
+	VDUQ = VDU.CommandQueue + offset + VDU.CommandQueue.Capacity - commandLength
 .endfunction
 
 ; ========================================================================================
@@ -341,17 +308,23 @@ CommandJumpTable:
 ; ========================================================================================
 ; VDU 17,<colour>                                                          SET TEXT COLOUR
 ; ========================================================================================
-;;; TODO
+TextColourCommand:
+	ld a,(VDUQ(0, 1))
+	jp Console.SetColour
 	
 ; ========================================================================================
 ; VDU 18,<mode>,<colour>                                               SET GRAPHICS COLOUR
 ; ========================================================================================
-;;; TODO
+GraphicsColourCommand:
+	ld a,(VDUQ(1, 2))
+	jp Graphics.SetColour
 
 ; ========================================================================================
 ; VDU 20                                                                     RESET COLOURS
 ; ========================================================================================
-;;; TODO
+ResetColourCommand:
+	call Console.ResetColour
+	jp Graphics.ResetColour
 
 ; ========================================================================================
 ; VDU 22                                                                          SET MODE
@@ -375,7 +348,45 @@ ModeCommand:
 ; ========================================================================================
 ; VDU 25,<command>,<x>;<y>;                                                           PLOT
 ; ========================================================================================
-;;; TODO
+PlotCommand:
+	ld a,(VDUQ(0, 5))
+	ld (Graphics.PlotShape),a
+	
+	ld de,0
+	ld b,d \ ld c,e
+	bit 2,a
+	jr nz,NotPlotBy
+	
+	; Is it a "PLOT BY"	command?
+	; If so, coordinates are relative to the previous one, so adjust.
+	
+	ld hl,(Graphics.VisitedPoint0X)
+	ld de,(Graphics.OriginX)
+	or a
+	sbc hl,de
+	ld d,h
+	ld e,l
+	
+	ld hl,(Graphics.VisitedPoint0Y)
+	ld bc,(Graphics.OriginY)
+	or a
+	sbc hl,bc
+	ld b,h
+	ld c,l
+	
+NotPlotBy:
+	
+	ld hl,(VDUQ(3,5))
+	add hl,bc
+	push hl
+	ld hl,(VDUQ(1,5))
+	add hl,de
+	pop de
+	
+	call Graphics.VisitPoint
+	call Graphics.Plot
+	
+	ret
 
 ; ========================================================================================
 ; VDU 26                                                                   RESET VIEWPORTS
@@ -397,7 +408,12 @@ DirectOut
 ; ========================================================================================
 ; VDU 29,<x>;<y>;                                                      SET GRAPHICS ORIGIN
 ; ========================================================================================
-;;; TODO
+SetOriginCommand:
+	ld hl,VDUQ(0,4)
+	ld de,Graphics.OriginX
+	ld bc,4
+	ldir
+	ret
 
 ; ========================================================================================
 ; VDU 30                                                           MOVE CURSOR TO TOP-LEFT
@@ -458,220 +474,5 @@ PutString:
 	pop hl
 	jr PutString
 
-SetTextColourDefault:
-	push bc
-	push af
-	pop af
-	bit 7,a
-	jr nz,SetTextBackgroundColour
-SetTextForegroundColour:
-	ld b,4
--:	add a,a
-	djnz -
-	ld b,a
-	ld a,(VDU.TextColour)
-	and $0F
-	or b
-	ld (VDU.TextColour),a
-	jr DoneSetTextColour
-SetTextBackgroundColour:
-	and $0F
-	ld b,a
-	ld a,(VDU.TextColour)
-	and $F0
-	or b
-	ld (VDU.TextColour),a
-DoneSetTextColour:
-	pop bc
-	ret
-	
-SetGraphicsColourDefault:
-	push bc
-	push af
-	pop af
-	bit 7,a
-	jr nz,SetGraphicsBackgroundColour
-SetGraphicsForegroundColour:
-	ld b,4
--:	add a,a
-	djnz -
-	ld b,a
-	ld a,(VDU.GraphicsColour)
-	and $0F
-	or b
-	ld (VDU.GraphicsColour),a
-	jr DoneSetGraphicsColour
-SetGraphicsBackgroundColour:
-	and $0F
-	ld b,a
-	ld a,(VDU.GraphicsColour)
-	and $F0
-	or b
-	ld (VDU.GraphicsColour),a
-DoneSetGraphicsColour:
-	pop bc
-	ret
-
-EnqueueGraphicsCursor:
-	push hl
-	push de
-	push bc
-	
-	ld hl,GraphicsCursorQueue + (GraphicsCursorQueueLength - 1) * 4 - 1
-	ld de,GraphicsCursorQueue + (GraphicsCursorQueueLength - 0) * 4 - 1
-	ld bc,(GraphicsCursorQueueLength - 1) * 4
-	lddr
-	
-	pop bc
-	pop de
-	pop hl
-	
-	ld (GraphicsCursorQueue+0),hl
-	ld (GraphicsCursorQueue+2),de
-	ret
-
-
-PlotLine:
-	ld hl,GraphicsCursorQueue + 0
-	ld de,GraphicsCursorQueue + 4
-	call Clip.Clip2DLine16
-	ret c
-	
-	ld h,b
-	ld l,c
-
-; Draw a line from (D,E) to (H,L)
-DrawLine:
-
-	; Is the line steep (|dy|>|dx|) or shallow (|dx|>|dy|)?
-	ld a,d
-	sub h
-	jr nc,+
-	neg
-+:	ld b,a
-	
-	ld a,e
-	sub l
-	jr nc,+
-	neg
-+:	ld c,a
-
-	cp b
-	jr c,DrawLine.Shallow
-
-DrawLine.Steep:
-	; Line is steep
-	
-	; Ensure that we draw it from top to bottom, so swap (D,E) and (H,L) if necessary.
-	ld a,e
-	cp l
-	jr c,+
-	ex de,hl
-+:
-
-	ld l,c
-
-	; Ensure that when we adjust the X coordinate, we move in the correct direction
-	ld a,d
-	cp h
-	ld c,+1
-	jr c,+
-	ld c,-1
-+:
-
-	ld h,b
-	
-	; H = |dx|, L = |dy|
-
-	ld b,l
-	inc b
-	ld a,l ; Initial error
-	srl a
-	neg
-	
--:	push hl
-	push de
-	push bc
-	push af
-	call SetPixel
-	pop af
-	pop bc
-	pop de
-	pop hl
-	
-	inc e ; Always moving down
-	
-	add a,h
-	jr nc,+
-	sub l
-	
-	push af
-	ld a,d
-	add a,c
-	ld d,a
-	pop af
-	
-+:	
-	
-	djnz -
-	
-	ret
-
-
-DrawLine.Shallow:
-	; Line is shallow
-
-	; Ensure that we draw it from left to right, so swap (D,E) and (H,L) if necessary.
-	ld a,d
-	cp h
-	jr c,+
-	ex de,hl
-+:
-
-	; Ensure that when we adjust the Y coordinate, we move in the correct direction
-	ld a,e
-	cp l
-	ld l,c
-	ld c,+1
-	jr c,+
-	ld c,-1
-+:
-
-	ld h,b
-	
-	; H = |dx|, L = |dy|
-
-	ld b,h
-	inc b
-	ld a,h ; Initial error
-	srl a
-	neg
-	
--:	push hl
-	push de
-	push bc
-	push af
-	call SetPixel
-	pop af
-	pop bc
-	pop de
-	pop hl
-	
-	inc d ; Always moving right
-	
-	add a,l
-	jr nc,+
-	sub h
-	
-	push af
-	ld a,e
-	add a,c
-	ld e,a
-	pop af
-	
-+:	
-	djnz -
-	
-	ret
 
 .endmodule
