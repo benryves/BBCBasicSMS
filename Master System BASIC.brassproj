@@ -10,12 +10,14 @@
 	
 	<debugger name="externalprogram" />
 	
+	<output extension="smsc" />
+	
 	<input source="Main.asm">
 		<label name="Program.Version" type="number" value="1.0" />
 		<label name="Program.Name" type="string" value="Master System BASIC" />
 		<label name="Program.Author" type="string" value="Ben Ryves" />
 		<label name="Program.Notes" type="string" value="BBC BASIC for the Sega Master System" />
-		<label name="Debugger.Path" type="string" value="D:\Documents\Documents\Visual Studio 2013\Projects\Cogwheel\trunk\Cogwheel SlimDX\bin\Release\Cogwheel Interface.exe" />
+		<label name="Debugger.Path" type="string" value="D:\Documents\Documents\GitHub\Cogwheel\Cogwheel SlimDX\bin\Release\Cogwheel Interface.exe" />
 		<label name="Debugger.Args" type="string" value="&quot;$(TargetPath)&quot;" />
 	</input>
 	

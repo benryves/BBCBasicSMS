@@ -273,14 +273,12 @@ OSLINE.EnoughSpace:
 	inc b
 	dec c
 	
-	call VDU.WriteByte
-	cp '\r'
-	jr nz,OSLINE.Loop
+	call OSASCI
 	
-	ld a,'\n'
-	call VDU.WriteByte
-	xor a
-	ret
+	cp '\r'
+	ret z
+	jr OSLINE.Loop
+	
 
 OSLINE.Backspace:
 	ld a,b
@@ -296,6 +294,24 @@ OSLINE.Backspace:
 	call VDU.Console.CursorLeft
 	
 	jr OSLINE.Loop
+
+
+;------------------------------------------------------------------------------- 
+;@doc:routine 
+; 
+; === Host.OSASCI ===
+;
+;   Outputs a character using OSWRCH.
+;   ASCII CR (13) is converted to a LF, CR sequence (13, 10).
+;
+; INPUTS:
+;   REGISTERS
+;   * A  - character to output.
+;
+;@doc:end
+;------------------------------------------------------------------------------- 
+OSASCI:
+	jp VDU.PutChar
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -747,9 +763,9 @@ Sync:
 Sync.Text:
 	.db "Sync...",0
 Sync.OK:
-	.db "OK\n",0
+	.db "OK\r",0
 Sync.Failed:
-	.db "Failed\n",0
+	.db "Failed\r",0
 
 Hello:
 	ld hl,Hello.Text
@@ -874,18 +890,17 @@ Terminal.GotByte:
 	push af
 	call VDU.PutChar
 	pop af
+	
 	cp '\r'
 	jr nz,Terminal.Loop
 	
 	ld a,'\n'
 	call Serial.SendByte
 	
-	call VDU.Console.NewLine
-	
 	jr Terminal.Loop
 
 SerialTerminal:
-	.db "Testing serial port...\n", 0
+	.db "Testing serial port...\r", 0
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

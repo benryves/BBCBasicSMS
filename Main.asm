@@ -158,13 +158,13 @@ PutHexWord:
 ;.include "Programs.inc"
 
 .if Variables > EndOfVariables
-	.echoln "Too many variables!"
+	.fail "Too many variables!"
 .else
 	.echoln strformat("{0} bytes free for variables.", EndOfVariables - Variables)
 .endif
 
 .if $>$4000
-	.echoln "Too much code :("
+	.fail "Too much code."
 .else
 	.echoln strformat("{0} bytes free for code.", $4000 - $)
 .endif

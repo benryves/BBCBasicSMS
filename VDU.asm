@@ -130,13 +130,29 @@ WriteWord:
 	ret
 
 ; ---------------------------------------------------------
+; WriteByte -> Writes a character to the VDU, converting
+;              CR to an LF, CR sequence.
+; ---------------------------------------------------------
+; Inputs:   a = value to output.
+; Outputs:  None.
+; Destroys: f.
+; ---------------------------------------------------------
+PutChar:
+	cp '\r'
+	jr nz,WriteByte
+	
+	ld a,'\n'
+	call WriteByte
+	ld a,'\r'
+	; Fall-through to WriteByte.
+
+; ---------------------------------------------------------
 ; WriteByte -> Writes a byte to the VDU.
 ; ---------------------------------------------------------
 ; Inputs:   a = value to output.
 ; Outputs:  None.
 ; Destroys: None.
 ; ---------------------------------------------------------
-PutChar:
 WriteByte:
 	push hl
 	push de
