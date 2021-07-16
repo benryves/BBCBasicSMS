@@ -125,33 +125,6 @@ Main:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-PutHexNybble:
-	cp 10
-	jr c,+
-	add a,'A'-10
-	jp VDU.PutChar
-+:	add a,'0'
-	jp VDU.PutChar
-
-PutHexByte:
-	push af
-	srl a
-	srl a
-	srl a
-	srl a
-	call PutHexNybble
-	pop af
-	and %1111
-	jr PutHexNybble
-
-PutHexWord:
-	push hl
-	ld a,h
-	call PutHexByte
-	pop hl
-	ld a,l
-	jr PutHexByte
-
 ; *TIJUMP,MAIN/P:4100,EXEC,EVAL,FPP,RAM/P:C000
 ; *BBCBASIC/N/Y/E
 

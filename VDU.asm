@@ -478,17 +478,81 @@ Delete:
 	call Console.CursorLeft
 	ld a,' '
 	jp PutMap
-	
 
+; ---------------------------------------------------------
+; PutString -> Sends a string to the display.
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to NUL or CR-terminated string.
+; Outputs:  hl = points to next string after terminator.
+;           z if NUL-terminated, nz if CR-terminated.
+; Destroys: hl, af.
+; ---------------------------------------------------------
 PutString:
 	ld a,(hl)
 	inc hl
 	or a
 	ret z
+	
+	cp '\r'
+	jr nz,+
+	
 	push hl
 	call PutChar
 	pop hl
-	jr PutString
+	or '\r'
+	ret
+	
++:	push hl
+	call PutChar
+	pop hl
+	jr nz,PutString
 
+; ---------------------------------------------------------
+; PutHexNybble -> Puts a hex nybble (0..F) on the screen.
+; ---------------------------------------------------------
+; Inputs:   a = hex nybble (must only be in the range 0..F)
+; Outputs:  None.
+; Destroys: af.
+; ---------------------------------------------------------
+PutHexNybble:
+	cp 10
+	jr c,+
+	add a,'A'-10
+	jp VDU.PutChar
++:	add a,'0'
+	jp VDU.PutChar
+
+; ---------------------------------------------------------
+; PutHexByte -> Puts a hex byte (00..FF) on the screen.
+; ---------------------------------------------------------
+; Inputs:   a = hex byte.
+; Outputs:  None.
+; Destroys: af.
+; ---------------------------------------------------------
+PutHexByte:
+	push af
+	srl a
+	srl a
+	srl a
+	srl a
+	call PutHexNybble
+	pop af
+	and %1111
+	jr PutHexNybble
+
+; ---------------------------------------------------------
+; PutHexWord -> Puts a hex byte (0000..FFFF) on the screen.
+; ---------------------------------------------------------
+; Inputs:   hl = hex byte.
+; Outputs:  None.
+; Destroys: af.
+; ---------------------------------------------------------
+PutHexWord:
+	push hl
+	ld a,h
+	call PutHexByte
+	pop hl
+	ld a,l
+	jr PutHexByte
 
 .endmodule
