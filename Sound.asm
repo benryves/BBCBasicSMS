@@ -32,10 +32,12 @@ PSG = $7F
 ;      (13 bytes)
 ; 19 -> queue
 ;       (12 bytes)
-; = 32 bytes per channel
+; 31 -> last written pitch
+; 32 -> last written amplitude
+; = 33 bytes per channel
 
 ChannelCount = 4
-ChannelSize = 32
+ChannelSize = 33
 Channels = allocVar(ChannelSize * ChannelCount)
 
 Channel.State = 0
@@ -46,6 +48,8 @@ Channel.PitchStep = 4
 Channel.AmplitudeStep = 5
 Channel.Envelope = 6
 Channel.Queue = 19
+Channel.OutputAmplitude = 31
+Channel.OutputPitch = 32
 
 Envelope.T = 0 ; 0 to 127 Length of each step in hundredths of a second
 Envelope.PI1 = 1 ; -128 to 127 Change of pitch per step in section 1
@@ -61,7 +65,7 @@ Envelope.AR = 10 ; -127 to 0 Change of amplitude per step during release phase
 Envelope.ALA = 11 ; 0 to 126 Target level at end of attack phase
 Envelope.ALD = 12 ; 0 to 126 Target level at end of decay phase
 
-EnvelopeCount = 4
+EnvelopeCount = 8
 EnvelopeSize = 13
 Envelopes = allocVar(EnvelopeSize * EnvelopeCount)
 
@@ -77,6 +81,7 @@ Reset:
 	call Silence
 	
 	; Clear the envelopes, too!
+	xor a
 	ld hl,Envelopes
 	ld de,Envelopes + 1
 	ld bc,(EnvelopeSize * EnvelopeCount) - 1
@@ -98,6 +103,18 @@ Silence:
 	ld bc,(ChannelSize * ChannelCount) - 1
 	ld (hl),a
 	ldir
+	
+	; Mark
+	push ix
+	ld ix,Channels
+	ld b,ChannelCount
+	ld de,ChannelSize
+	dec a
+-:	ld (ix+Channel.OutputAmplitude),a
+	ld (ix+Channel.OutputPitch),a
+	add ix,de
+	djnz -
+	pop ix
 	ret
 
 Tick:
@@ -302,9 +319,7 @@ ChannelNoteWasActive:
 	ld de,ChannelSize	
 	add ix,de
 	djnz TickNextChannelNote
-
-	; Move any 
-
+	
 	; Now we need to update the envelopes.
 
 TickEnvelopes:
@@ -344,11 +359,7 @@ NoStepEnvelope:
 EnvelopeStepped:
 
 	; Send the current channel state to the sound chip.
-	ld a,c
-	ld e,(ix+Channel.Pitch)
-	ld l,(ix+Channel.Amplitude)
-		
-	call UpdateChannel
+	call UpdateChannelIfNecessary
 	
 	pop bc
 	
@@ -699,28 +710,54 @@ GetEnvelopeAddressOffset:
 GetChannelAddress:
 	ld ix,Channels
 	
-	.if ChannelSize != 32
-	.fail "Sound.GetChannelAddress expects Sound.ChannelSize = 32"
+	.if ChannelSize != 33
+	.fail "Sound.GetChannelAddress expects Sound.ChannelSize = 33"
 	.endif
 
 	push af
 	push de
 	ld a,c
 	and %11
-	; 36 = 32+4
-	add a,a
-	add a,a
-	;ld e,a
-	add a,a
-	add a,a
-	add a,a
-	;add a,e
+	ld e,a
+	rrca
+	rrca
+	rrca
+	add a,e
 	ld d,0
 	ld e,a
 	add ix,de
 	pop de
 	pop af
 	ret
+
+; ---------------------------------------------------------
+; UpdateChannelIfNecessary -> Updates a sound channel.
+; ---------------------------------------------------------
+; Inputs:   ix = pointer to the sound channel.
+; Outputs:  None.
+; Destroys: af, c, d, hl.
+; ---------------------------------------------------------
+UpdateChannelIfNecessary:
+	
+	ld a,(ix+Channel.Amplitude)
+	cp (ix+Channel.OutputAmplitude)
+	jr nz,UpdateChannelIsNecessary
+
+	ld a,(ix+Channel.Pitch)
+	cp (ix+Channel.OutputPitch)
+	ret z
+
+UpdateChannelIsNecessary:
+	
+	ld a,(ix+Channel.Amplitude)
+	ld (ix+Channel.OutputAmplitude),a
+	
+	ld a,(ix+Channel.Pitch)
+	ld (ix+Channel.OutputPitch),a
+
+	ld a,c
+	ld e,(ix+Channel.Pitch)
+	ld l,(ix+Channel.Amplitude)
 
 ; ---------------------------------------------------------
 ; UpdateChannel -> Immediately updates an output channel.
@@ -738,6 +775,7 @@ UpdateChannel:
 	; On the SN76489, channel 3 (%11) is noise and can take its frequency from channel 2 (%10).
 	; The other two channels aren't hardware-specific, so just invert the bits to translate:
 	
+	ld d,a
 	cpl
 	and %11
 	
@@ -765,6 +803,25 @@ UpdateChannel:
 	; Combine with the "latch channel" byte.
 	or c
 	
+	; Write the previously-computed latch control byte.
+	out (PSG),a
+	
+	; Are we dealing with the noise channel?
+	ld a,d
+	and %11
+	jr nz,UpdateChannel.Tone
+
+UpdateChannel.Noise:
+	
+	; We're writing to the noise channel, so update the register directly.
+	ld a,e
+	and %00000111
+	or c
+	out (PSG),a	
+	ret
+	
+
+UpdateChannel.Tone:
 	; Look up the period from our precomputed period table.
 	ld d,0
 	sla e
@@ -772,9 +829,6 @@ UpdateChannel:
 	
 	ld hl,PeriodTable
 	add hl,de
-	
-	; Write the previously-computed latch control byte.
-	out (PSG),a
 	
 	; Write the low four bits of the pitch.
 	ld a,(hl)
