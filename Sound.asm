@@ -9,16 +9,17 @@ PSG = $7F
 
 ; Each channel needs to keep track of:
 ; 0 -> state
-;      bits 0 and 1 = section/pitch envelope
-;          00 = idle (channel free)
-;          01 = section 1
-;          10 = section 2
-;          11 = section 3
-;      bits 2 and 3 = ADSR state
+;      bits 0 and 1 = ADSR state
 ;          00 = releasing
 ;          01 = attacking
 ;          10 = decaying
 ;          11 = sustaining
+;      bits 2 and 3 = queue length
+;      bits 4 and 5 = section/pitch envelope
+;          00 = idle (channel free)
+;          01 = section 1
+;          10 = section 2
+;          11 = section 3
 ; 1 -> amplitude
 ;      from 0 (quietest) to 127 (loudest)
 ; 2 -> pitch
@@ -57,12 +58,23 @@ Envelope.AR = 10 ; -127 to 0 Change of amplitude per step during release phase
 Envelope.ALA = 11 ; 0 to 126 Target level at end of attack phase
 Envelope.ALD = 12 ; 0 to 126 Target level at end of decay phase
 
-EnvelopeCount = 2
+EnvelopeCount = 4
 EnvelopeSize = 13
 Envelopes = allocVar(EnvelopeSize * EnvelopeCount)
 
 ChannelUpdateTimer = allocVar(1)
 ChannelUpdatePeriod = 5
+
+QueueElementSize  = 4
+QueueElement.Control = 0
+QueueElement.Amplitude = 1
+QueueElement.Pitch = 2
+QueueElement.Duration = 3
+
+QueueDepth = 4
+QueueSize = QueueDepth * QueueElementSize ; 1 byte on the head for the number of items in the queue.
+
+Queue = allocVar(ChannelCount * QueueSize)
 
 Reset:
 	ld a,ChannelUpdatePeriod
@@ -80,6 +92,13 @@ Reset:
 	ld hl,Envelopes
 	ld de,Envelopes + 1
 	ld bc,(EnvelopeSize * EnvelopeCount) - 1
+	ld (hl),a
+	ldir
+	
+	; ...and the queue.
+	ld hl,Queue
+	ld de,Queue + 1
+	ld bc,(QueueSize * ChannelCount) - 1
 	ld (hl),a
 	ldir
 	
@@ -121,7 +140,7 @@ TickNextChannelNote:
 	
 	; The note has finished, so change channel state to "release".
 	ld a,(ix+Channel.State)
-	and %11110000
+	and %11001100
 	ld (ix+Channel.State),a
 	
 	xor a
@@ -205,11 +224,8 @@ StepEnvelope:
 
 	; Amplitude envelope.
 	ld a,(ix+Channel.State)
-	and %00001100
+	and %00000011
 	jr z,StepEnvelopeReleasing
-	
-	srl a
-	srl a
 	
 	dec a
 	jr z,StepEnvelopeAttacking
@@ -229,7 +245,7 @@ StepEnvelopeSustaining:
 	
 	; Move to the releasing state.
 	ld a,(ix+Channel.State)
-	and  %11110011
+	and  %11111100
 	ld (ix+Channel.State),a
 
 	jr StepEnvelopeDoneAmplitude
@@ -246,7 +262,7 @@ StepEnvelopeDecaying:
 	
 	; Move to the sustaining state.
 	ld a,(ix+Channel.State)
-	or  %00001100
+	or  %00000011
 	ld (ix+Channel.State),a
 	
 	jr StepEnvelopeDoneAmplitude
@@ -263,8 +279,8 @@ StepEnvelopeAttacking:
 	
 	; Move to the decaying state.
 	ld a,(ix+Channel.State)
-	and %11110011
-	or  %00001000
+	and %11111100
+	or  %00000010
 	ld (ix+Channel.State),a
 	
 	jr StepEnvelopeDoneAmplitude
@@ -353,6 +369,29 @@ DecrementEnvelopeValue: ; d < 0
 	ret
 
 ; ---------------------------------------------------------
+; QueueCommand -> Queues a sound command.
+; ---------------------------------------------------------
+; Inputs:   bc = channel number
+;           e = pitch (0..255)
+;           l = amplitude/envelope
+;           a = duration (1..255)
+; Outputs:  None.
+; Destroys: af, c, d, hl.
+; ---------------------------------------------------------
+QueueCommand:
+	di
+	call GetChannelAddress
+	
+	ld h,a
+	ld a,(ix+Channel.State)
+	and %00000011
+	ld a,h
+	jr z,WriteCommandGotChannelAddress
+	
+	ei
+	ret
+
+; ---------------------------------------------------------
 ; WriteCommand -> Writes a sound command.
 ; ---------------------------------------------------------
 ; Inputs:   bc = channel number
@@ -364,35 +403,18 @@ DecrementEnvelopeValue: ; d < 0
 ; ---------------------------------------------------------
 WriteCommand:
 	di
-	
-	ld ix,Channels
-	
-	.if ChannelSize != 20
-	.fail "Sound.WriteCommand expects Sound.ChannelSize = 20"
-	.endif
-	push af
-	push de
-	ld a,c
-	and %11
-	; 20 = 16+4
-	add a,a
-	add a,a
-	ld e,a
-	add a,a
-	add a,a
-	add a,e
-	ld d,0
-	ld e,a
-	add ix,de
-	pop de
-	pop af
-	
+	call GetChannelAddress
+
+WriteCommandGotChannelAddress:
+
 	ld (ix+Channel.Duration),a
 	ld (ix+Channel.Pitch),e
 	ld (ix+Channel.Amplitude),0
 	
 	
-	ld a,%00000101 ; section 1, attacking
+	ld a,(ix+Channel.State)
+	and %11001100
+	or  %00010001 ; section 1, attacking
 	ld (ix+Channel.State),a
 	
 	; Initialise the envelope.
@@ -449,6 +471,7 @@ LoadEnvelope:
 	ldir
 	
 LoadedEnvelope:
+	xor a
 	ei
 	ret
 
@@ -468,6 +491,31 @@ GetEnvelopeAddressOffset:
 	add a,d
 	add a,e
 	ld d,0
+	ret
+
+GetChannelAddress:
+	ld ix,Channels
+	
+	.if ChannelSize != 20
+	.fail "Sound.GetChannelAddress expects Sound.ChannelSize = 20"
+	.endif
+
+	push af
+	push de
+	ld a,c
+	and %11
+	; 20 = 16+4
+	add a,a
+	add a,a
+	ld e,a
+	add a,a
+	add a,a
+	add a,e
+	ld d,0
+	ld e,a
+	add ix,de
+	pop de
+	pop af
 	ret
 
 ; ---------------------------------------------------------

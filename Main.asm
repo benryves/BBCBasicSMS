@@ -3,7 +3,7 @@
 
 ; BBC BASIC's scratch memory will be at RAM ($C000..$C2FF)
 Variables      = $C300
-EndOfVariables = $C400
+EndOfVariables = $C500
 
 .function allocVar(size)
 	allocVar = Variables

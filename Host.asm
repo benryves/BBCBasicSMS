@@ -48,7 +48,7 @@ OSINIT
 	ld (Flags),a
 	
 	ld de, $DFF0 ; HIMEM
-	ld hl, $C400 ; PAGE
+	ld hl, $C500 ; PAGE
 	
 	scf ; don't boot
 	ret
@@ -379,7 +379,6 @@ LTRAP:
 ;------------------------------------------------------------------------------- 
 TRAP:
 	call TrapConsoleButtons
-	ret
 	ei
 	
 	ld a,(TrapKeyboardTimer)
@@ -444,15 +443,27 @@ TrapConsoleButtons:
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-RESET
+RESET:
 	ld a,(Flags)
 	res Pause,a
 	ld (Flags),a
+	
+	push hl
+	push de
 	push bc
+	
+	call Sound.Reset
+	
 	call Video.SynchroniseRegisters
+	
+	xor a
+	ld (VDU.CommandQueue.Waiting),a
 	ld a,' '
 	call VDU.PutMap
+	
 	pop bc
+	pop de
+	pop hl
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -1330,9 +1341,14 @@ SOUND:
 	pop hl ; hl = amplitude
 	pop bc ; bc = channel
 	
-	call Sound.WriteCommand
+-:	call Sound.QueueCommand
 	
-	jp Basic.BBCBASIC_XEQ
+	jp z,Basic.BBCBASIC_XEQ
+	
+	ei
+	halt
+	
+	jr -
 
 SORRY:
 	xor a
