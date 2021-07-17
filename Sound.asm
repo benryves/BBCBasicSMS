@@ -68,12 +68,18 @@ Envelopes = allocVar(EnvelopeSize * EnvelopeCount)
 ChannelUpdateTimer = allocVar(1)
 ChannelUpdatePeriod = 5
 
+Status = allocVar(1)
+Status.Active = 0
+Status.CanPlaySynchronisedNotes = 1
+
 Reset:
 	ld a,ChannelUpdatePeriod
 	ld (ChannelUpdateTimer),a
+
+	xor a
+	ld (Status),a
 	
 	; Clear the channels.
-	xor a
 	ld hl,Channels
 	ld de,Channels + 1
 	ld bc,(ChannelSize * ChannelCount) - 1
@@ -107,7 +113,65 @@ Tick:
 TickUpdateChannelNotes:
 	ld a,ChannelUpdatePeriod
 	ld (ChannelUpdateTimer),a
-		
+	
+	; First, we'll count up how many channels are ready to play back in a synchronised fashion.
+	
+	ld ix,Channels
+	ld b,ChannelCount
+	
+	ld a,(Status)
+	res Status.CanPlaySynchronisedNotes,a
+	ld (Status),a
+	
+	ld de,0
+
+CountChannelsToSync:
+	ld a,(ix+Channel.State)
+	ld c,a
+	
+	and %00000011 ; Is it released?
+	jr nz,NotReadyForSync
+	
+	ld a,c
+	and %00001100 ; Is there any data in its queue?
+	jr z,NotReadyForSync
+	
+	; Now we know there's data in the queue, is it a synchronised note?
+	ld a,(ix+Channel.Queue+Channel.State)
+	and $0F
+	jr z,NotReadyForSync
+	
+	; Hooray!
+	inc d ; Count up the number of channels that are ready and waiting.
+	
+	cp e ; Is it a larger sync amount?
+	jr c,+
+	ld e,a
++:
+
+NotReadyForSync:
+	push de
+	ld de,ChannelSize
+	add ix,de
+	pop de
+	djnz CountChannelsToSync
+	
+	; We've counted how many channels have synced notes (D) and the lowest sync number (E).
+	
+	ld a,d
+	or a
+	jr z,+ ; No synchronised notes in any queues.
+	
+	cp e
+	jr z,+ ; If the requirement =1 and we count 1, that's because we're counting ourselves.
+	jr c,+ ; Not enough synchronised notes in the queues.
+	
+	ld a,(Status)
+	set Status.CanPlaySynchronisedNotes,a
+	ld (Status),a
+	
++:
+
 	ld ix,Channels
 	ld b,ChannelCount
 
@@ -161,8 +225,25 @@ ChannelNoteInactive:
 	
 	ld a,(ix+Channel.State)
 	
+	; If S of the &HSFN channel number is non-zero, we need to wait to syncronise.
+	ld h,a
+	and $0F
+	ld a,h
+	jr z,NotSynchronisationControl
+	
+	; We can now only play this note if we counted enough channels earlier.
+	ld a,(Status)
+	bit Status.CanPlaySynchronisedNotes,a
+	jr nz,PlayNoteInQueue
+	
+	pop ix
+	pop bc
+	pop hl
+	jr ChannelNoteNoDequeue
+
+NotSynchronisationControl:	
 	and $F0
-	jr z,NotContinuationControl
+	jr z,PlayNoteInQueue
 	
 	; We get here if H in &HSFN of the channel number is non-zero.
 	; This indicates it's a continuation note, we process it through
@@ -172,7 +253,7 @@ ChannelNoteInactive:
 	pop ix
 	jr SkipWritingCommand
 
-NotContinuationControl:
+PlayNoteInQueue:
 	ld b,a
 	ld l,(ix+Channel.Amplitude)
 	ld e,(ix+Channel.Pitch)
