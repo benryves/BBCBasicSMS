@@ -1341,7 +1341,10 @@ SOUND:
 	pop hl ; hl = amplitude
 	pop bc ; bc = channel
 	
--:	call Sound.QueueCommand
+	
+-:	push ix
+	call Sound.QueueCommand
+	pop ix
 	
 	jp z,Basic.BBCBASIC_XEQ
 	

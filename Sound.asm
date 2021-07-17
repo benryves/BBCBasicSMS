@@ -30,10 +30,12 @@ PSG = $7F
 ; 5 -> amplitude envelope step counter
 ; 6 -> current envelope state
 ;      (13 bytes)
-; = 20 bytes per channel
+; 19 -> queue
+;       (12 bytes)
+; = 32 bytes per channel
 
 ChannelCount = 4
-ChannelSize = 20
+ChannelSize = 32
 Channels = allocVar(ChannelSize * ChannelCount)
 
 Channel.State = 0
@@ -43,6 +45,7 @@ Channel.Duration = 3
 Channel.PitchStep = 4
 Channel.AmplitudeStep = 5
 Channel.Envelope = 6
+Channel.Queue = 19
 
 Envelope.T = 0 ; 0 to 127 Length of each step in hundredths of a second
 Envelope.PI1 = 1 ; -128 to 127 Change of pitch per step in section 1
@@ -65,17 +68,6 @@ Envelopes = allocVar(EnvelopeSize * EnvelopeCount)
 ChannelUpdateTimer = allocVar(1)
 ChannelUpdatePeriod = 5
 
-QueueElementSize  = 4
-QueueElement.Control = 0
-QueueElement.Amplitude = 1
-QueueElement.Pitch = 2
-QueueElement.Duration = 3
-
-QueueDepth = 4
-QueueSize = QueueDepth * QueueElementSize ; 1 byte on the head for the number of items in the queue.
-
-Queue = allocVar(ChannelCount * QueueSize)
-
 Reset:
 	ld a,ChannelUpdatePeriod
 	ld (ChannelUpdateTimer),a
@@ -92,13 +84,6 @@ Reset:
 	ld hl,Envelopes
 	ld de,Envelopes + 1
 	ld bc,(EnvelopeSize * EnvelopeCount) - 1
-	ld (hl),a
-	ldir
-	
-	; ...and the queue.
-	ld hl,Queue
-	ld de,Queue + 1
-	ld bc,(QueueSize * ChannelCount) - 1
 	ld (hl),a
 	ldir
 	
@@ -143,20 +128,80 @@ TickNextChannelNote:
 	and %11001100
 	ld (ix+Channel.State),a
 	
-	xor a
-	jr TickEndedNoteDuration
+	jr ChannelNoteInactive
 	
 TickNotEndedNoteDuration:
 	dec a
 TickEndedNoteDuration:
 	ld (ix+Channel.Duration),a
+	jr ChannelNoteWasActive
 	
 ChannelNoteInactive:
+
+	; If we get here, the note is currently inactive.
+	; Is there a note in the queue to fetch?
+	ld a,(ix+Channel.State)
+	and %00001100
+	jr z,ChannelNoteNoDequeue
+	
+	; There's something to (possibly) dequeue!
+	push hl
+	push bc
+	push ix
+	
+.if Channel.Queue != 0
+	ld de,Channel.Queue ; The pointer is to the next free space on the queue.
+	add ix,de
+.endif
+	
+	; a = duration
+	; l = amplitude
+	; e = pitch
+	; bc = channel
+	
+	ld b,(ix+Channel.State)
+	ld l,(ix+Channel.Amplitude)
+	ld e,(ix+Channel.Pitch)
+	ld a,(ix+Channel.Duration)
+	
+	pop ix
+	
+	; Write the data
+	call WriteCommandGotChannelAddress
+	
+	; Move the queue pointer backwards.
+	ld a,(ix+Channel.State)
+	sub 4
+	ld (ix+Channel.State),a
+	
+	; Shuffle the data inside the queue backwards
+	push ix
+	pop hl
+	
+	ld de,Channel.Queue
+	add hl,de
+	push hl
+
+	ld de,4
+	add hl,de
+	pop de
+	
+	ld bc,8
+	ldir
+	
+	pop bc
+	pop hl
+	
+ChannelNoteNoDequeue:
+
+ChannelNoteWasActive:
 
 	; Advance to the next channel.
 	ld de,ChannelSize	
 	add ix,de
 	djnz TickNextChannelNote
+
+	; Move any 
 
 	; Now we need to update the envelopes.
 
@@ -375,19 +420,71 @@ DecrementEnvelopeValue: ; d < 0
 ;           e = pitch (0..255)
 ;           l = amplitude/envelope
 ;           a = duration (1..255)
-; Outputs:  None.
-; Destroys: af, c, d, hl.
+; Outputs:  z is set if the value was stored in the queue,
+;           nz if the queue is full.
+; Destroys: ix, f, h
 ; ---------------------------------------------------------
 QueueCommand:
 	di
 	call GetChannelAddress
 	
 	ld h,a
-	ld a,(ix+Channel.State)
-	and %00000011
-	ld a,h
-	jr z,WriteCommandGotChannelAddress
 	
+	ld a,c
+	and $F0
+	jr z,NoFlushQueue
+	
+	; We need to flush the queue.
+	xor a
+	ld (ix+Channel.State),a
+	ld (ix+Channel.Duration),a
+
+NoFlushQueue:
+	
+	ld a,(ix+Channel.State)
+	cpl
+	and %00001100
+	jr nz,QueueNotFull
+	
+	; The queue is full, sorry.
+	
+	or $FF
+	ld a,h
+	ret
+
+QueueNotFull:
+
+	ld a,(ix+Channel.State)
+	and %00001100
+	
+	push de
+	
+	; Make de = queue offset
+	ld e,a
+	ld d,0
+	
+	; Advance queue pointer
+	ld a,(ix+Channel.State)
+	add a,4
+	ld (ix+Channel.State),a
+	
+	add ix,de
+	
+.if Channel.Queue != 0
+	ld de,Channel.Queue
+	add ix,de
+.endif
+
+	pop de
+	
+	; ix -> queue
+	ld (ix+Channel.State),b     ; The queue position is implied, so B contains control byte
+	ld (ix+Channel.Amplitude),l ; amplitude/envelope
+	ld (ix+Channel.Pitch),e     ; pitch
+	ld (ix+Channel.Duration),h  ; duration
+	
+	xor a
+	ld a,h
 	ei
 	ret
 
@@ -399,7 +496,7 @@ QueueCommand:
 ;           l = amplitude/envelope
 ;           a = duration (1..255)
 ; Outputs:  None.
-; Destroys: af, c, d, hl.
+; Destroys: af, c, d, hl, ix.
 ; ---------------------------------------------------------
 WriteCommand:
 	di
@@ -496,21 +593,22 @@ GetEnvelopeAddressOffset:
 GetChannelAddress:
 	ld ix,Channels
 	
-	.if ChannelSize != 20
-	.fail "Sound.GetChannelAddress expects Sound.ChannelSize = 20"
+	.if ChannelSize != 32
+	.fail "Sound.GetChannelAddress expects Sound.ChannelSize = 32"
 	.endif
 
 	push af
 	push de
 	ld a,c
 	and %11
-	; 20 = 16+4
+	; 36 = 32+4
 	add a,a
 	add a,a
-	ld e,a
+	;ld e,a
 	add a,a
 	add a,a
-	add a,e
+	add a,a
+	;add a,e
 	ld d,0
 	ld e,a
 	add ix,de
