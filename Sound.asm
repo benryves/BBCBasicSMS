@@ -159,7 +159,21 @@ ChannelNoteInactive:
 	; e = pitch
 	; bc = channel
 	
-	ld b,(ix+Channel.State)
+	ld a,(ix+Channel.State)
+	
+	and $F0
+	jr z,NotContinuationControl
+	
+	; We get here if H in &HSFN of the channel number is non-zero.
+	; This indicates it's a continuation note, we process it through
+	; the queue but don't actually change the state of the note
+	; that's playing...
+	
+	pop ix
+	jr SkipWritingCommand
+
+NotContinuationControl:
+	ld b,a
 	ld l,(ix+Channel.Amplitude)
 	ld e,(ix+Channel.Pitch)
 	ld a,(ix+Channel.Duration)
@@ -168,7 +182,9 @@ ChannelNoteInactive:
 	
 	; Write the data
 	call WriteCommandGotChannelAddress
-	
+
+SkipWritingCommand:
+		
 	; Move the queue pointer backwards.
 	ld a,(ix+Channel.State)
 	sub 4
