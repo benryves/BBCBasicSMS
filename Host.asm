@@ -452,7 +452,7 @@ RESET:
 	push de
 	push bc
 	
-	call Sound.Reset
+	call Sound.Silence
 	
 	call Video.SynchroniseRegisters
 	
@@ -1287,6 +1287,8 @@ ENVEL:
 	cp Sound.EnvelopeCount
 	jp nc,Sorry
 	
+	di
+	
 	call Sound.GetEnvelopeAddressOffset
 	ld ix,Sound.Envelopes
 	add ix,de
@@ -1302,6 +1304,8 @@ ENVEL:
 	ld (ix),l
 	inc ix
 	djnz -
+	
+	ei
 	jp Basic.BBCBASIC_XEQ
 
 ;------------------------------------------------------------------------------- 
@@ -1342,7 +1346,8 @@ SOUND:
 	pop bc ; bc = channel
 	
 	
--:	push ix
+-:	di
+	push ix
 	call Sound.QueueCommand
 	pop ix
 	
@@ -1350,6 +1355,8 @@ SOUND:
 	
 	ei
 	halt
+	
+	
 	
 	jr -
 

@@ -73,6 +73,19 @@ Status.Active = 0
 Status.CanPlaySynchronisedNotes = 1
 
 Reset:
+	
+	call Silence
+	
+	; Clear the envelopes, too!
+	ld hl,Envelopes
+	ld de,Envelopes + 1
+	ld bc,(EnvelopeSize * EnvelopeCount) - 1
+	ld (hl),a
+	ldir
+	
+	ret
+
+Silence:
 	ld a,ChannelUpdatePeriod
 	ld (ChannelUpdateTimer),a
 
@@ -85,14 +98,6 @@ Reset:
 	ld bc,(ChannelSize * ChannelCount) - 1
 	ld (hl),a
 	ldir
-	
-	; ...and the envelopes.
-	ld hl,Envelopes
-	ld de,Envelopes + 1
-	ld bc,(EnvelopeSize * EnvelopeCount) - 1
-	ld (hl),a
-	ldir
-	
 	ret
 
 Tick:
@@ -182,7 +187,7 @@ TickNextChannelNote:
 	or a
 	jr z,ChannelNoteInactive
 	
-	;Have we reached the end of its duration?
+	; Have we reached the end of its duration?
 	ld a,(ix+Channel.Duration)
 	or a
 	jr nz,TickNotEndedNoteDuration
@@ -316,13 +321,16 @@ TickNextEnvelope:
 	ld a,(ix+Channel.AmplitudeStep)
 	ld d,a
 	and %01111111
-	jr nz,+
-	
+	jr z,StepEnvelopeZero
+	dec a
+	jr nz,NoStepEnvelope
+
+StepEnvelopeZero:	
 	; Step the envelope
 	call StepEnvelope
 	jr EnvelopeStepped
 	
-+:
+NoStepEnvelope:
 	; It's not time, so decrement the counter
 	; and skip the envelope tick.
 	dec a
@@ -486,7 +494,7 @@ IncrementEnvelopeValue: ; d > 0
 	cp e
 	ret c
 	
-	; Set to the treshold and set z.
+	; Set to the threshold and set z.
 	ld a,e
 	cp a
 	ret
@@ -684,6 +692,7 @@ GetEnvelopeAddressOffset:
 	add a,a
 	add a,d
 	add a,e
+	ld e,a
 	ld d,0
 	ret
 
