@@ -16,7 +16,7 @@
 /*	CLRSCN	EQU	4006H	*/ jp Host.CLRSCN
 /*	COLOUR	EQU	4009H	*/ jp Host.COLOUR
 /*	DRAW  	EQU	400CH	*/ jp Host.DRAW
-/*	ENVEL 	EQU	400FH	*/ jp Host.SORRY
+/*	ENVEL 	EQU	400FH	*/ jp Host.ENVEL
 /*	GCOL  	EQU	4012H	*/ jp Host.GCOL
 /*	GETCSR	EQU	4015H	*/ jp Host.GETCSR
 /*	GETEXT	EQU	4018H	*/ jp Host.GETEXT
@@ -48,7 +48,7 @@
 /*	PUTIMS	EQU	4066H	*/ jp Host.PUTIMS
 /*	PUTPTR	EQU	4069H	*/ jp Host.PUTPTR
 /*	RESET 	EQU	406CH	*/ jp Host.RESET
-/*	SOUND 	EQU	406FH	*/ jp Host.SORRY
+/*	SOUND 	EQU	406FH	*/ jp Host.SOUND
 /*	TRAP  	EQU	4072H	*/ jp Host.TRAP
 
 ; &4080

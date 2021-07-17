@@ -48,6 +48,8 @@ FrameInterrupt:
 	sub 100 ; 100Hz timer
 	
 -:	push af
+	
+	; Update TIME.
 	push hl
 	ld hl,(Host.TIME)
 	inc hl
@@ -67,6 +69,9 @@ FrameInterrupt:
 	dec a
 	ld (Host.TrapKeyboardTimer),a
 +:
+
+	; Update the sound.
+	call Sound.Tick
 	
 	pop af
 	add a,60 ; 60Hz video refresh
@@ -83,6 +88,7 @@ FrameInterrupt:
 .include "VDU.asm"
 .include "Serial.asm"
 .include "PCLink2.asm"
+.include "Sound.asm"
 
 Boot:
 	; Make sure SP points somewhere sensible.
@@ -119,6 +125,9 @@ Main:
 	
 	; Serial port initialisation.
 	call Serial.Reset
+	
+	; Sound initialisation.
+	call Sound.Reset
 
 	; Jump into BASIC.
 	jp Basic.BBCBASIC_START

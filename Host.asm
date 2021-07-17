@@ -530,6 +530,7 @@ OSSAVE
 ;   REGISTERS
 ;   * AF, BC, DE, HL
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 OSOPEN
 	jp SORRY
@@ -552,6 +553,7 @@ OSOPEN
 ;   REGISTERS
 ;   * AF, BC
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 OSBGET
 	jp SORRY
@@ -572,6 +574,7 @@ OSBGET
 ;   REGISTERS
 ;   * AF, BC
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 OSBPUT
 	jp SORRY
@@ -597,9 +600,9 @@ OSBPUT
 ;   REGISTERS
 ;   * Everything.
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 OSCALL
-	ret
 	jp SORRY
 
 ;------------------------------------------------------------------------------- 
@@ -621,6 +624,7 @@ OSCALL
 ;   REGISTERS
 ;   * AF, DE, HL
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 OSSTAT
 	jp SORRY
@@ -644,6 +648,7 @@ OSSTAT
 ;   REGISTERS
 ;   * AF, BC, DE, HL
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 GETPTR
 	jp SORRY
@@ -664,6 +669,7 @@ GETPTR
 ;   REGISTERS
 ;   * AF, BC, DE, HL
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 PUTPTR
 	jp SORRY
@@ -687,6 +693,7 @@ PUTPTR
 ;   REGISTERS
 ;   * AF, BC, DE, HL
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 GETEXT
 	jp SORRY
@@ -707,6 +714,7 @@ GETEXT
 ;   REGISTERS
 ;   * AF, BC, DE, HL
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 OSSHUT
 	ld a,e
@@ -729,6 +737,7 @@ OSSHUT
 ;   REGISTERS
 ;   * AF, BC, DE, HL
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 OSCLI
 	
@@ -976,7 +985,8 @@ PUTCSR:
 ;   * AF, DE, HL
 ;
 ;------------------------------------------------------------------------------- 
-GETCSR
+GETCSR:
+	; TODO: Fix based on actual text bounds.
 	ld de,(VDU.Console.CurCol)
 	ld d,0
 	ld hl,(VDU.Console.CurRow)
@@ -998,10 +1008,13 @@ GETCSR
 ;   REGISTERS
 ;   * AF, DE, HL
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
-PUTIME
+PUTIME:
+	di
 	ld (TIME+0),hl
 	ld (TIME+2),de
+	ei
 	ret
 
 
@@ -1022,9 +1035,11 @@ PUTIME
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-GETIME
+GETIME:
+	di
 	ld hl,(TIME+0)
 	ld de,(TIME+2)
+	ei
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -1040,7 +1055,7 @@ GETIME
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-CLRSCN
+CLRSCN:
 	ld a,12
 	jp VDU.WriteByte
 
@@ -1053,7 +1068,7 @@ CLRSCN
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-ADVAL
+ADVAL:
 	jp SORRY
 
 ;------------------------------------------------------------------------------- 
@@ -1065,7 +1080,7 @@ ADVAL
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-POINT
+POINT:
 	jp SORRY
 
 ;------------------------------------------------------------------------------- 
@@ -1075,8 +1090,9 @@ POINT
 ; 
 ;   Change text foreground or background colour.
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
-COLOUR
+COLOUR:
 	call Basic.BBCBASIC_EXPRI
 	exx
 	
@@ -1093,8 +1109,9 @@ COLOUR
 ; 
 ;   Clear graphics window to graphics background colour.
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
-CLG
+CLG:
 	jp SORRY
 
 
@@ -1105,6 +1122,7 @@ CLG
 ; 
 ;   Draw a line.
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 DRAW:
 	ld hl,5
@@ -1188,6 +1206,7 @@ GETIMS
 ; 
 ;   Move graphics cursor.
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 MOVE:
 	ld hl,4
@@ -1200,6 +1219,7 @@ MOVE:
 ; 
 ;   Plot a shape.
 ;
+;@doc:end
 ;------------------------------------------------------------------------------- 
 PLOT
 	call Basic.BBCBASIC_EXPRI
@@ -1237,8 +1257,84 @@ PLOT.CommandInHL:
 	
 	jp Basic.BBCBASIC_XEQ
 
+;------------------------------------------------------------------------------- 
+;@doc:routine 
+; 
+; === Host.ENVEL ===
+; 
+;   Define a pitch and amplitude envelope.
+;
+;@doc:end
+;------------------------------------------------------------------------------- 
+ENVEL:
+	call Basic.BBCBASIC_EXPRI ;Get first parameter (envelope number)
+	exx
+	
+	; Is it in range?
+	ld a,l
+	dec a
+	cp Sound.EnvelopeCount
+	jp nc,Sorry
+	
+	call Sound.GetEnvelopeAddressOffset
+	ld ix,Sound.Envelopes
+	add ix,de
 
-SORRY
+	ld b,13
+-:	push bc
+	push ix
+	call Basic.BBCBASIC_COMMA
+	call Basic.BBCBASIC_EXPRI
+	exx
+	pop ix
+	pop bc
+	ld (ix),l
+	inc ix
+	djnz -
+	jp Basic.BBCBASIC_XEQ
+
+;------------------------------------------------------------------------------- 
+;@doc:routine 
+; 
+; === Host.SOUND ===
+; 
+;   Make a sound.
+;
+;@doc:end
+;------------------------------------------------------------------------------- 
+SOUND:
+	
+	call Basic.BBCBASIC_EXPRI ;Get first parameter (channel)
+	exx
+	push hl
+	
+	call Basic.BBCBASIC_COMMA
+	
+	call Basic.BBCBASIC_EXPRI ;Get second parameter (amplitude)
+	exx
+	push hl
+	
+	call Basic.BBCBASIC_COMMA
+	
+	call Basic.BBCBASIC_EXPRI ;Get third parameter (pitch)
+	exx
+	push hl
+	
+	call Basic.BBCBASIC_COMMA
+	
+	call Basic.BBCBASIC_EXPRI ;Get fourth parameter (duration)
+	exx
+	
+	ld a,l ; a = duration
+	pop de ; de = pitch
+	pop hl ; hl = amplitude
+	pop bc ; bc = channel
+	
+	call Sound.WriteCommand
+	
+	jp Basic.BBCBASIC_XEQ
+
+SORRY:
 	xor a
 	call Basic.BBCBASIC_EXTERR
 	.db "Sorry",0
