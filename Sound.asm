@@ -198,7 +198,7 @@ TickNextChannelNote:
 	
 	; What's the current channel state?
 	ld a,(ix+Channel.State)
-	or a
+	and %01111111 ; bit 7 = "alive" flag.
 	jr z,ChannelNoteInactive
 	
 	; Have we reached the end of its duration?
@@ -281,7 +281,7 @@ PlayNoteInQueue:
 	pop ix
 	
 	; Write the data
-	call WriteCommandGotChannelAddress
+	call WriteCommand
 
 SkipWritingCommand:
 		
@@ -650,7 +650,27 @@ DecrementEnvelopeValue: ; d < 0
 ; ---------------------------------------------------------
 QueueCommand:
 	di
-	call GetChannelAddress
+	
+	ld ix,Channels
+	
+	.if ChannelSize != 32
+	.fail "QueueCommand expects Sound.ChannelSize = 32"
+	.endif
+
+	push af
+	push de
+	ld a,c
+	and %11
+	
+	rrca
+	rrca
+	rrca
+	ld d,0
+	ld e,a
+	
+	add ix,de
+	pop de
+	pop af
 	
 	ld h,a
 	
@@ -715,7 +735,8 @@ QueueNotFull:
 ; ---------------------------------------------------------
 ; WriteCommand -> Writes a sound command immediately.
 ; ---------------------------------------------------------
-; Inputs:   bc = channel number
+; Inputs:   ix = pointer to channel
+;           bc = channel number
 ;           e = pitch (0..255)
 ;           l = amplitude/envelope
 ;           a = duration (1..255)
@@ -723,19 +744,14 @@ QueueNotFull:
 ; Destroys: af, c, d, hl, ix.
 ; ---------------------------------------------------------
 WriteCommand:
-	di
-	call GetChannelAddress
-
-WriteCommandGotChannelAddress:
 
 	ld (ix+Channel.Duration),a
 	ld (ix+Channel.Pitch),e
 	ld (ix+Channel.Amplitude),0
 	
-	
 	ld a,(ix+Channel.State)
 	and %11001100
-	or  %00010001 ; section 1, attacking
+	or  %10010001 ; section 1, attacking, and mark as alive.
 	ld (ix+Channel.State),a
 	
 	; Initialise the envelope.
@@ -773,7 +789,7 @@ PresetEnvelope:
 	inc de
 	ld (de),a
 	
-	jr LoadedEnvelope
+	ret
 	
 LoadEnvelope:
 
@@ -790,10 +806,6 @@ LoadEnvelope:
 	ld bc,EnvelopeSize
 	
 	ldir
-	
-LoadedEnvelope:
-	xor a
-	ei
 	ret
 
 FixedAmplitudeEnvelope:
@@ -813,29 +825,6 @@ GetEnvelopeAddressOffset:
 	add a,e
 	ld e,a
 	ld d,0
-	ret
-
-GetChannelAddress:
-	ld ix,Channels
-	
-	.if ChannelSize != 32
-	.fail "Sound.GetChannelAddress expects Sound.ChannelSize = 32"
-	.endif
-
-	push af
-	push de
-	ld a,c
-	and %11
-	
-	rrca
-	rrca
-	rrca
-	ld d,0
-	ld e,a
-	
-	add ix,de
-	pop de
-	pop af
 	ret
 	
 PeriodTable:
