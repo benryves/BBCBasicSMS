@@ -32,12 +32,10 @@ PSG = $7F
 ;      (13 bytes)
 ; 19 -> queue
 ;       (12 bytes)
-; 31 -> last written pitch
-; 32 -> last written amplitude
-; = 33 bytes per channel
+; = 31 bytes per channel, pad to 32 for ease.
 
 ChannelCount = 4
-ChannelSize = 33
+ChannelSize = 32
 Channels = allocVar(ChannelSize * ChannelCount)
 
 Channel.State = 0
@@ -48,8 +46,6 @@ Channel.PitchStep = 4
 Channel.AmplitudeStep = 5
 Channel.Envelope = 6
 Channel.Queue = 19
-Channel.OutputAmplitude = 31
-Channel.OutputPitch = 32
 
 Envelope.T = 0 ; 0 to 127 Length of each step in hundredths of a second
 Envelope.PI1 = 1 ; -128 to 127 Change of pitch per step in section 1
@@ -76,6 +72,10 @@ Status = allocVar(1)
 Status.Active = 0
 Status.CanPlaySynchronisedNotes = 1
 
+PSGState = allocVar(2 * ChannelCount)
+PSG.Amplitude = 0
+PSG.Pitch = 1
+
 Reset:
 	
 	call Silence
@@ -85,6 +85,15 @@ Reset:
 	ld hl,Envelopes
 	ld de,Envelopes + 1
 	ld bc,(EnvelopeSize * EnvelopeCount) - 1
+	ld (hl),a
+	ldir
+	
+	; Fill the PSGState with to force an update.
+	dec a
+	ld hl,PSGState
+	ld de,PSGState + 1
+	ld bc,(2 * ChannelCount) - 1
+	dec a
 	ld (hl),a
 	ldir
 	
@@ -103,21 +112,9 @@ Silence:
 	ld bc,(ChannelSize * ChannelCount) - 1
 	ld (hl),a
 	ldir
-	
-	; Mark
-	push ix
-	ld ix,Channels
-	ld b,ChannelCount
-	ld de,ChannelSize
-	dec a
--:	ld (ix+Channel.OutputAmplitude),a
-	ld (ix+Channel.OutputPitch),a
-	add ix,de
-	djnz -
-	pop ix
-	ret
 
 Tick:
+	push iy
 	push ix
 	push hl
 	push de
@@ -293,7 +290,7 @@ SkipWritingCommand:
 	sub 4
 	ld (ix+Channel.State),a
 	
-	; Shuffle the data inside the queue backwards
+	; Shunt the data inside the queue backwards
 	push ix
 	pop hl
 	
@@ -325,6 +322,8 @@ ChannelNoteWasActive:
 TickEnvelopes:
 	
 	ld ix,Channels
+	ld iy,PSGState
+	
 	ld b,ChannelCount
 	ld c,0 ; channel 0
 	
@@ -357,25 +356,132 @@ NoStepEnvelope:
 	ld (ix+Channel.AmplitudeStep),a
 
 EnvelopeStepped:
-
-	; Send the current channel state to the sound chip.
-	call UpdateChannelIfNecessary
-	
 	pop bc
 	
+	; Synchronise the channel state with the PSG hardware.
+
+	; First, we need to translate the channel number.
+	; On the BBC Micro, channel 0 (%00) is noise and can take its frequency from channel 1 (%01).
+	; On the SN76489, channel 3 (%11) is noise and can take its frequency from channel 2 (%10).
+	; The other two channels aren't hardware-specific, so just invert the bits to translate:
+	
+	ld a,c
+	cpl
+	and %11
+	
+	; Move channel number from bits %......cc to bits %.cc.....
+	; (>>>3 is same as <<<5)
+	
+	rrca
+	rrca
+	rrca
+	
+	or %10000000
+	ld d,a
+	
+	; d is now the "latch channel" command byte.
+
+	; Has the amplitude changed?
+	ld a,(ix+Channel.Amplitude)
+	cp (iy+PSG.Amplitude)
+	jr z,PSGAmplitudeUnchanged
+
+PSGAmplitudeChanged:
+
+	ld (iy+PSG.Amplitude),a
+	
+	; Amplitude is from 0..127, but we need to scale from %1111..%0000
+	srl a
+	srl a
+	srl a
+	and %00001111
+	neg
+	add a,15 + %00010000 ; We always want bit 4 set to latch the volume.
+	
+	; Combine with the "latch channel" byte.
+	or d
+	
+	out (PSG),a
+
+PSGAmplitudeUnchanged:
+
+	; Has the pitch changed?
+	ld a,(ix+Channel.Pitch)
+	cp (iy+PSG.Pitch)
+	jr z,PSGPitchUnchanged
+
+PSGPitchChanged:
+
+	ld (iy+PSG.Pitch),a
+	ld e,a
+	
+	; Are we dealing with the noise channel?
+	ld a,c
+	and %11
+	jr nz,PSGPitchChangedTone
+
+PSGPitchChangedNoise:
+	
+	; We're writing to the noise channel, so update the register directly.
+	ld a,e
+	and %00000111
+	or d
+	
+	out (PSG),a	
+	jr PSGPitchUnchanged
+	
+
+PSGPitchChangedTone:
+	
+	push bc
+	ld c,d
+	
+	; Look up the period from our precomputed period table.
+	ld d,0
+	sla e
+	rl d
+	
+	ld hl,PeriodTable
+	add hl,de
+	
+	; Write the low four bits of the pitch.
+	ld a,(hl)
+	inc hl
+	or c
+	out (PSG),a
+	
+	; Write the period high six bits.
+	ld a,(hl)
+	out (PSG),a
+	
+	pop bc
+
+PSGPitchUnchanged:
+
 	; Advance to the next channel.
 	ld de,ChannelSize
 	add ix,de
+	
+	inc iy
+	inc iy
+	
 	inc c
 	djnz TickNextEnvelope
+	
 	
 	pop bc
 	pop de
 	pop hl
 	pop ix
+	pop iy
 	ret
 
-
+; ---------------------------------------------------------
+; StepEnvelope -> Advances a channel envelope one step.
+; ---------------------------------------------------------
+; Inputs:   ix = pointer to channel.
+; Destroys: af, de.
+; ---------------------------------------------------------
 StepEnvelope:
 	
 	; We're ticking now, so set the step count to the envelope's
@@ -461,7 +567,9 @@ StepEnvelopeDoneAmplitude:
 ; ---------------------------------------------------------
 ; AdvanceChannelEnvelope -> Advances a channel envelope
 ; ---------------------------------------------------------
-; Inputs:   ix = pointer to channel
+; Inputs:   ix = pointer to channel.
+;           a = delta (-128 to 127).
+;           e = threshold.
 ; Outputs:  z set if threshold reached/passed, nz if not.
 ; Destroys: af, de.
 ; ---------------------------------------------------------
@@ -605,7 +713,7 @@ QueueNotFull:
 	ret
 
 ; ---------------------------------------------------------
-; WriteCommand -> Writes a sound command.
+; WriteCommand -> Writes a sound command immediately.
 ; ---------------------------------------------------------
 ; Inputs:   bc = channel number
 ;           e = pitch (0..255)
@@ -710,138 +818,25 @@ GetEnvelopeAddressOffset:
 GetChannelAddress:
 	ld ix,Channels
 	
-	.if ChannelSize != 33
-	.fail "Sound.GetChannelAddress expects Sound.ChannelSize = 33"
+	.if ChannelSize != 32
+	.fail "Sound.GetChannelAddress expects Sound.ChannelSize = 32"
 	.endif
 
 	push af
 	push de
 	ld a,c
 	and %11
-	ld e,a
+	
 	rrca
 	rrca
 	rrca
-	add a,e
 	ld d,0
 	ld e,a
+	
 	add ix,de
 	pop de
 	pop af
 	ret
-
-; ---------------------------------------------------------
-; UpdateChannelIfNecessary -> Updates a sound channel.
-; ---------------------------------------------------------
-; Inputs:   ix = pointer to the sound channel.
-; Outputs:  None.
-; Destroys: af, c, d, hl.
-; ---------------------------------------------------------
-UpdateChannelIfNecessary:
-	
-	ld a,(ix+Channel.Amplitude)
-	cp (ix+Channel.OutputAmplitude)
-	jr nz,UpdateChannelIsNecessary
-
-	ld a,(ix+Channel.Pitch)
-	cp (ix+Channel.OutputPitch)
-	ret z
-
-UpdateChannelIsNecessary:
-	
-	ld a,(ix+Channel.Amplitude)
-	ld (ix+Channel.OutputAmplitude),a
-	
-	ld a,(ix+Channel.Pitch)
-	ld (ix+Channel.OutputPitch),a
-
-	ld a,c
-	ld e,(ix+Channel.Pitch)
-	ld l,(ix+Channel.Amplitude)
-
-; ---------------------------------------------------------
-; UpdateChannel -> Immediately updates an output channel.
-; ---------------------------------------------------------
-; Inputs:   a = channel number (0..3)
-;           e = pitch (0..255)
-;           l = amplitude (0..127)
-; Outputs:  None.
-; Destroys: af, c, d, hl.
-; ---------------------------------------------------------
-UpdateChannel:
-	
-	; First, we need to translate the channel number.
-	; On the BBC Micro, channel 0 (%00) is noise and can take its frequency from channel 1 (%01).
-	; On the SN76489, channel 3 (%11) is noise and can take its frequency from channel 2 (%10).
-	; The other two channels aren't hardware-specific, so just invert the bits to translate:
-	
-	ld d,a
-	cpl
-	and %11
-	
-	; Move channel number from bits %......cc to bits %.cc.....
-	; (>>>3 is same as <<<5)
-	
-	rrca
-	rrca
-	rrca
-	
-	or %10000000
-	ld c,a
-	
-	; c is now the "latch channel" command byte.
-	
-	; Amplitude is from 0..127, but we need to scale from %1111..%0000
-	ld a,l
-	srl a
-	srl a
-	srl a
-	and %00001111
-	neg
-	add a,15 + %00010000 ; We always want bit 4 set to latch the volume.
-	
-	; Combine with the "latch channel" byte.
-	or c
-	
-	; Write the previously-computed latch control byte.
-	out (PSG),a
-	
-	; Are we dealing with the noise channel?
-	ld a,d
-	and %11
-	jr nz,UpdateChannel.Tone
-
-UpdateChannel.Noise:
-	
-	; We're writing to the noise channel, so update the register directly.
-	ld a,e
-	and %00000111
-	or c
-	out (PSG),a	
-	ret
-	
-
-UpdateChannel.Tone:
-	; Look up the period from our precomputed period table.
-	ld d,0
-	sla e
-	rl d
-	
-	ld hl,PeriodTable
-	add hl,de
-	
-	; Write the low four bits of the pitch.
-	ld a,(hl)
-	inc hl
-	or c
-	out (PSG),a
-	
-	; Write the period high six bits.
-	ld a,(hl)
-	out (PSG),a
-		
-	ret
-	
 	
 PeriodTable:
 .for pitch = 0 to 255

@@ -311,23 +311,9 @@ OSLINE.Backspace:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSASCI:
-	jp VDU.PutChar
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSWRCH ===
-;
-;   Send a character to the console output device (screen).
-;
-; INPUTS:
-;   REGISTERS
-;   * A  - character to output.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-OSWRCH:
-	jp VDU.WriteByte
+	call VDU.PutChar
+	ei
+	ret
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -348,7 +334,25 @@ OSWRCH:
 ;------------------------------------------------------------------------------- 
 PROMPT:
 	ld a,'>'
-	jp VDU.WriteByte
+	; Fall-through to OSWRCH
+
+;------------------------------------------------------------------------------- 
+;@doc:routine 
+; 
+; === Host.OSWRCH ===
+;
+;   Send a character to the console output device (screen).
+;
+; INPUTS:
+;   REGISTERS
+;   * A  - character to output.
+;
+;@doc:end
+;------------------------------------------------------------------------------- 
+OSWRCH:
+	call VDU.WriteByte
+	ei
+	ret
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -384,8 +388,7 @@ TRAP:
 	ld a,(TrapKeyboardTimer)
 	or a
 	ret nz
-	
-	ld a,10
+	ld a,20
 	ld (TrapKeyboardTimer),a
 	
 	push bc
@@ -1346,18 +1349,13 @@ SOUND:
 	pop bc ; bc = channel
 	
 	
--:	di
-	push ix
+-:	push ix
 	call Sound.QueueCommand
 	pop ix
+	ei
 	
 	jp z,Basic.BBCBASIC_XEQ
-	
-	ei
 	halt
-	
-	
-	
 	jr -
 
 SORRY:
