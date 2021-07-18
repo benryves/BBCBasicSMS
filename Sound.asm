@@ -69,8 +69,7 @@ ChannelUpdateTimer = allocVar(1)
 ChannelUpdatePeriod = 5
 
 Status = allocVar(1)
-Status.Active = 0
-Status.CanPlaySynchronisedNotes = 1
+Status.CanPlaySynchronisedNotes = 0
 
 PSGState = allocVar(2 * ChannelCount)
 PSG.Amplitude = 0
@@ -88,7 +87,7 @@ Reset:
 	ld (hl),a
 	ldir
 	
-	; Fill the PSGState with to force an update.
+	; Fill the PSGState with dummy data to force an update.
 	dec a
 	ld hl,PSGState
 	ld de,PSGState + 1
@@ -112,13 +111,44 @@ Silence:
 	ld bc,(ChannelSize * ChannelCount) - 1
 	ld (hl),a
 	ldir
+	
+	; Mark the channels as alive so they will be backed up to the PSG.
+	push ix
+	ld ix,Channels
+	ld de,ChannelSize
+	ld b,ChannelCount
+-:	set 7,(ix+Channel.State)
+	add ix,de
+	djnz -
+	pop ix
+	
+	ret
 
+; ---------------------------------------------------------
+; Tick -> Run the sound handling code.
+; ---------------------------------------------------------
+; This should be called at a 100Hz interval (or as near
+; enough as possible!)
+; ---------------------------------------------------------
+; Destroys: af.
+; ---------------------------------------------------------
 Tick:
+	
 	push iy
 	push ix
 	push hl
 	push de
 	push bc
+	
+	; Are there any active channels?
+	ld hl,Channels+Channel.State
+	ld b,ChannelCount
+	ld de,ChannelSize
+	xor a
+-:	or (hl)
+	add hl,de
+	djnz -
+	jp z,TickNoActiveChannels
 	
 	; Is it time to update the channel note queue?
 	ld a,(ChannelUpdateTimer)
@@ -329,6 +359,10 @@ TickEnvelopes:
 	
 TickNextEnvelope:
 
+	ld a,(ix+Channel.State)
+	bit 7,a
+	jp z,SkipChannelEnvelope
+
 	push bc
 	
 	; Is it time to advance to the next step?
@@ -358,6 +392,205 @@ NoStepEnvelope:
 EnvelopeStepped:
 	pop bc
 	
+	; Send data to the PSG.
+	call OutputChannel
+	
+SkipChannelEnvelope:
+	
+	; Advance to the next channel.
+	ld de,ChannelSize
+	add ix,de
+	
+	inc iy
+	inc iy
+	
+	inc c
+	djnz TickNextEnvelope
+
+TickNoActiveChannels:
+
+	pop bc
+	pop de
+	pop hl
+	pop ix
+	pop iy
+	ret
+
+; ---------------------------------------------------------
+; StepEnvelope -> Advances a channel envelope one step.
+; ---------------------------------------------------------
+; Inputs:   ix = pointer to channel.
+; Destroys: af, de.
+; ---------------------------------------------------------
+StepEnvelope:
+	
+	; We're ticking now, so set the step count to the envelope's
+	; T value to schedule the next update.
+	ld a,(ix+Channel.Envelope+Envelope.T)
+	ld (ix+Channel.AmplitudeStep),a
+
+	; Amplitude envelope.
+	ld a,(ix+Channel.State)
+	and %00000011
+	jr z,StepEnvelopeReleasing
+	
+	dec a
+	jr z,StepEnvelopeAttacking
+	
+	dec a
+	jr z,StepEnvelopeDecaying
+
+StepEnvelopeSustaining:
+
+	; Sustain envelope.
+	ld a,(ix+Channel.Envelope+Envelope.AS)
+	ld e,0
+	
+	call AdvanceChannelEnvelope
+	or $FF
+	jr nz,StepEnvelopeDoneAmplitude
+	
+	; Move to the releasing state.
+	ld a,(ix+Channel.State)
+	and  %11111100
+	ld (ix+Channel.State),a
+
+	jr StepEnvelopeDoneAmplitude
+
+StepEnvelopeDecaying:
+
+	; Decay envelope.
+	ld a,(ix+Channel.Envelope+Envelope.AD)
+	ld e,(ix+Channel.Envelope+Envelope.ALD)
+	
+	call AdvanceChannelEnvelope
+	
+	jr nz,StepEnvelopeDoneAmplitude
+	
+	; Move to the sustaining state.
+	ld a,(ix+Channel.State)
+	or  %00000011
+	ld (ix+Channel.State),a
+	
+	jr StepEnvelopeDoneAmplitude
+	
+StepEnvelopeAttacking:
+	
+	; Attack envelope.
+	ld a,(ix+Channel.Envelope+Envelope.AA)
+	ld e,(ix+Channel.Envelope+Envelope.ALA)
+	
+	call AdvanceChannelEnvelope
+	
+	jr nz,StepEnvelopeDoneAmplitude
+	
+	; Move to the decaying state.
+	ld a,(ix+Channel.State)
+	and %11111100
+	or  %00000010
+	ld (ix+Channel.State),a
+	
+	jr StepEnvelopeDoneAmplitude
+	
+StepEnvelopeReleasing:
+
+	; Release envelope.
+	ld a,(ix+Channel.Envelope+Envelope.AR)
+	ld e,0
+	call AdvanceChannelEnvelope
+	
+	jr nz,StepEnvelopeDoneAmplitude
+	
+	res 7,(ix+Channel.State)
+
+StepEnvelopeDoneAmplitude:
+
+	; Advance pitch.
+	ret
+
+; ---------------------------------------------------------
+; AdvanceChannelEnvelope -> Advances a channel envelope
+; ---------------------------------------------------------
+; Inputs:   ix = pointer to channel.
+;           a = delta (-128 to 127).
+;           e = threshold.
+; Outputs:  z set if threshold reached/passed, nz if not.
+; Destroys: af, de.
+; ---------------------------------------------------------
+AdvanceChannelEnvelope:
+	ld d,(ix+Channel.Amplitude)
+	call AdvanceEnvelopeValue
+	ld (ix+Channel.Amplitude),a
+	ret
+
+; ---------------------------------------------------------
+; AdvanceEnvelope -> Advances a value by a delta.
+; ---------------------------------------------------------
+; Inputs:   a = delta (-128..127)
+;           d = value
+;           e = threshold
+; Outputs:  a = amended value.
+;           z set if threshold reached/passed, nz if not.
+; Destroys: af.
+; ---------------------------------------------------------
+AdvanceEnvelopeValue:
+	or a
+	jr z,MaintainEnvelopeValue
+	jp p,IncrementEnvelopeValue
+	jp DecrementEnvelopeValue
+
+MaintainEnvelopeValue: ; d = 0
+	ld a,d
+	cp e
+	ret
+	
+IncrementEnvelopeValue: ; d > 0
+	add a,d
+	
+	; Clamp from 0..255
+	jr nc,+
+	ld a,255
+	jp p,+
+	xor a
++:
+	; Check if we've passed the threshold.
+	cp e
+	ret c
+	
+	; Set to the threshold and set z.
+	ld a,e
+	cp a
+	ret
+
+DecrementEnvelopeValue: ; d < 0
+	add a,d
+	
+	; Clamp from 0..255
+	jr c,+
+	ld a,255
+	jp p,+
+	xor a
++:	
+	; Check if we've passed the threshold.
+	cp e
+	ret z
+	ret nc
+	
+	; Set to the threshold and set z.
+	ld a,e
+	cp a
+	ret
+
+; ---------------------------------------------------------
+; OutputChannel -> Outputs a channel to the PSG.
+; ---------------------------------------------------------
+; Inputs:   ix = pointer to channel.
+;           iy = pointer to PSG state for channel.
+;           c = channel number.
+; Destroys: af, de, hl.
+; ---------------------------------------------------------
+OutputChannel:
+
 	; Synchronise the channel state with the PSG hardware.
 
 	; First, we need to translate the channel number.
@@ -457,184 +690,7 @@ PSGPitchChangedTone:
 	pop bc
 
 PSGPitchUnchanged:
-
-	; Advance to the next channel.
-	ld de,ChannelSize
-	add ix,de
 	
-	inc iy
-	inc iy
-	
-	inc c
-	djnz TickNextEnvelope
-	
-	
-	pop bc
-	pop de
-	pop hl
-	pop ix
-	pop iy
-	ret
-
-; ---------------------------------------------------------
-; StepEnvelope -> Advances a channel envelope one step.
-; ---------------------------------------------------------
-; Inputs:   ix = pointer to channel.
-; Destroys: af, de.
-; ---------------------------------------------------------
-StepEnvelope:
-	
-	; We're ticking now, so set the step count to the envelope's
-	; T value to schedule the next update.
-	ld a,(ix+Channel.Envelope+Envelope.T)
-	ld (ix+Channel.AmplitudeStep),a
-
-	; Amplitude envelope.
-	ld a,(ix+Channel.State)
-	and %00000011
-	jr z,StepEnvelopeReleasing
-	
-	dec a
-	jr z,StepEnvelopeAttacking
-	
-	dec a
-	jr z,StepEnvelopeDecaying
-
-StepEnvelopeSustaining:
-
-	; Sustain envelope.
-	ld a,(ix+Channel.Envelope+Envelope.AS)
-	ld e,0
-	
-	call AdvanceChannelEnvelope
-	or $FF
-	jr nz,StepEnvelopeDoneAmplitude
-	
-	; Move to the releasing state.
-	ld a,(ix+Channel.State)
-	and  %11111100
-	ld (ix+Channel.State),a
-
-	jr StepEnvelopeDoneAmplitude
-
-StepEnvelopeDecaying:
-
-	; Decay envelope.
-	ld a,(ix+Channel.Envelope+Envelope.AD)
-	ld e,(ix+Channel.Envelope+Envelope.ALD)
-	
-	call AdvanceChannelEnvelope
-	
-	jr nz,StepEnvelopeDoneAmplitude
-	
-	; Move to the sustaining state.
-	ld a,(ix+Channel.State)
-	or  %00000011
-	ld (ix+Channel.State),a
-	
-	jr StepEnvelopeDoneAmplitude
-	
-StepEnvelopeAttacking:
-	
-	; Attack envelope.
-	ld a,(ix+Channel.Envelope+Envelope.AA)
-	ld e,(ix+Channel.Envelope+Envelope.ALA)
-	
-	call AdvanceChannelEnvelope
-	
-	jr nz,StepEnvelopeDoneAmplitude
-	
-	; Move to the decaying state.
-	ld a,(ix+Channel.State)
-	and %11111100
-	or  %00000010
-	ld (ix+Channel.State),a
-	
-	jr StepEnvelopeDoneAmplitude
-	
-StepEnvelopeReleasing:
-
-	; Release envelope.
-	ld a,(ix+Channel.Envelope+Envelope.AR)
-	ld e,0
-	call AdvanceChannelEnvelope
-
-StepEnvelopeDoneAmplitude:
-
-	; Advance pitch.
-	ret
-
-; ---------------------------------------------------------
-; AdvanceChannelEnvelope -> Advances a channel envelope
-; ---------------------------------------------------------
-; Inputs:   ix = pointer to channel.
-;           a = delta (-128 to 127).
-;           e = threshold.
-; Outputs:  z set if threshold reached/passed, nz if not.
-; Destroys: af, de.
-; ---------------------------------------------------------
-AdvanceChannelEnvelope:
-	ld d,(ix+Channel.Amplitude)
-	call AdvanceEnvelopeValue
-	ld (ix+Channel.Amplitude),a
-	ret
-
-; ---------------------------------------------------------
-; AdvanceEnvelope -> Advances a value by a delta.
-; ---------------------------------------------------------
-; Inputs:   a = delta (-128..127)
-;           d = value
-;           e = threshold
-; Outputs:  a = amended value.
-;           z set if threshold reached/passed, nz if not.
-; Destroys: af.
-; ---------------------------------------------------------
-AdvanceEnvelopeValue:
-	or a
-	jr z,MaintainEnvelopeValue
-	jp p,IncrementEnvelopeValue
-	jp DecrementEnvelopeValue
-
-MaintainEnvelopeValue: ; d = 0
-	ld a,d
-	cp e
-	ret
-	
-IncrementEnvelopeValue: ; d > 0
-	add a,d
-	
-	; Clamp from 0..255
-	jr nc,+
-	ld a,255
-	jp p,+
-	xor a
-+:
-	; Check if we've passed the threshold.
-	cp e
-	ret c
-	
-	; Set to the threshold and set z.
-	ld a,e
-	cp a
-	ret
-
-DecrementEnvelopeValue: ; d < 0
-	add a,d
-	
-	; Clamp from 0..255
-	jr c,+
-	ld a,255
-	jp p,+
-	xor a
-+:	
-	; Check if we've passed the threshold.
-	cp e
-	ret z
-	ret nc
-	
-	; Set to the threshold and set z.
-	ld a,e
-	cp a
 	ret
 
 ; ---------------------------------------------------------
@@ -691,7 +747,6 @@ NoFlushQueue:
 	jr nz,QueueNotFull
 	
 	; The queue is full, sorry.
-	
 	or $FF
 	ld a,h
 	ret
@@ -710,6 +765,7 @@ QueueNotFull:
 	; Advance queue pointer
 	ld a,(ix+Channel.State)
 	add a,4
+	or %10000000 ; Mark channel as alive.
 	ld (ix+Channel.State),a
 	
 	add ix,de
