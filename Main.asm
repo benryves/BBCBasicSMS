@@ -1,6 +1,8 @@
 ﻿; Script
 .incscript "Scripts.cs"
 
+.emptyfill $FF
+
 ; BBC BASIC's scratch memory will be at RAM ($C000..$C2FF)
 Variables      = $C300
 EndOfVariables = $C500
