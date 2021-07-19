@@ -32,6 +32,7 @@ PSG = $7F
 ;      (13 bytes)
 ; 19 -> queue
 ;       (12 bytes)
+; 31 -> initial pitch
 ; = 31 bytes per channel, pad to 32 for ease.
 
 ChannelCount = 4
@@ -46,6 +47,7 @@ Channel.PitchStep = 4
 Channel.AmplitudeStep = 5
 Channel.Envelope = 6
 Channel.Queue = 19
+Channel.InitialPitch = 31
 
 Envelope.T = 0 ; 0 to 127 Length of each step in hundredths of a second
 Envelope.PI1 = 1 ; -128 to 127 Change of pitch per step in section 1
@@ -61,6 +63,9 @@ Envelope.AR = 10 ; -127 to 0 Change of amplitude per step during release phase
 Envelope.ALA = 11 ; 0 to 126 Target level at end of attack phase
 Envelope.ALD = 12 ; 0 to 126 Target level at end of decay phase
 
+Envelope.PI = Envelope.PI1 - 1 ; Pitch increment in "current" (iy) envelope.
+Envelope.PN = Envelope.PN1 - 1 ; Pitch step count in "current" (iy) envelope.
+
 EnvelopeCount = 8
 EnvelopeSize = 13
 Envelopes = allocVar(EnvelopeSize * EnvelopeCount)
@@ -75,7 +80,15 @@ PSGState = allocVar(2 * ChannelCount)
 PSG.Amplitude = 0
 PSG.Pitch = 1
 
+; ---------------------------------------------------------
+; Reset -> Initialises the sound handler.
+; ---------------------------------------------------------
+; Destroys: af.
+; ---------------------------------------------------------
 Reset:
+	push hl
+	push de
+	push bc
 	
 	call Silence
 	
@@ -96,9 +109,21 @@ Reset:
 	ld (hl),a
 	ldir
 	
+	pop bc
+	pop de
+	pop hl
 	ret
 
+; ---------------------------------------------------------
+; Silence -> Silences the sound handler.
+; ---------------------------------------------------------
+; Destroys: af.
+; ---------------------------------------------------------
 Silence:
+	push hl
+	push de
+	push bc
+
 	ld a,ChannelUpdatePeriod
 	ld (ChannelUpdateTimer),a
 
@@ -122,6 +147,9 @@ Silence:
 	djnz -
 	pop ix
 	
+	pop bc
+	pop de
+	pop hl
 	ret
 
 ; ---------------------------------------------------------
@@ -238,7 +266,7 @@ TickNextChannelNote:
 	
 	; The note has finished, so change channel state to "release".
 	ld a,(ix+Channel.State)
-	and %11001100
+	and %11111100
 	ld (ix+Channel.State),a
 	
 	jr ChannelNoteInactive
@@ -501,11 +529,93 @@ StepEnvelopeReleasing:
 	
 	jr nz,StepEnvelopeDoneAmplitude
 	
-	res 7,(ix+Channel.State)
+	; The note has completely finished, so clear everything other than queue length.
+	ld a,(ix+Channel.State)
+	and %00001100
+	ld (ix+Channel.State),a
 
 StepEnvelopeDoneAmplitude:
 
 	; Advance pitch.
+	
+	ld a,(ix+Channel.State)
+	and %00110000
+	srl a
+	srl a
+	srl a
+	srl a
+	ret z ; No pitch envelope
+	
+StepPitchSection:
+	
+	; Set IY to point to pitch envelope data for current step.
+	push iy
+	
+	push ix
+	pop iy
+	
+	; A = stage number
+	ld e,a
+	ld d,0
+	add iy,de
+	
+	; Adjust the channel's current pitch.
+	ld a,(ix+Channel.Pitch)
+	add a,(iy+Channel.Envelope+Envelope.PI)
+	ld (ix+Channel.Pitch),a
+	
+	; Are there any more steps in the current section?
+	ld a,(ix+Channel.PitchStep)
+	or a
+	jr z,StepPitchAdvanceSection
+	dec a
+	jr z,StepPitchAdvanceSection
+	ld (ix+Channel.PitchStep),a
+	
+	jr StepPitchHandledSection
+
+StepPitchAdvanceSection:
+	
+	; We're moving to the next section.
+	ld a,e ; e  = stage number
+	inc a
+	and 3
+	jr nz,StepPitchCopyNextSectionData
+	
+	; Reset the pitch back to its starting value.
+	ld a,(ix+Channel.InitialPitch)
+	ld (ix+Channel.Pitch),a
+	
+	; Reset the section number back to 1.
+	ld a,1
+
+StepPitchCopyNextSectionData:
+	
+	; Set IY to point to the new section.
+	ld e,a
+	push ix
+	pop iy
+	add iy,de
+	
+	; Copy the number of pitch steps from the envelope to the channel.
+	ld a,(iy+Channel.Envelope+Envelope.PN)
+	ld (ix+Channel.PitchStep),a
+	
+	; Set the pitch section number.
+	sla e
+	sla e
+	sla e
+	sla e
+	ld a,(ix+Channel.State)
+	and %11001111
+	or e
+	ld (ix+Channel.State),a
+
+StepPitchHandledSection:
+
+	pop iy
+	
+	
 	ret
 
 ; ---------------------------------------------------------
@@ -803,6 +913,7 @@ WriteCommand:
 
 	ld (ix+Channel.Duration),a
 	ld (ix+Channel.Pitch),e
+	ld (ix+Channel.InitialPitch),e
 	ld (ix+Channel.Amplitude),0
 	
 	ld a,(ix+Channel.State)
@@ -845,7 +956,7 @@ PresetEnvelope:
 	inc de
 	ld (de),a
 	
-	ret
+	jr SetUpEnvelope
 	
 LoadEnvelope:
 
@@ -862,6 +973,17 @@ LoadEnvelope:
 	ld bc,EnvelopeSize
 	
 	ldir
+
+SetUpEnvelope:
+	
+	; Set the amplitude steps.
+	ld a,(ix+Channel.Envelope+Envelope.T)
+	ld (ix+Channel.AmplitudeStep),a
+	
+	; Set the pitch step.
+	ld a,(ix+Channel.Envelope+Envelope.PN1)
+	ld (ix+Channel.PitchStep),a
+
 	ret
 
 FixedAmplitudeEnvelope:
