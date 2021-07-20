@@ -905,7 +905,10 @@ QueueNotFull:
 	pop de
 	
 	; ix -> queue
-	ld (ix+Channel.State),b     ; The queue position is implied, so B contains control byte
+	
+	ld a,b
+	and %00010011
+	ld (ix+Channel.State),a     ; The queue position is implied, so A contains a control byte.
 	ld (ix+Channel.Amplitude),l ; amplitude/envelope
 	ld (ix+Channel.Pitch),e     ; pitch
 	ld (ix+Channel.Duration),h  ; duration
@@ -980,6 +983,11 @@ LoadEnvelope:
 	; a = envelope number.
 	; *13 = 1+4+8
 	dec a
+	
+	; Quick sanity check:
+	cp EnvelopeCount
+	jr nc,SetUpEnvelope
+	
 	call GetEnvelopeAddressOffset
 	
 	push hl
