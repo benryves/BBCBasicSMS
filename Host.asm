@@ -1324,6 +1324,27 @@ SOUND:
 	
 	call Basic.BBCBASIC_EXPRI ;Get first parameter (channel)
 	exx
+	
+	ld a,h
+	
+	cp $20
+	jr z,Sorry ; &20xx, word, library, 0 = Watford Speech
+	
+	and $F0
+	jr z,SOUND.Internal
+	cp $10
+	jr z,SOUND.Internal
+	
+	ld a,h
+	
+	inc a
+	jr z,Sorry ; &FFxx, command, 0, 0 = Speech system
+	
+	inc a
+	jr z,SOUND.MIDI ; &FExx, command, note, velocity = MIDI control
+	
+SOUND.Internal:
+	
 	push hl
 	
 	call Basic.BBCBASIC_COMMA
@@ -1357,6 +1378,30 @@ SOUND:
 	jp z,Basic.BBCBASIC_XEQ
 	halt
 	jr -
+
+Sound.MIDI:
+	; HL = &FEFF (-257): Send to current channel.
+	; HL = &FEFE (-258): Send to raw channel.
+	call Basic.BBCBASIC_COMMA
+	
+	call Basic.BBCBASIC_EXPRI ; command
+	exx
+	push hl
+	
+	call Basic.BBCBASIC_COMMA
+	
+	call Basic.BBCBASIC_EXPRI ; note
+	exx
+	push hl
+	
+	call Basic.BBCBASIC_COMMA
+	
+	call Basic.BBCBASIC_EXPRI ; velocity
+	exx
+	
+	; TODO: Send MIDI.
+	
+	jp Basic.BBCBASIC_XEQ
 
 SORRY:
 	xor a

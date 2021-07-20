@@ -841,7 +841,20 @@ QueueCommand:
 	.endif
 
 	push af
+
+	; Quick sanity check on the channel number.
+	ld a,c
+	and %00001100
+	jr z,QueueInvalidChannel
+	
+	pop af
+	cp a
+	ret
+	
+QueueInvalidChannel:
+	
 	push de
+	
 	ld a,c
 	and %11
 	
@@ -905,10 +918,7 @@ QueueNotFull:
 	pop de
 	
 	; ix -> queue
-	
-	ld a,b
-	and %00010011
-	ld (ix+Channel.State),a     ; The queue position is implied, so A contains a control byte.
+	ld (ix+Channel.State),b     ; The queue position is implied, so A contains a control byte.
 	ld (ix+Channel.Amplitude),l ; amplitude/envelope
 	ld (ix+Channel.Pitch),e     ; pitch
 	ld (ix+Channel.Duration),h  ; duration
