@@ -20,6 +20,8 @@ PSG = $7F
 ;          01 = section 1
 ;          10 = section 2
 ;          11 = section 3
+;      bit 6 = reset pitch (after loop)
+;      bit 7 = alive
 ; 1 -> amplitude
 ;      from 0 (quietest) to 127 (loudest)
 ; 2 -> pitch
@@ -402,19 +404,17 @@ TickNextEnvelope:
 	jr nz,NoStepEnvelope
 
 StepEnvelopeZero:	
+
 	; Step the envelope
 	call StepEnvelope
 	jr EnvelopeStepped
 	
 NoStepEnvelope:
-	; It's not time, so decrement the counter
-	; and skip the envelope tick.
-	dec a
+	; It's not time.
 	ld e,a
 	ld a,d
 	and %10000000
 	or e
-	
 	ld (ix+Channel.AmplitudeStep),a
 
 EnvelopeStepped:
@@ -451,12 +451,13 @@ TickNoActiveChannels:
 ; Destroys: af, de.
 ; ---------------------------------------------------------
 StepEnvelope:
-	
+
 	; We're ticking now, so set the step count to the envelope's
 	; T value to schedule the next update.
 	ld a,(ix+Channel.Envelope+Envelope.T)
+	and %01111111
 	ld (ix+Channel.AmplitudeStep),a
-
+	
 	; Amplitude envelope.
 	ld a,(ix+Channel.State)
 	and %00000011
@@ -540,11 +541,12 @@ StepEnvelopeDoneAmplitude:
 	
 	ld a,(ix+Channel.State)
 	and %00110000
-	srl a
-	srl a
-	srl a
-	srl a
 	ret z ; No pitch envelope
+	
+	srl a
+	srl a
+	srl a
+	srl a
 	
 StepPitchSection:
 	
@@ -559,8 +561,16 @@ StepPitchSection:
 	ld d,0
 	add iy,de
 	
-	; Adjust the channel's current pitch.
+	; Is it the first stage? If so, reset the pitch.
+	bit 6,(ix+Channel.State)
+	jr z,UseCurrentPitch
+UseInitialPitch:
+	ld a,(ix+Channel.InitialPitch)
+	res 6,(ix+Channel.State)
+	jr UsePitch
+UseCurrentPitch:
 	ld a,(ix+Channel.Pitch)
+UsePitch:
 	add a,(iy+Channel.Envelope+Envelope.PI)
 	ld (ix+Channel.Pitch),a
 	
@@ -569,12 +579,13 @@ StepPitchSection:
 	or a
 	jr z,StepPitchAdvanceSection
 	dec a
-	jr z,StepPitchAdvanceSection
 	ld (ix+Channel.PitchStep),a
 	
 	jr StepPitchHandledSection
 
 StepPitchAdvanceSection:
+
+	
 	
 	; We're moving to the next section.
 	ld a,e ; e  = stage number
@@ -582,12 +593,15 @@ StepPitchAdvanceSection:
 	and 3
 	jr nz,StepPitchCopyNextSectionData
 	
-	; Reset the pitch back to its starting value.
-	ld a,(ix+Channel.InitialPitch)
-	ld (ix+Channel.Pitch),a
-	
-	; Reset the section number back to 1.
+	; Reset the section number back to 1, if the MSB of T is not set.
 	ld a,1
+	bit 7,(ix+Channel.Envelope+Envelope.T)
+	jr z,PitchEnvelopeLoops
+	xor a
+	jr +
+PitchEnvelopeLoops:	
+	set 6,(ix+Channel.State) ; reset pitch
++:	
 
 StepPitchCopyNextSectionData:
 	
@@ -599,7 +613,10 @@ StepPitchCopyNextSectionData:
 	
 	; Copy the number of pitch steps from the envelope to the channel.
 	ld a,(iy+Channel.Envelope+Envelope.PN)
-	ld (ix+Channel.PitchStep),a
+	or a
+	jr z,+
+	dec a
++:	ld (ix+Channel.PitchStep),a
 	
 	; Set the pitch section number.
 	sla e
@@ -612,7 +629,7 @@ StepPitchCopyNextSectionData:
 	ld (ix+Channel.State),a
 
 StepPitchHandledSection:
-
+		
 	pop iy
 	
 	
@@ -918,7 +935,7 @@ WriteCommand:
 	
 	ld a,(ix+Channel.State)
 	and %11001100
-	or  %10010001 ; section 1, attacking, and mark as alive.
+	or  %11010001 ; section 1, attacking, and mark as alive and needing a pitch reset.
 	ld (ix+Channel.State),a
 	
 	; Initialise the envelope.
@@ -977,13 +994,14 @@ LoadEnvelope:
 SetUpEnvelope:
 	
 	; Set the amplitude steps.
-	ld a,(ix+Channel.Envelope+Envelope.T)
+	xor a
 	ld (ix+Channel.AmplitudeStep),a
-	
 	; Set the pitch step.
 	ld a,(ix+Channel.Envelope+Envelope.PN1)
-	ld (ix+Channel.PitchStep),a
-
+	or a
+	jr z,+
+	dec a
++:	ld (ix+Channel.PitchStep),a
 	ret
 
 FixedAmplitudeEnvelope:
