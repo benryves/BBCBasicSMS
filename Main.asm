@@ -3,9 +3,11 @@
 
 .emptyfill $FF
 
-; BBC BASIC's scratch memory will be at RAM ($C000..$C2FF)
-Variables      = $C300
-EndOfVariables = $C500
+; BBC BASIC's scratch memory will be in RAM ($C000..$C2FF)
+EndOfVariables = $DFF0
+Variables      = EndOfVariables - 256 - 128
+HIMEM = Variables
+PAGE = $C300
 
 .function allocVar(size)
 	allocVar = Variables
@@ -142,7 +144,7 @@ Main:
 ;.include "Programs.inc"
 
 .if Variables > EndOfVariables
-	.fail "Too many variables!"
+	.fail strformat("Too many variables! Please free up {0} bytes.", Variables - EndOfVariables)
 .else
 	.echoln strformat("{0} bytes free for variables.", EndOfVariables - Variables)
 .endif

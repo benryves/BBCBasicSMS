@@ -37,7 +37,7 @@ TrapKeyboardTimer = allocVar(1)
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-OSINIT
+OSINIT:
 	
 	ld hl,0
 	ld (TIME+0),hl
@@ -47,8 +47,8 @@ OSINIT
 	ld (TrapKeyboardTimer),a
 	ld (Flags),a
 	
-	ld de, $DFF0 ; HIMEM
-	ld hl, $C500 ; PAGE
+	ld de, HIMEM ; HIMEM
+	ld hl, PAGE  ; PAGE
 	
 	scf ; don't boot
 	ret
