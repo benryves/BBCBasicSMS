@@ -96,7 +96,7 @@ FrameInterrupt:
 
 Boot:
 	; Make sure SP points somewhere sensible.
-	ld sp,$DFF0
+	ld sp,HIMEM
 	
 	; Set paging to something sensible.
 	xor a

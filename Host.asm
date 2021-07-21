@@ -1376,7 +1376,10 @@ SOUND.Internal:
 	ei
 	
 	jp z,Basic.BBCBASIC_XEQ
+	
 	halt
+	call Trap
+	
 	jr -
 
 Sound.MIDI:
