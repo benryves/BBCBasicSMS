@@ -1,5 +1,14 @@
 .module GraphicsII
 
+Functions:
+	.db Function.Initialise \ .dw Initialise
+	.db Function.PutMap \ .dw PutMap
+	.db Function.Scroll \ .dw Scroll
+	.db Function.SetForegroundPixel \ .dw SetForegroundPixel
+	.db Function.SetBackgroundPixel \ .dw SetBackgroundPixel
+	.db Function.InvertPixel \ .dw InvertPixel
+	.db Function.End
+
 PatternGenerator = $0000 ; 6KB
 ColourTable      = $2000 ; 6KB
 NameTable        = $3800 ; 768 bytes
@@ -83,21 +92,6 @@ Initialise:
 	dec c
 	jr nz,-
 	
-	; Set up vectors
-	ld hl,PutMap
-	ld (Parent.PutMap+1),hl
-	ld hl,Scroll
-	ld (Parent.Scroll+1),hl
-	
-	ld hl,SetForegroundPixel
-	ld (Parent.SetForegroundPixel+1),hl
-	
-	ld hl,SetBackgroundPixel
-	ld (Parent.SetBackgroundPixel+1),hl
-	
-	ld hl,InvertPixel
-	ld (Parent.InvertPixel+1),hl
-	
 	; Set up my own vectors!
 	ld a,$C3
 	ld (ManipulatePixelBitmask),a
@@ -106,12 +100,12 @@ Initialise:
 	; Screen bounds
 	ld a,0
 	ld (Console.MinRow),a
-	ld a,24
+	ld a,23
 	ld (Console.MaxRow),a
 	
 	ld a,2
 	ld (Console.MinCol),a
-	ld a,30
+	ld a,29
 	ld (Console.MaxCol),a
 
 	ret

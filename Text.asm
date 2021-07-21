@@ -1,5 +1,12 @@
 .module Text
 
+Functions:
+	.db Function.Initialise \ .dw Initialise
+	.db Function.PutMap \ .dw PutMap
+	.db Function.Scroll \ .dw Scroll
+	.db Function.End
+
+
 NameTable = $3800
 
 Initialise:
@@ -31,12 +38,12 @@ Initialise:
 	
 	ld a,0
 	ld (Console.MinRow),a
-	ld a,24
+	ld a,23
 	ld (Console.MaxRow),a
 	
 	ld a,2
 	ld (Console.MinCol),a
-	ld a,40
+	ld a,39
 	ld (Console.MaxCol),a
 	
 	; Load the font
@@ -50,12 +57,6 @@ Initialise:
 	otir
 	otir
 	otir
-	
-	; Set up vectors
-	ld hl,PutMap
-	ld (Parent.PutMap+1),hl
-	ld hl,Scroll
-	ld (Parent.Scroll+1),hl
 	
 	ret
 

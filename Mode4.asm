@@ -4,6 +4,12 @@ NameTable = $3800
 
 ScrollRowOffset = allocVar(1)
 
+Functions:
+	.db Function.Initialise \ .dw Initialise
+	.db Function.PutMap \ .dw PutMap
+	.db Function.Scroll \ .dw Scroll
+	.db Function.End
+
 Initialise:
 
 	; The default state from Video.Reset is pretty close to Master System Mode 4 anyway!
@@ -43,21 +49,15 @@ LoadCharRow:
 	out (Video.Data),a
 	djnz -
 	
-	; Set up vectors
-	ld hl,PutMap
-	ld (Parent.PutMap+1),hl
-	ld hl,Scroll
-	ld (Parent.Scroll+1),hl
-	
 	; Screen bounds
 	ld a,0
 	ld (Console.MinRow),a
-	ld a,24
+	ld a,23
 	ld (Console.MaxRow),a
 	
 	ld a,2
 	ld (Console.MinCol),a
-	ld a,30
+	ld a,29
 	ld (Console.MaxCol),a
 
 	ret

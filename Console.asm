@@ -46,11 +46,15 @@ CursorRight:
 	ld bc,(MaxCol)
 	cp c
 	pop bc
-	jr nz,+
+	jr z,+
+	jr c,+
 	ld a,(MinCol)
+	ld (CurCol),a
+	jr NewLine
+	
 +:	ld (CurCol),a
-	ret nz
-	; Fall-through to NewLine
+	ret
+	
 
 NewLine:
 	ld a,(MinCol)
@@ -64,38 +68,38 @@ CursorDown:
 	ld bc,(MaxRow)
 	cp c
 	pop bc
-	jr nz,+
+	jr z,+
+	jr c,+
 	call Scroll
 	ld a,(MaxRow)
-	dec a
 +:	ld (CurRow),a
 	ret
 
 CursorLeft:
 	ld a,(CurCol)
+	dec a
 	push bc
 	ld bc,(MinCol)
 	cp c
 	pop bc
-	jr nz,+
+	jr nc,+
 	ld a,(MaxCol)
 +:	push af
-	dec a
 	ld (CurCol),a
 	pop af
-	ret nz
+	ret nc
 +:
 
 CursorUp:
 	ld a,(CurRow)
 	push bc
 	ld bc,(MinRow)
+	dec a
 	cp c
 	pop bc
-	jr nz,+
+	jr nc,+
 	ld a,(MaxRow)
 +:	push af
-	dec a
 	ld (CurRow),a
 	pop af
 	ret

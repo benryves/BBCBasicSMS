@@ -4,6 +4,23 @@
 .include "Console.asm"
 .include "Graphics.asm"
 
+; Mode driver functions.
+Function.End = 0
+Function.Initialise = 1
+Function.Clear = 2
+Function.PutMap = 3
+Function.Scroll = 4
+Function.SetForegroundPixel = 5
+Function.SetBackgroundPixel = 6
+Function.InvertPixel = 7
+
+Functions.Count = 7
+FunctionVectors = allocVar(Functions.Count * 3)
+
+.function VDUFunctionAddress(function)
+	VDUFunctionAddress = FunctionVectors + 3 * (function - 1)
+.endfunction
+
 ; Mode files
 .module Modes
 
@@ -12,8 +29,88 @@
 	.include "Mode4.asm"
 
 	Count = 3
+	
+	Functions:
+		.dw Text.Functions
+		.dw GraphicsII.Functions
+		.dw Mode4.Functions
+
 
 .endmodule
+
+Clear = VDUFunctionAddress(Function.Clear)
+PutMap = VDUFunctionAddress(Function.PutMap)
+Scroll = VDUFunctionAddress(Function.Scroll)
+SetForegroundPixel = VDUFunctionAddress(Function.SetForegroundPixel)
+SetBackgroundPixel = VDUFunctionAddress(Function.SetBackgroundPixel)
+InvertPixel = VDUFunctionAddress(Function.InvertPixel)
+
+LoadModeFunctions:
+	
+	push hl
+	push de
+	push bc
+	
+	push hl
+	
+	ld hl,FunctionVectors
+	ld de,FunctionVectors+1
+	ld bc,(Functions.Count*3)-1
+	ld a,$C9 ; RET
+	ld (hl),a
+	ldir
+	
+	pop hl
+	
+	jr LoadFunctionLoop
+
+AppendModeFunctions:
+
+	push hl
+	push de
+	push bc
+	
+LoadFunctionLoop:
+	ld a,(hl)
+	
+	or a
+	jr z,LoadedAllFunctions
+	
+	add a,a
+	add a,(hl)
+	ld e,a
+	ld d,0
+	
+	push hl
+	ld hl,FunctionVectors-3
+	add hl,de
+	ex de,hl
+	pop hl
+	
+	ld a,$C3 ; JP
+	ld (de),a
+	
+	inc hl
+	inc de
+	
+	ldi
+	ldi
+	
+	jr LoadFunctionLoop
+	
+LoadedAllFunctions:	
+
+	pop bc
+	pop de
+	pop hl
+	
+	ret
+
+DefaultFunctions:
+	.db Function.Clear \ .dw SlowClear
+	.db Function.End
+
+
 
 ; Font data
 .module Fonts
@@ -27,14 +124,8 @@
 .endmodule
 
 ; Mode-specific vectors.
-PutMap = allocVar(3)
-Scroll = allocVar(3)
-
-SetForegroundPixel = allocVar(3)
-SetBackgroundPixel = allocVar(3)
-InvertPixel = allocVar(3)
-
 CommandQueue.Capacity = 10
+
 CommandQueue = allocVar(CommandQueue.Capacity)
 CommandQueue.Waiting = allocVar(1)
 
@@ -44,24 +135,8 @@ SetMode:
 	di
 	push af
 	
-	ld a,$C3 ; JP
-	ld (PutMap),a
-	ld (Scroll),a
-	ld (SetForegroundPixel),a
-	ld (SetBackgroundPixel),a
-	ld (InvertPixel),a
-	
-	ld hl,Stub
-	ld (PutMap+1),hl
-	ld (Scroll+1),hl
-	ld (SetForegroundPixel+1),hl
-	ld (SetBackgroundPixel+1),hl
-	ld (InvertPixel+1),hl
-
-	
 	call Console.Reset
 	call Graphics.Reset
-	
 	
 	; Reset all video settings to their defaults.
 	call Video.Reset
@@ -92,9 +167,26 @@ Stub:
 	ret
 
 SetModeInitialize:
-	or a  \ jp z,Modes.Text.Initialise
-	dec a \ jp z,Modes.GraphicsII.Initialise
-	dec a \ jp z,Modes.Mode4.Initialise
+	cp Modes.Count
+	ret nc
+	
+	push af
+	ld hl,DefaultFunctions
+	call LoadModeFunctions
+	pop af
+	
+	add a,a
+	ld e,a
+	ld d,0
+	ld hl,Modes.Functions
+	add hl,de
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	ex de,hl
+	
+	call AppendModeFunctions
+	call FunctionVectors
 	ret
 
 FontTileIndex = 0
@@ -267,7 +359,7 @@ CommandJumpTable:
 	.dw Console.CursorRight   \ .db  0 ;  9 Move text cursor forwards one character.
 	.dw Console.CursorDown    \ .db  0 ; 10 Move text cursor down a line.
 	.dw Console.CursorUp      \ .db  0 ; 11 Move text cursor up a line.
-	.dw Console.Clear         \ .db  0 ; 12 Clear the text area (CLS).
+	.dw Clear                 \ .db  0 ; 12 Clear the text area (CLS).
 	.dw Console.HomeLeft      \ .db  0 ; 13 Move text cursor to start of current line.
 	.dw Stub                  \ .db  0 ; 14 Enable the auto-paging mode.
 	.dw Stub                  \ .db  0 ; 15 Disable the auto-paging mode.
@@ -449,7 +541,6 @@ TabCommand:
 	ld a,(Console.MaxCol)
 	sub d
 	cp e
-	ret z
 	ret c
 	
 	ld a,(Console.MinRow)
@@ -457,7 +548,6 @@ TabCommand:
 	ld a,(Console.MaxRow)
 	sub h
 	cp l
-	ret z
 	ret c
 	
 	ld a,(Console.MinCol)
@@ -554,5 +644,50 @@ PutHexWord:
 	pop hl
 	ld a,l
 	jr PutHexByte
+
+
+SlowClear:
+
+	ld a,(Console.MinRow)
+	ld c,a
+	ld a,(Console.MaxRow)
+	sub c
+	inc a
+	ld c,a
+
+	ld a,(Console.MinRow)
+	ld (Console.CurRow),a
+
+--:	ld a,(Console.MinCol)
+	ld b,a
+	ld a,(Console.MaxCol)
+	sub b
+	inc a
+	ld b,a
+	
+	ld a,(Console.MinCol)
+	ld (Console.CurCol),a
+	
+	
+-:	push bc
+	ld a,' '
+	call PutMap
+	ld a,(Console.CurCol)
+	inc a
+	ld (Console.CurCol),a
+	pop bc
+	
+	djnz -
+	
+	ld a,(Console.CurRow)
+	inc a
+	ld (Console.CurRow),a
+	
+	dec c
+	jr nz,--
+	
+	call Console.HomeUp
+	
+	ret
 
 .endmodule
