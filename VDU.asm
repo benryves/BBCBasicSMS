@@ -282,7 +282,7 @@ CommandJumpTable:
 	.dw Stub                  \ .db -8 ; 24 Define a graphics viewport.
 	.dw PlotCommand           \ .db -5 ; 25 PLOT
 	.dw Stub                  \ .db  0 ; 26 Restore default viewports.
-	.dw PutLiteralChar        \ .db -1 ; 27 Send the next character to the screen.
+	.dw EscapeCharCommand     \ .db -1 ; 27 Send the next character to the screen.
 	.dw Stub                  \ .db -4 ; 28 Define a text viewport.
 	.dw SetOriginCommand      \ .db -4 ; 29 Set the graphics origin.
 	.dw Console.HomeUp        \ .db  0 ; 30 Home the cursor to the top-left of the screen.
@@ -412,7 +412,7 @@ NotPlotBy:
 ; ========================================================================================
 ; VDU 27,<char>                                                     PRINT ESCAPE CHARACTER
 ; ========================================================================================
-DirectOut
+EscapeCharCommand:
 	ld a,(VDUQ(0,1))
 	jp PutLiteralChar
 
