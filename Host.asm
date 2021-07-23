@@ -1000,11 +1000,20 @@ PUTCSR:
 ;
 ;------------------------------------------------------------------------------- 
 GETCSR:
-	; TODO: Fix based on actual text bounds.
-	ld de,(VDU.Console.CurCol)
+	ld a,(VDU.Console.MinCol)
+	ld e,a
+	ld a,(VDU.Console.CurCol)
+	sub e
+	ld e,a
 	ld d,0
-	ld hl,(VDU.Console.CurRow)
+		
+	ld a,(VDU.Console.MinRow)
+	ld l,a
+	ld a,(VDU.Console.CurRow)
+	sub l
+	ld l,a
 	ld h,0
+	
 	ret
 
 ;------------------------------------------------------------------------------- 
