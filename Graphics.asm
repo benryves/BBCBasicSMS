@@ -147,6 +147,28 @@ DivideBy5:
 	ret
 
 ; ---------------------------------------------------------
+; SortDEHL -> Sort DE <= HL.
+; ---------------------------------------------------------
+; Inputs:   de, hl: the two values to sort.
+; Outputs:  de <= hl.
+; Destroys: None.
+; ---------------------------------------------------------
+SortDEHL:
+	or a
+	sbc hl,de
+	add hl,de
+	ret z
+	jp m,+
+	
+	ret po
+	ex de,hl
+	ret
+	
++:	ret pe
+	ex de,hl
+	ret
+
+; ---------------------------------------------------------
 ; TransformPoints -> Converts visited point coordinates to
 ;                    physical screen coordinates.
 ; ---------------------------------------------------------
@@ -199,20 +221,74 @@ TransformPoint:
 	pop bc
 	ret
 
+; ---------------------------------------------------------
+; Plot -> Plots a shape on the screen.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = shape to plot.
+;           VisitedPoints = points to plot.
+; Destroys: Everything.
+; ---------------------------------------------------------
 Plot:
 	
 	ld a,(PlotShape)
 	ld c,a
 	and %11
 	ret z ; Invisible!
-	
-	; 0..63 = lines
+
 	ld a,c
-	cp 64
-	jp c,PlotLine
-	ret
+	cp 208
+	ret nc
+	
+	srl a
+	srl a
+	and %11111110
+	ld c,a
+	ld b,0
+	ld hl,PlotCommands
+	add hl,bc
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	ex de,hl
+	jp (hl)
+
+; Plot commands:
+PlotCommands:
+.dw PlotLine          ;     0..7: Regular lines.
+.dw PlotLine          ;    8..15: Lines but last point is omitted.
+.dw PlotLine          ;   16..23: Dotted lines.
+.dw PlotLine          ;   24..31: Dotted lines (cont).
+.dw PlotLine          ;   32..39: Dashed lines.
+.dw PlotLine          ;   40..47: Dashed lines (cont).
+.dw PlotLine          ;   48..55: Broken lines.
+.dw PlotLine          ;   56..63: Broken lines (cont).
+.dw PlotPixel         ;   64..71: Single point.
+.dw Stub              ;   72..79: Horizontal line fill to non-background.
+.dw Stub              ;   80..87: Triangle fill.
+.dw Stub              ;   88..95: Horizontal line fill to background right.
+.dw PlotRectangle     ;  96..103: Rectangle fill.
+.dw Stub              ; 104..111: Horizontal line fill to foreground.
+.dw Stub              ; 112..119: Horizontal line fill to foreground.
+.dw Stub              ; 120..127: Horizontal line fill to non-foreground right.
+.dw Stub              ; 128..135: Flood fill to non-background.
+.dw Stub              ; 136..143: Flood fill to foreground.
+.dw Stub              ; 144..151: Circle outline.
+.dw Stub              ; 152..159: Circle fill.
+.dw Stub              ; 160..167: Draw circular arc.
+.dw Stub              ; 168..175: Draw solid segment.
+.dw Stub              ; 176..183: Draw solid sector.
+.dw Stub              ; 184..191: Block transfer operations.
+.dw Stub              ; 192..199: Ellipse outline.
+.dw Stub              ; 200..207: Ellipse fill.
 	
 
+; ---------------------------------------------------------
+; Plot -> Plots a line.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = line type to plot.
+;           VisitedPoints = points to plot.
+; Destroys: Everything.
+; ---------------------------------------------------------
 PlotLine:
 
 	ld b,2
@@ -278,7 +354,7 @@ PlotLine.Steep:
 	push de
 	push bc
 	push af
-	call PlotPixel
+	call PlotTransformedPixel
 	pop af
 	pop bc
 	pop de
@@ -336,7 +412,7 @@ PlotLine.Shallow:
 	push de
 	push bc
 	push af
-	call PlotPixel
+	call PlotTransformedPixel
 	pop af
 	pop bc
 	pop de
@@ -359,8 +435,55 @@ PlotLine.Shallow:
 	
 	ret
 	
-
+; ---------------------------------------------------------
+; PlotPixel -> Plots a single pixel.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = pixel type to plot.
+;           TransformedPoint0 = Point coordinates.
+; Destroys: Everything.
+; ---------------------------------------------------------
 PlotPixel:
+	ld b,1
+	call TransformPoints
+
+	; Ensure that both points are in the range 0..255 at the very least (makes checking later easier).
+	ld a,(TransformedPoint0X+1)
+	or a
+	ret nz
+	ld a,(TransformedPoint0Y+1)
+	or a
+	ret nz
+	
+	; Now check that the point is within our graphics viewport.
+	ld bc,(MinX) ; c = min, b = max
+	
+	ld a,(TransformedPoint0X+0)
+	cp c
+	ret c
+	cp b
+	jr z,+
+	ret nc
++:	ld d,a
+	
+	ld bc,(MinY) ; c = min, b = max
+	
+	ld a,(TransformedPoint0Y+0)
+	cp c
+	ret c
+	cp b
+	jr z,+
+	ret nc
++:	ld e,a
+	; Fall-through to PlotTransformedPixel
+
+; ---------------------------------------------------------
+; PlotTransformedPixel -> Plots a single pixels.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = pixel type to plot.
+;           (d,e) transformed pixel to plot.
+; Destroys: Everything.
+; ---------------------------------------------------------
+PlotTransformedPixel:
 	ld a,(PlotShape)
 	and %11
 	ret z ; No pixel
@@ -369,5 +492,168 @@ PlotPixel:
 	dec a
 	jp z,InvertPixel
 	jp SetBackgroundPixel
+
+; ---------------------------------------------------------
+; PlotTransformedHorizontalSpan -> Plots a horizontal span
+; ---------------------------------------------------------
+; Inputs:   PlotShape = pixel type to plot.
+;           (d,e) leftmost pixel to plot.
+;           h = X coordinate of rightmost pixel to plot.
+; Destroys: Everything.
+; ---------------------------------------------------------
+PlotTransformedHorizontalSpan:
+	ld a,h
+	sub d
+	jr nc,+
+	neg
+	ld d,h
++:	inc a
+	ld b,a
+	
+-:	push de
+	push bc
+	call PlotTransformedPixel
+	pop bc
+	pop de
+	inc d
+	djnz -
+	ret
+
+; ---------------------------------------------------------
+; PlotRectangle -> Fills a rectangle.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = pixel type to plot.
+;           TransformedPoint0 = One corner.
+;           TransformedPoint1 = The other corner.
+; Destroys: Everything.
+; ---------------------------------------------------------
+PlotRectangle:
+	ld b,2
+	call TransformPoints
+
+	; Sort X so left <= right
+	ld hl,(TransformedPoint0X)
+	ld de,(TransformedPoint1X)
+	call SortDEHL
+	
+	; Is left edge > right viewport bound?
+	bit 7,d
+	jr nz,+ ; If DE<0, we can't be past the right edge.
+	ld a,d
+	or a
+	ret nz ; If D is non-zero, DE>=256 and must be off-screen.
+	ld a,(MaxX)
+	cp e
+	ret c
++:	; Our left edge <= the right viewport edge.
+	; Clamp to the left viewport edge.
+	bit 7,d
+	jr z,+ ; 0<=DE<=255
+	ld e,0
++:	ld a,(MinX)
+	cp e
+	jr c,+
+	ld e,a
++:
+
+	; Is right edge < left viewport bound?
+	bit 7,h
+	ret nz ; If HL<0, we must be off-screen.
+	ld a,h
+	or a
+	jr nz,+ ; If H is non-zero, HL>=256 and can't be to the left of the left viewport edge.
+	ld a,(MinX)
+	cp l
+	jr z,+
+	ret nc
++:	; Our right edge >= the left viewport edge.
+	; Clamp to the right viewport edge.
+	ld a,h
+	or a
+	jr z,+ ; 0<=HL<=255
+	ld l,255
++:	ld a,(MaxX)
+	cp l
+	jr nc,+
+	ld l,a
++:
+
+	ld (TransformedPoint0X),de
+	ld (TransformedPoint1X),hl
+	
+	; Sort Y so top <= bottom
+	ld hl,(TransformedPoint0Y)
+	ld de,(TransformedPoint1Y)
+	call SortDEHL
+	
+	; Is top edge > bottom viewport bound?
+	bit 7,d
+	jr nz,+ ; If DE<0, we can't be past the bottom edge.
+	ld a,d
+	or a
+	ret nz ; If D is non-zero, DE>=256 and must be off-screen.
+	ld a,(MaxY)
+	cp e
+	ret c
++:	; Our top edge <= the bottom viewport edge.
+	; Clamp to the top viewport edge.
+	bit 7,d
+	jr z,+ ; 0<=DE<=255
+	ld e,0
++:	ld a,(MinY)
+	cp e
+	jr c,+
+	ld e,a
++:
+
+	; Is bottom edge < top viewport bound?
+	bit 7,h
+	ret nz ; If HL<0, we must be off-screen.
+	ld a,h
+	or a
+	jr nz,+ ; If H is non-zero, HL>=256 and can't be to the top of the top viewport edge.
+	ld a,(MinY)
+	cp l
+	jr z,+
+	ret nc
++:	; Our bottom edge >= the top viewport edge.
+	; Clamp to the bottom viewport edge.
+	ld a,h
+	or a
+	jr z,+ ; 0<=HL<=255
+	ld l,255
++:	ld a,(MaxY)
+	cp l
+	jr nc,+
+	ld l,a
++:
+	
+	ld (TransformedPoint0Y),de
+	ld (TransformedPoint1Y),hl
+	
+	; Draw the rectangle.
+	
+	ld a,(TransformedPoint0X)
+	ld d,a
+	ld a,(TransformedPoint0Y)
+	ld e,a
+	
+	ld a,(TransformedPoint1X)
+	ld h,a
+	ld a,(TransformedPoint1Y)
+	sub e
+	inc a
+	ld l,a
+	
+-:	push de
+	push hl
+	call PlotTransformedHorizontalSpan
+	pop hl
+	pop de
+	inc e
+	dec l
+	jr nz,-
+	
+	ret
 
 .endmodule
