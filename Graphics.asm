@@ -20,14 +20,28 @@ g_wndXMax = MaxX ; in this order.
 g_wndYMin = MinY
 g_wndYMax = MaxY
 
-VisitedPoints         = allocVar(0) ; Stores recently visited points.
+VisitedPoints        = allocVar(0) ; Stores recently visited points.
+VisitedPoint0        = allocVar(0)
 VisitedPoint0X       = allocVar(2)
 VisitedPoint0Y       = allocVar(2)
+VisitedPoint1        = allocVar(0)
 VisitedPoint1X       = allocVar(2)
 VisitedPoint1Y       = allocVar(2)
+VisitedPoint2        = allocVar(0)
 VisitedPoint2X       = allocVar(2)
 VisitedPoint2Y       = allocVar(2)
-VisitedPoints.Size    = Variables - Graphics.VisitedPoints
+VisitedPoints.Size   = Variables - Graphics.VisitedPoints
+
+TransformedPoints    = allocVar(0) ; Stores transformed points, ready for plotting to the screen.
+TransformedPoint0    = allocVar(0)
+TransformedPoint0X   = allocVar(2)
+TransformedPoint0Y   = allocVar(2)
+TransformedPoint1    = allocVar(0)
+TransformedPoint1X   = allocVar(2)
+TransformedPoint1Y   = allocVar(2)
+TransformedPoint2    = allocVar(0)
+TransformedPoint2X   = allocVar(2)
+TransformedPoint2Y   = allocVar(2)
 
 PlotShape = allocVar(1)
 
@@ -55,6 +69,14 @@ Reset:
 	
 	ret
 
+; ---------------------------------------------------------
+; VisitPoint -> Visits a point for plotting.
+; ---------------------------------------------------------
+; Inputs:   hl = X coordinate to visit.
+;           de = Y coordinate to visit. 
+; Outputs:  None
+; Destroys: f.
+; ---------------------------------------------------------
 VisitPoint:
 	; Shift the visited point buffer.
 	push hl
@@ -91,6 +113,92 @@ VisitPoint:
 	pop hl
 	ret
 
+; ---------------------------------------------------------
+; DivideBy5 -> Divides HL by 5.
+; ---------------------------------------------------------
+; Inputs:   hl = value to divide by 5.
+; Outputs:  hl is divided by 5.
+; Destroys: f.
+; ---------------------------------------------------------
+DivideBy5:
+	bit 7,h
+	push af
+	jr z,+
+		ld a,h \ cpl \ ld h,a
+		ld a,l \ cpl \ ld l,a
+		inc hl
+	+
+	xor a
+	.rept 16
+		add	hl,hl
+		rla
+		cp 5
+		jr c,$+5
+		sub	5
+		inc	l
+	.loop
+	pop af
+	ret z
+	push af
+	ld a,h \ cpl \ ld h,a
+	ld a,l \ cpl \ ld l,a
+	inc hl
+	pop af
+	ret
+
+; ---------------------------------------------------------
+; TransformPoints -> Converts visited point coordinates to
+;                    physical screen coordinates.
+; ---------------------------------------------------------
+; Inputs:   VisitedPoints
+;           b = number of points to transform.
+; Outputs:  TransformedPoints
+; Destroys: hl, de, bc
+; ---------------------------------------------------------
+TransformPoints:
+	ld hl,(VisitedPoint0X)
+	ld de,(VisitedPoint0Y)
+	call TransformPoint
+	ld (TransformedPoint0X),hl
+	ld (TransformedPoint0Y),de
+	dec b
+	ret z
+	ld hl,(VisitedPoint1X)
+	ld de,(VisitedPoint1Y)
+	call TransformPoint
+	ld (TransformedPoint1X),hl
+	ld (TransformedPoint1Y),de
+	dec b
+	ret z
+	ld hl,(VisitedPoint2X)
+	ld de,(VisitedPoint2Y)
+	call TransformPoint
+	ld (TransformedPoint2X),hl
+	ld (TransformedPoint2Y),de
+	ret
+
+; ---------------------------------------------------------
+; TransformPoint -> Converts a visited point coordinate to
+;                   the physical screen coordinate.
+; ---------------------------------------------------------
+; Inputs:   (hl, de) = logical coordinates
+; Outputs:  (hl, de) = physical screen coordinates
+; Destroys: hl, de, f
+; ---------------------------------------------------------
+TransformPoint:
+	push bc
+	ex de,hl
+	call DivideBy5
+	ld c,l
+	ld b,h
+	ld hl,191
+	or a
+	sbc hl,bc
+	ex de,hl
+	call DivideBy5
+	pop bc
+	ret
+
 Plot:
 	
 	ld a,(PlotShape)
@@ -106,8 +214,12 @@ Plot:
 	
 
 PlotLine:
-	ld hl,VisitedPoint0X
-	ld de,VisitedPoint1X
+
+	ld b,2
+	call TransformPoints
+
+	ld hl,TransformedPoint0
+	ld de,TransformedPoint1
 	call Clip.Clip2DLine16
 	ret c
 	
