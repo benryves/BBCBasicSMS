@@ -1,8 +1,13 @@
 .module VDU
 
+; Temporary storage for a single 8x8 tile.
+TempTile = allocVar(8)
+
 ; Dependencies
 .include "Console.asm"
 .include "Graphics.asm"
+
+
 
 ; Mode driver functions.
 Function.End = 0
@@ -13,8 +18,9 @@ Function.Scroll = 4
 Function.SetForegroundPixel = 5
 Function.SetBackgroundPixel = 6
 Function.InvertPixel = 7
+Function.SetUserDefinedCharacter = 8
 
-Functions.Count = 7
+Functions.Count = 8
 FunctionVectors = allocVar(Functions.Count * 3)
 
 .function VDUFunctionAddress(function)
@@ -44,6 +50,7 @@ Scroll = VDUFunctionAddress(Function.Scroll)
 SetForegroundPixel = VDUFunctionAddress(Function.SetForegroundPixel)
 SetBackgroundPixel = VDUFunctionAddress(Function.SetBackgroundPixel)
 InvertPixel = VDUFunctionAddress(Function.InvertPixel)
+SetUserDefinedCharacter = VDUFunctionAddress(Function.SetUserDefinedCharacter)
 
 LoadModeFunctions:
 	
@@ -370,7 +377,7 @@ CommandJumpTable:
 	.dw ResetColourCommand    \ .db  0 ; 20 Restore default logical colours.
 	.dw Stub                  \ .db  0 ; 21 Disable output to the screen.
 	.dw ModeCommand           \ .db -1 ; 22 Set the screen mode (MODE).
-	.dw Stub                  \ .db -9 ; 23 User-defined characters and screen modes.
+	.dw UserCommand           \ .db -9 ; 23 User-defined characters and screen modes.
 	.dw Stub                  \ .db -8 ; 24 Define a graphics viewport.
 	.dw PlotCommand           \ .db -5 ; 25 PLOT
 	.dw Stub                  \ .db  0 ; 26 Restore default viewports.
@@ -446,7 +453,20 @@ ModeCommand:
 ; ========================================================================================
 ; VDU 23,<command>,<data0>,...,<data7>                                    USER DEFINITIONS
 ; ========================================================================================
-;;; TODO
+UserCommand:
+	ld a,(VDUQ(0, 9))
+	
+	; Is the command between 0..31?
+	cp 32
+	ret c
+	
+	; No, so it's a user-defined character.
+	ld hl,VDUQ(1, 9)
+	call SetUserDefinedCharacter
+	
+	ei
+	ret
+	
 
 ; ========================================================================================
 ; VDU 24,<left>;<top>;<right>;<bottom>;                              SET GRAPHICS VIEWPORT

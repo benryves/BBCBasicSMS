@@ -7,11 +7,14 @@ Functions:
 	.db Function.SetForegroundPixel \ .dw SetForegroundPixel
 	.db Function.SetBackgroundPixel \ .dw SetBackgroundPixel
 	.db Function.InvertPixel \ .dw InvertPixel
+	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
 	.db Function.End
 
 PatternGenerator = $0000 ; 6KB
 ColourTable      = $2000 ; 6KB
 NameTable        = $3800 ; 768 bytes
+UserDefinedChars = $3B00 ; 1280 bytes = 160 chars
+TopOfMemory      = $4000 ; 16KB
 
 .if NameTable % $400
 .echoln "Bad address for Graphics II Name Table"
@@ -142,29 +145,58 @@ PutMap:
 	add hl,de
 	
 	pop af  ; Get the character number again
-	push hl ; We'll need the address offset for the colour too
+	push hl ; Save the address offset for later...
 	
-.if PatternGenerator != 0
-	ld de,PatternGenerator
-	add hl,de
-.endif
-	call Video.SetWriteAddress
+	; Is it a user-defined character?
+	cp $80
+	jr c,ROMFont
+	
+	; Yes, so read back the user-defined character.
+	call GetUserDefinedCharacterAddress
+		
+	call Video.SetReadAddress
+	ld hl,TempTile
+	push hl
+	ld b,8
+	
+-:	in a,(Video.Data)   ; 11
+	ld (hl),a           ; 7
+	inc hl              ; 6
+	djnz -              ; 13 = 37 clocks
+	
+	pop de
+	
+	jr WriteFontData
+
+ROMFont:
 	
 	; Get the address of the data in the font.
 	add a,FontCharOffset
+	add a,a
 	ld l,a
 	ld h,0
 	add hl,hl
 	add hl,hl
-	add hl,hl
 	ld bc,VDU.Fonts.Font8x8
 	add hl,bc
+	ex de,hl
+
+WriteFontData:
+
+	; Set the write address.
+	pop hl
+	push hl
+.if PatternGenerator != 0
+	ld bc,PatternGenerator
+	add hl,bc
+.endif
+	call Video.SetWriteAddress
 
 	; Write the font data
 	ld b,8	
--:	ld a,(hl)           ; 7
+-:	ld a,(de)           ; 7
 	out (Video.Data),a  ; 11
-	inc hl              ; 6
+	inc de              ; 6
 	djnz -              ; 13 = 37 clocks
 	
 	; Write the colour data
@@ -451,5 +483,39 @@ ManipulatePixelBitmask.Invert:
 	xor c
 	ret
 
+; ---------------------------------------------------------
+; GetUserDefinedCharacterAddress -> Gets address in VRAM
+; ---------------------------------------------------------
+; Inputs:   a = character to get the address of.
+; Outputs:  nc if the character is out of range.
+;           hl = address of the character otherwise.
+; Destroys: af, de.
+; ---------------------------------------------------------
+GetUserDefinedCharacterAddress:
+	add a,a
+	ret nc ; As we're expecting to map from $80..$FF, must carry
+	ld l,a
+	ld h,0
+	add hl,hl
+	add hl,hl
+	ld de,UserDefinedChars
+	add hl,de
+	scf
+	ret
+
+SetUserDefinedCharacter:
+	push hl
+	call GetUserDefinedCharacterAddress
+	pop de
+	ret nc
+	
+	call Video.SetWriteAddress
+	
+	ex de,hl
+	ld bc,8*256 + Video.Data
+	otir
+	
+	ei
+	ret
 
 .endmodule

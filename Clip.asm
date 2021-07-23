@@ -15,10 +15,10 @@
 ;
 ;-------------------------------------------------------------------------------
 
-g_line16X1 = allocVar(2)
-g_line16Y1 = allocVar(2)
-g_line16X2 = allocVar(2)
-g_line16Y2 = allocVar(2)
+g_line16X1 = TempTile+0
+g_line16Y1 = TempTile+2
+g_line16X2 = TempTile+4
+g_line16Y2 = TempTile+8
 
 g_line16Pt1 = g_line16X1
 g_line16Pt2 = g_line16X2
