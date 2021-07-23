@@ -4,8 +4,8 @@ Functions:
 	.db Function.Initialise \ .dw Initialise
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
+	.db Function.SetConsoleColour \ .dw SetConsoleColour
 	.db Function.End
-
 
 NameTable = $3800
 
@@ -32,7 +32,7 @@ Initialise:
 	call Video.SetRegister
 	
 	; Set background/foreground colour
-	ld a,%11110100 ; TC, BG
+	ld a,$F1 ; TC, BG
 	ld b,$07
 	call Video.SetRegister
 	
@@ -150,6 +150,14 @@ Scroll:
 	pop hl
 	pop de
 	pop bc
+	ei
+	ret
+
+SetConsoleColour:
+	call GraphicsII.SetConsoleColour
+	ld a,(Console.Colour)
+	ld b,$07
+	call Video.SetRegister
 	ei
 	ret
 
