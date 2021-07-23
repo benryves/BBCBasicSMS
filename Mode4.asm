@@ -8,7 +8,7 @@ TopOfMemory      = $4000 ; 16KB
 ScrollRowOffset = allocVar(1) ; Row number that's at the top of the screen
 FreeGraphicsTile = allocVar(2) ; What's the next free graphics tile number?
 
-MinGraphicsTile = 256 ;128+FontCharOffset
+MinGraphicsTile = 128+FontCharOffset
 MaxGraphicsTile = 448 ; +1
 
 ; 96 tiles for text
@@ -280,12 +280,16 @@ SetPixel:
 	ld (NameTableEntry+1),a
 	
 	; If the MSB is set, it's definitely already a graphics tile.
+	.if MinGraphicsTile <= 256
 	srl a
 	jr c,AlreadyMadeGraphicsTile
+	.endif
 	
+	.if MinGraphicsTile % 256 != 0
 	ld a,(NameTableEntry+0)
 	cp MinGraphicsTile
-	jr c,AlreadyMadeGraphicsTile
+	jr nc,AlreadyMadeGraphicsTile
+	.endif
 	
 	; We'll need to allocate a graphics tile.
 	
