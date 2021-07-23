@@ -14,20 +14,8 @@ MinCol = allocVar(1)
 MaxCol = allocVar(1)
 
 Colour = allocVar(1)
-SetColour = allocVar(3)
-
-ResetColour:
-	ld a,%11110100
-	ld (Colour),a
-	ret
 
 Reset:
-	ld a,$C3
-	ld (SetColour),a
-	ld hl,SetTextColourDefault
-	ld (SetColour+1),hl
-	
-	call ResetColour
 
 HomeUp:
 	ld a,(MinRow)
@@ -112,32 +100,5 @@ Tab:
 
 FlushPendingScroll:
 	ret
-
-SetTextColourDefault:
-	push bc
-	push af
-	pop af
-	bit 7,a
-	jr nz,SetTextBackgroundColour
-SetTextForegroundColour:
-	ld b,4
--:	add a,a
-	djnz -
-	ld b,a
-	ld a,(Colour)
-	and $0F
-	or b
-	ld (Colour),a
-	jr DoneSetTextColour
-SetTextBackgroundColour:
-	and $0F
-	ld b,a
-	ld a,(Colour)
-	and $F0
-	or b
-	ld (Colour),a
-DoneSetTextColour:
-	pop bc
-	ret
-
+	
 .endmodule

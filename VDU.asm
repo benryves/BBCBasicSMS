@@ -19,8 +19,10 @@ Function.SetForegroundPixel = 5
 Function.SetBackgroundPixel = 6
 Function.InvertPixel = 7
 Function.SetUserDefinedCharacter = 8
+Function.SetConsoleColour = 9
+Function.SetGraphicsColour = 10
 
-Functions.Count = 8
+Functions.Count = 10
 FunctionVectors = allocVar(Functions.Count * 3)
 
 .function VDUFunctionAddress(function)
@@ -51,6 +53,8 @@ SetForegroundPixel = VDUFunctionAddress(Function.SetForegroundPixel)
 SetBackgroundPixel = VDUFunctionAddress(Function.SetBackgroundPixel)
 InvertPixel = VDUFunctionAddress(Function.InvertPixel)
 SetUserDefinedCharacter = VDUFunctionAddress(Function.SetUserDefinedCharacter)
+SetConsoleColour = VDUFunctionAddress(Function.SetConsoleColour)
+SetGraphicsColour = VDUFunctionAddress(Function.SetGraphicsColour)
 
 LoadModeFunctions:
 	
@@ -117,8 +121,6 @@ DefaultFunctions:
 	.db Function.Clear \ .dw SlowClear
 	.db Function.End
 
-
-
 ; Font data
 .module Fonts
 
@@ -127,6 +129,66 @@ DefaultFunctions:
 
 	Font6x8:
 	.incbin "Font6x8.bin"
+
+.endmodule
+
+; Palette data
+.module Palettes
+	
+	; BBC BASIC "physical" palette is:
+	;  0 = Black
+	;  1 = Red
+	;  2 = Green
+	;  3 = Yellow
+	;  4 = Blue
+	;  5 = Magenta
+	;  6 = Cyan
+	;  7 = White
+	;  8 = Grey
+	;  9 = Bright red
+	; 10 = Bright green
+	; 11 = Bright yellow
+	; 12 = Bright blue
+	; 13 = Bright magenta
+	; 14 = Bright cyan
+	; 15 = Bright white
+
+	TMS9918A:
+	; TMS9918A has:
+	;  0 = Transparent
+	;  1 = Black
+	;  2 = Medium Green
+	;  3 = Light Green
+	;  4 = Dark Blue
+	;  5 = Medium Blue
+	;  6 = Maroon
+	;  7 = Cyan
+	;  8 = Dark red
+	;  9 = Bright red
+	; 10 = Dark yellow
+	; 11 = Yellow
+	; 12 = Dark green
+	; 13 = Magenta
+	; 14 = Grey
+	; 15 = White
+	.db  1 ;  0 = Black
+	.db  8 ;  1 = Red
+	.db  2 ;  2 = Green
+	.db 11 ;  3 = Yellow
+	.db  5 ;  4 = Blue
+	.db 13 ;  5 = Magenta
+	.db  7 ;  6 = Cyan
+	.db 15 ;  7 = White
+	.db 14 ;  8 = Grey
+	.db  9 ;  9 = Bright red
+	.db  3 ; 10 = Bright green
+	.db 11 ; 11 = Bright yellow
+	.db  5 ; 12 = Bright blue
+	.db 13 ; 13 = Bright magenta
+	.db  7 ; 14 = Bright cyan
+	.db 15 ; 15 = Bright white
+	
+	SegaMasterSystem:
 
 .endmodule
 
@@ -164,6 +226,8 @@ SetMode:
 	ld (CommandQueue),a
 	ld (CommandQueue.Waiting),a
 	
+	; Reset colours to their defaults.
+	call ResetColours
 	
 	; Screen on, enable frame interrupts.
 	call Video.DisplayOn
@@ -374,7 +438,7 @@ CommandJumpTable:
 	.dw TextColourCommand     \ .db -1 ; 17 Define a text colour (COLOUR).
 	.dw GraphicsColourCommand \ .db -2 ; 18 Define a graphics colour (CGOL).
 	.dw Stub                  \ .db -5 ; 19 Select a colour palette.
-	.dw ResetColourCommand    \ .db  0 ; 20 Restore default logical colours.
+	.dw VDU.ResetColours      \ .db  0 ; 20 Restore default logical colours.
 	.dw Stub                  \ .db  0 ; 21 Disable output to the screen.
 	.dw ModeCommand           \ .db -1 ; 22 Set the screen mode (MODE).
 	.dw UserCommand           \ .db -9 ; 23 User-defined characters and screen modes.
@@ -425,21 +489,18 @@ CommandJumpTable:
 ; ========================================================================================
 TextColourCommand:
 	ld a,(VDUQ(0, 1))
-	jp Console.SetColour
+	jp SetConsoleColour
 	
 ; ========================================================================================
 ; VDU 18,<mode>,<colour>                                               SET GRAPHICS COLOUR
 ; ========================================================================================
 GraphicsColourCommand:
 	ld a,(VDUQ(1, 2))
-	jp Graphics.SetColour
+	jp SetGraphicsColour
 
 ; ========================================================================================
 ; VDU 20                                                                     RESET COLOURS
 ; ========================================================================================
-ResetColourCommand:
-	call Console.ResetColour
-	jp Graphics.ResetColour
 
 ; ========================================================================================
 ; VDU 22                                                                          SET MODE
@@ -588,6 +649,20 @@ Delete:
 	call Console.CursorLeft
 	ld a,' '
 	jp PutMap
+
+; ---------------------------------------------------------
+; Reset colours to their defaults
+; ---------------------------------------------------------
+ResetColours:
+	ld a,7
+	call SetConsoleColour
+	ld a,128
+	call SetConsoleColour
+	ld a,7
+	call SetGraphicsColour
+	ld a,128
+	call SetGraphicsColour
+	ret
 
 ; ---------------------------------------------------------
 ; PutString -> Sends a string to the display.

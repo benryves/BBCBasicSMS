@@ -32,7 +32,6 @@ VisitedPoints.Size    = Variables - Graphics.VisitedPoints
 PlotShape = allocVar(1)
 
 Colour = allocVar(1)
-SetColour = allocVar(3)
 
 Reset:
 
@@ -54,18 +53,6 @@ Reset:
 	ld a,191
 	ld (MaxY),a
 	
-	ld a,$C3
-	ld (SetColour),a
-	ld hl,SetGraphicsColourDefault
-	ld (SetColour+1),hl
-	
-	call ResetColour
-	
-	ret
-
-ResetColour:
-	ld a,%11110000
-	ld (Colour),a
 	ret
 
 VisitPoint:
@@ -270,33 +257,5 @@ PlotPixel:
 	dec a
 	jp z,InvertPixel
 	jp SetBackgroundPixel
-
-SetGraphicsColourDefault:
-	push bc
-	push af
-	pop af
-	bit 7,a
-	jr nz,SetGraphicsBackgroundColour
-SetGraphicsForegroundColour:
-	ld b,4
--:	add a,a
-	djnz -
-	ld b,a
-	ld a,(Colour)
-	and $0F
-	or b
-	ld (Colour),a
-	jr DoneSetGraphicsColour
-SetGraphicsBackgroundColour:
-	and $0F
-	ld b,a
-	ld a,(Colour)
-	and $F0
-	or b
-	ld (Colour),a
-DoneSetGraphicsColour:
-	pop bc
-	ret
-
 
 .endmodule
