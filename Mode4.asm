@@ -1,13 +1,35 @@
 .module Mode4
 
-NameTable = $3800
+PatternGenerator = $0000 ; 14KB, 448 tiles total.
+NameTable        = $3800 ; 1792 bytes
+SpriteTable      = $3F00 ; 256 bytes
+TopOfMemory      = $4000 ; 16KB
 
-ScrollRowOffset = allocVar(1)
+ScrollRowOffset = allocVar(1) ; Row number that's at the top of the screen
+FreeGraphicsTile = allocVar(2) ; What's the next free graphics tile number?
+
+MinGraphicsTile = 256 ;128+FontCharOffset
+MaxGraphicsTile = 448 ; +1
+
+; 96 tiles for text
+; 352 tiles for general graphics?
+; 22x16 (176x128)
+
+NameTablePtr = TempTile+0
+NameTableEntry = TempTile+2
+PatternGeneratorPtr = TempTile+4
+
+GetPixelColour = GraphicsII.ManipulatePixelColour
+ModifyPixel = GraphicsII.ManipulatePixelBitmask
 
 Functions:
 	.db Function.Initialise \ .dw Initialise
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
+	.db Function.SetForegroundPixel \ .dw SetForegroundPixel
+	.db Function.SetBackgroundPixel \ .dw SetBackgroundPixel
+	.db Function.InvertPixel \ .dw InvertPixel
+	.db Function.SetGraphicsColour \ .dw SetGraphicsColour
 	.db Function.End
 
 Initialise:
@@ -16,9 +38,9 @@ Initialise:
 	xor a
 	ld (ScrollRowOffset),a
 	
-	ld a,5 ; Scroll along to centre
-	ld b,$08
-	call Video.SetRegister
+	;ld a,5 ; Scroll along to centre
+	;ld b,$08
+	;call Video.SetRegister
 
 	; Load the font.
 	ld hl,0
@@ -31,9 +53,11 @@ LoadChar:
 LoadCharRow:
 	ld a,(hl)
 	inc hl
-	ld b,4
+	ld b,3
 -:	out (Video.Data),a
 	djnz -
+	xor a
+	out (Video.Data),a
 	dec c
 	jr nz,LoadCharRow
 	dec d
@@ -42,10 +66,16 @@ LoadCharRow:
 	; Load the palette
 	xor a
 	call Video.GotoPalette
-	ld hl,Palette
-	ld b,32
+	ld hl,VDU.Palettes.SegaMasterSystem
+	ld b,16
 -:	ld a,(hl)
 	inc hl
+	out (Video.Data),a
+	djnz -
+
+	ld b,16	
+-:	dec hl
+	ld a,(hl)
 	out (Video.Data),a
 	djnz -
 	
@@ -59,14 +89,22 @@ LoadCharRow:
 	ld (Console.MinCol),a
 	ld a,29
 	ld (Console.MaxCol),a
+	
+	ld hl,MinGraphicsTile
+	ld (FreeGraphicsTile),hl
+	
+	; Disable sprites
+	ld hl,SpriteTable
+	call Video.SetWriteAddress
+	ld a,$D0
+	out (Video.Data),a
+	
+	; Callback jumps.
+	ld a,$C3
+	ld (GetPixelColour),a
+	ld (ModifyPixel),a
 
 	ret
-
-Palette:
-.db %010000, %000000, %000000, %000000, %000000, %000000, %000000, %000000 ; Tiles   0..7
-.db %000000, %000000, %000000, %000000, %000000, %000000, %000000, %111111 ; Tiles   8..F
-.db %000000, %011101, %000011, %110000, %000000, %000000, %000000, %000000 ; Sprites 0..7
-.db %000000, %000000, %000000, %000000, %000000, %000000, %000000, %010000 ; Sprites 8..F
 
 PutMap:
 	push hl
@@ -84,7 +122,7 @@ PutMap:
 +:	ld l,a
 	ld h,0
 
-	; *32
+	; *64
 	ld b,6
 -:	add hl,hl
 	djnz -
@@ -171,5 +209,278 @@ Scroll:
 	pop hl
 	pop bc
 	ret
+
+
+
+InvertPixel:
+	ld hl,Stub
+	ld (GetPixelColour+1),hl
+	ld hl,ModifyPixelInvert
+	ld (ModifyPixel+1),hl
+	jr SetPixel
+
+SetBackgroundPixel:
+	ld hl,GetPixelBackgroundColour
+	ld (GetPixelColour+1),hl
+	ld hl,ModifyPixelPlot
+	ld (ModifyPixel+1),hl
+	jr SetPixel
+
+SetForegroundPixel:
+	ld hl,GetPixelForegroundColour
+	ld (GetPixelColour+1),hl
+	ld hl,ModifyPixelPlot
+	ld (ModifyPixel+1),hl
 	
+SetPixel:
+	; IN (D,E) = (X,Y)
+	
+	; Get the address of the nametable tile from the (X,Y)
+	ld a,e
+	srl a
+	srl a
+	srl a
+	ld l,a
+	ld a,(ScrollRowOffset)
+	add a,l
+	cp 28
+	jr c,+
+	sub 28
++:	ld l,a
+	ld h,0
+
+	; *32
+	ld b,5
+-:	add hl,hl
+	djnz -
+	
+	; Add X/8
+	ld a,d
+	srl a
+	srl a
+	srl a
+	ld c,a
+	ld b,0
+	add hl,bc
+	
+	; 2 bytes per nametable entry
+	add hl,hl
+	ld bc,NameTable
+	add hl,bc
+	
+	ld (NameTablePtr),hl
+	
+	call Video.SetReadAddress
+	
+	in a,(Video.Data)
+	ld (NameTableEntry+0),a ; 13
+	inc hl                  ; 6
+	dec hl                  ; 6
+	in a,(Video.Data)       ; 11 <- 36
+	ld (NameTableEntry+1),a
+	
+	; If the MSB is set, it's definitely already a graphics tile.
+	srl a
+	jr c,AlreadyMadeGraphicsTile
+	
+	ld a,(NameTableEntry+0)
+	cp MinGraphicsTile
+	jr c,AlreadyMadeGraphicsTile
+	
+	; We'll need to allocate a graphics tile.
+	
+	; Write the new nametable entry using the next free graphics tile index.
+	call Video.SetWriteAddress
+	
+	ld hl,(FreeGraphicsTile)
+	ld a,l
+	out (Video.Data),a
+	ld a,h              ; 4
+	and %00000001       ; 7
+	push hl             ; 11
+	out (Video.Data),a  ; 11 <- 33
+	
+	; Now write the pattern data for the new tile.
+	; HL = tile number, so multiply by 32.
+	ld b,5
+-:	add hl,hl
+	djnz -
+	ld (PatternGeneratorPtr),hl
+	call Video.SetWriteAddress
+	
+	; The old nametable entry referred to the font, so initialise
+	; the new graphics tile with the font data.
+	
+	ld hl,(NameTableEntry)
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	ld bc,Fonts.Font8x8
+	add hl,bc
+	
+	ld b,8
+--:	ld c,3
+-:	ld a,(hl)          ; 7
+	out (Video.Data),a ; 11
+	dec c              ; 4
+	jr nz,-            ; 12/7 <- 34
+	inc hl             ; 6
+	ld a,0             ; 7
+	out (Video.Data),a ; 11
+	djnz --            ; 12/7 <- 35
+	
+	pop hl
+	
+	; Increment the graphics tile pointer.
+	inc hl
+	push hl
+	ld bc,-MaxGraphicsTile
+	add hl,bc
+	ld a,h
+	or l
+	pop hl
+	jr nz,+
+	ld hl,MinGraphicsTile
++:	ld (FreeGraphicsTile),hl
+	
+	; Reload pointer to the pattern generator from earlier.
+	ld hl,(PatternGeneratorPtr)
+	jr GotGraphicsTile
+
+AlreadyMadeGraphicsTile:
+	; Get the pointer to the pattern generator.
+	ld hl,(NameTableEntry)
+	ld b,5
+-:	add hl,hl
+	djnz -
+	
+GotGraphicsTile:
+	; Offset the pattern generator address by the Y coordinate inside the tile.
+	; That's & 7, * 4 -> or * 4, & (7 * 4)
+	ld a,e
+	rlca
+	rlca
+	and %00011100
+	ld c,a
+	ld b,0
+	add hl,bc
+	
+	; HL -> pattern generator address for where we need to draw.
+	push hl
+	call Video.SetReadAddress
+	
+	; We'll use DE for our masking values.
+	ld a,d
+	and %00000111
+	ld d,%10000000
+	jr z,+
+	ld b,a
+-:	srl d
+	djnz -
++:	ld a,d
+	cpl
+	ld e,a
+	
+	; D = bits to OR to set (DRAW)
+	; E = bits to AND to clear (ERASE)
+	
+	; At this point, we'll  use TempTile to store the generated tile.
+	ld hl,TempTile
+	
+	call GetPixelColour
+	call ModifyPixel
+
+GeneratedTileRow:
+	
+	pop hl
+	call Video.SetWriteAddress
+	
+	ld hl,TempTile
+	ld b,4
+-:	ld a,(hl)          ; 7
+	out (Video.Data),a ; 11
+	inc hl             ; 6
+	djnz -             ; 12/7 <- 36
+	
+	ret
+
+GetPixelForegroundColour:
+	ld a,(Graphics.Colour)
+	rrca
+	rrca
+	rrca
+	rrca
+	ld c,a
+	ret
+
+GetPixelBackgroundColour:
+	ld a,(Graphics.Colour)
+	ld c,a
+	ret
+
+ModifyPixelPlot:
+	ld b,4
+-:	in a,(Video.Data) ; 11
+	srl c             ; 8
+	jr nc,ClearBit    ; 12/7
+SetBit:
+	or d              ; 4
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12/7
+	ret
+ClearBit:
+	and e             ; 4
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12/7
+	ret
+	
+ModifyPixelInvert:
+	ld b,4
+-:	in a,(Video.Data) ; 11
+	xor d             ; 4
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12 <- 40
+	ret
+
+SetGraphicsColour:
+	ld hl,Graphics.Colour
+	jr SetColour
+
+SetConsoleColour:
+	ld hl,Console.Colour
+
+SetColour:
+	or a
+	ld e,a
+	ld a,(hl)
+	ld d,a
+	jp p,SetForegroundColour
+	
+SetBackgroundColour:
+	ld a,d
+	and $F0
+	ld d,a
+	ld a,e
+	and $0F
+	or d
+	ld (hl),a
+	ret
+
+SetForegroundColour:
+	ld a,d
+	and $0F
+	ld d,a
+	ld a,e
+	rrca
+	rrca
+	rrca
+	rrca
+	and $F0
+	or d
+	ld (hl),a
+	ret
+
 .endmodule

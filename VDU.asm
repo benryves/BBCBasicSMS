@@ -3,11 +3,12 @@
 ; Temporary storage for a single 8x8 tile.
 TempTile = allocVar(8)
 
+FontTileIndex = 0
+FontCharOffset = FontTileIndex-' '
+
 ; Dependencies
 .include "Console.asm"
 .include "Graphics.asm"
-
-
 
 ; Mode driver functions.
 Function.End = 0
@@ -189,6 +190,22 @@ DefaultFunctions:
 	.db 15 ; 15 = Bright white
 	
 	SegaMasterSystem:
+	.db %000000 ;  0 = Black
+	.db %000010 ;  1 = Red
+	.db %001000 ;  2 = Green
+	.db %001010 ;  3 = Yellow
+	.db %100000 ;  4 = Blue
+	.db %100010 ;  5 = Magenta
+	.db %101000 ;  6 = Cyan
+	.db %111111 ;  7 = White
+	.db %010101 ;  8 = Grey
+	.db %000011 ;  9 = Bright red
+	.db %001100 ; 10 = Bright green
+	.db %001111 ; 11 = Bright yellow
+	.db %110000 ; 12 = Bright blue
+	.db %110011 ; 13 = Bright magenta
+	.db %111100 ; 14 = Bright cyan
+	.db %111111 ; 15 = Bright white
 
 .endmodule
 
@@ -259,9 +276,6 @@ SetModeInitialize:
 	call AppendModeFunctions
 	call FunctionVectors
 	ret
-
-FontTileIndex = 0
-FontCharOffset = FontTileIndex-' '
 
 ; ---------------------------------------------------------
 ; WriteWord -> Writes a word to the VDU.
