@@ -281,8 +281,8 @@ PlotCommands:
 .dw Stub              ; 168..175: Draw solid segment.
 .dw Stub              ; 176..183: Draw solid sector.
 .dw Stub              ; 184..191: Block transfer operations.
-.dw Stub              ; 192..199: Ellipse outline.
-.dw Stub              ; 200..207: Ellipse fill.
+.dw PlotDrawEllipse   ; 192..199: Ellipse outline.
+.dw PlotFillEllipse   ; 200..207: Ellipse fill.
 	
 
 ; ---------------------------------------------------------
@@ -621,12 +621,13 @@ NoSetAlignedHorizontalLineSegment:
 ; ---------------------------------------------------------
 ; PlotRectangle -> Fills a rectangle.
 ; ---------------------------------------------------------
-; Inputs:   PlotShape = pixel type to plot.
+; Inputs:   PlotShape = rectangle type to plot.
 ;           TransformedPoint0 = One corner.
 ;           TransformedPoint1 = The other corner.
 ; Destroys: Everything.
 ; ---------------------------------------------------------
 PlotRectangle:
+	; <corner>, <corner>
 	ld b,2
 	call TransformPoints
 
@@ -755,18 +756,35 @@ PlotRectangle:
 	
 	ret
 
+; ---------------------------------------------------------
+; PlotDrawCircle -> Draws a circle outline.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = circle type to plot.
+;           TransformedPoint0 = Point on circumference.
+;           TransformedPoint1 = Center.
+; Destroys: Everything.
+; ---------------------------------------------------------
 PlotDrawCircle:
 	push iy
 	ld iy,PlotShape
 	res fFillEllipse,(iy+ellipseFlags)
 	jr PlotCircle
-	
+
+; ---------------------------------------------------------
+; PlotFillCircle -> Fills a circle.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = circle type to plot.
+;           TransformedPoint0 = Point on circumference.
+;           TransformedPoint1 = Center.
+; Destroys: Everything.
+; ---------------------------------------------------------
 PlotFillCircle:
 	push iy
 	ld iy,PlotShape
 	set fFillEllipse,(iy+ellipseFlags)
 
 PlotCircle:
+	; <center>, <radius>
 	ld b,2
 	call TransformPoints
 	
@@ -795,14 +813,14 @@ PlotCircle:
 	; not on the same axis as the centre.
 	push hl
 	
-	call AbsBC
+	call Maths.AbsBC
 	call SquareBC
 	
 	pop bc
 	push hl
 	push de
 	
-	call AbsBC
+	call Maths.AbsBC
 	call SquareBC
 	
 	ex de,hl
@@ -863,14 +881,68 @@ CircleFoundRadius:
 	pop iy
 	ret
 
-AbsBC:
-	bit 7,b
-	ret z
-	push af
-	ld a,b \ cpl \ ld b,a
-	ld a,c \ cpl \ ld c,a
-	inc bc
-	pop af
+; ---------------------------------------------------------
+; PlotDrawEllipse -> Draws an ellipse outline.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = ellipse type to plot.
+;           TransformedPoint0 = Point on h tangent (v radius)
+;           TransformedPoint1 = Point on v tangent (h radius)
+;           TransformedPoint2 = Center.
+; Destroys: Everything.
+; ---------------------------------------------------------
+PlotDrawEllipse:
+	push iy
+	ld iy,PlotShape
+	res fFillEllipse,(iy+ellipseFlags)
+	jr PlotEllipse
+	
+; ---------------------------------------------------------
+; PlotFillEllipse -> Fills an ellipse.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = ellipse type to plot.
+;           TransformedPoint0 = Point on h tangent (v radius)
+;           TransformedPoint1 = Point on v tangent (h radius)
+;           TransformedPoint2 = Center.
+; Destroys: Everything.
+; ---------------------------------------------------------
+PlotFillEllipse:
+	push iy
+	ld iy,PlotShape
+	set fFillEllipse,(iy+ellipseFlags)
+
+PlotEllipse:
+	; <center>, <horizontal radius>, <vertical radius>
+	ld b,3
+	call TransformPoints
+	
+	ld de,(TransformedPoint2X)
+	ld bc,(TransformedPoint2Y)
+	
+	; Calculate the horizontal radius.
+	
+	ld hl,(TransformedPoint1X)
+	or a
+	sbc hl,de
+	call Maths.AbsHL
+	
+	ld (g_ellipseRX),hl
+	
+	; Calculate the vertical radius.
+	
+	ld hl,(TransformedPoint0Y)
+	or a
+	sbc hl,bc
+	call Maths.AbsHL
+	
+	ld (g_ellipseRY),hl
+	
+	; Copy the centre coordinates to the right memory location.
+	ld (g_ellipseCX),de
+	ld (g_ellipseCY),bc
+	
+	call DrawEllipse
+	
+	pop iy
 	ret
 
 .endmodule
