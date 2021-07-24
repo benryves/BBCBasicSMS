@@ -5,6 +5,7 @@ Functions:
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
 	.db Function.SetConsoleColour \ .dw SetConsoleColour
+	.db Function.ResetConsoleViewport \ .dw ResetConsoleViewport
 	.db Function.End
 
 NameTable = $3800
@@ -36,16 +37,6 @@ Initialise:
 	ld b,$07
 	call Video.SetRegister
 	
-	ld a,0
-	ld (Console.MinRow),a
-	ld a,23
-	ld (Console.MaxRow),a
-	
-	ld a,2
-	ld (Console.MinCol),a
-	ld a,39
-	ld (Console.MaxCol),a
-	
 	; Load the font
 	
 	ld hl,0
@@ -58,6 +49,14 @@ Initialise:
 	otir
 	otir
 	
+	ret
+
+ResetConsoleViewport:
+	call DefaultResetConsoleViewport
+	ld a,39
+	ld (Console.MaxCol),a
+	ld a,40
+	ld (Console.MaxWidth),a
 	ret
 
 PutMap:

@@ -13,9 +13,16 @@ MaxRow = allocVar(1)
 MinCol = allocVar(1)
 MaxCol = allocVar(1)
 
+MaxWidth = allocVar(1)
+MaxHeight = allocVar(1)
+
 Colour = allocVar(1)
 
 Reset:
+
+ResetViewport:
+
+	call ResetConsoleViewport ; Driver-specific function.
 
 HomeUp:
 	ld a,(MinRow)

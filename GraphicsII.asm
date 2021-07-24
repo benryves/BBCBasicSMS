@@ -100,20 +100,7 @@ Initialise:
 	ld a,$C3
 	ld (ManipulatePixelBitmask),a
 	ld (ManipulatePixelColour),a
-	
-	; Screen bounds
-	ld a,0
-	ld (Console.MinRow),a
-	ld a,23
-	ld (Console.MaxRow),a
-	
-	ld a,2
-	ld (Console.MinCol),a
-	ld a,29
-	ld (Console.MaxCol),a
-
 	ret
-
 
 PutMap:
 	push hl

@@ -22,8 +22,9 @@ Function.SetAlignedHorizontalLineSegment = 7
 Function.SetUserDefinedCharacter = 8
 Function.SetConsoleColour = 9
 Function.SetGraphicsColour = 10
+Function.ResetConsoleViewport = 11
 
-Functions.Count = 10
+Functions.Count = 11
 FunctionVectors = allocVar(Functions.Count * 3)
 
 .function VDUFunctionAddress(function)
@@ -56,6 +57,7 @@ SetAlignedHorizontalLineSegment = VDUFunctionAddress(Function.SetAlignedHorizont
 SetUserDefinedCharacter = VDUFunctionAddress(Function.SetUserDefinedCharacter)
 SetConsoleColour = VDUFunctionAddress(Function.SetConsoleColour)
 SetGraphicsColour = VDUFunctionAddress(Function.SetGraphicsColour)
+ResetConsoleViewport = VDUFunctionAddress(Function.ResetConsoleViewport)
 
 LoadModeFunctions:
 	
@@ -119,7 +121,8 @@ LoadedAllFunctions:
 	ret
 
 DefaultFunctions:
-	.db Function.Clear \ .dw SlowClear
+	.db Function.Clear \ .dw DefaultClear
+	.db Function.ResetConsoleViewport \ .dw DefaultResetConsoleViewport
 	.db Function.End
 
 ; Font data
@@ -221,9 +224,6 @@ SetMode:
 	di
 	push af
 	
-	call Console.Reset
-	call Graphics.Reset
-	
 	; Reset all video settings to their defaults.
 	call Video.Reset
 	
@@ -232,10 +232,8 @@ SetMode:
 	; Mode-specific initialisation.
 	call SetModeInitialize
 	
-	; Move to the top-left of the screen.
-	call Console.HomeUp
-	
-	; Clear the point queue
+	; Reset console and graphics now the mode is loaded.
+	call Console.Reset
 	call Graphics.Reset
 	
 	; Clear the command queue.
@@ -460,7 +458,7 @@ CommandJumpTable:
 	.dw PlotCommand             \ .db -5 ; 25 PLOT
 	.dw Stub                    \ .db  0 ; 26 Restore default viewports.
 	.dw EscapeCharCommand       \ .db -1 ; 27 Send the next character to the screen.
-	.dw Stub                    \ .db -4 ; 28 Define a text viewport.
+	.dw ConsoleViewportCommand  \ .db -4 ; 28 Define a text viewport.
 	.dw SetOriginCommand        \ .db -4 ; 29 Set the graphics origin.
 	.dw Console.HomeUp          \ .db  0 ; 30 Home the cursor to the top-left of the screen.
 	.dw TabCommand              \ .db -2 ; 31 Move the text cursor (TAB(x,y)).
@@ -653,7 +651,10 @@ NotPlotBy:
 ; ========================================================================================
 ; VDU 26                                                                   RESET VIEWPORTS
 ; ========================================================================================
-;;; TODO
+ResetViewports:
+	call Graphics.Reset
+	call Console.Reset
+	ret
 
 ; ========================================================================================
 ; VDU 27,<char>                                                     PRINT ESCAPE CHARACTER
@@ -663,9 +664,106 @@ EscapeCharCommand:
 	jp PutLiteralChar
 
 ; ========================================================================================
-; VDU 28,<left>,<top>,<right>,<bottom>                                   SET TEXT VIEWPORT
+; VDU 28,<left>,<bottom>,<right>,<top>                                   SET TEXT VIEWPORT
 ; ========================================================================================
-;;; TODO
+ConsoleViewportCommand:
+
+	; What's the maximum width?
+	ld a,(Console.MaxWidth)
+	ld b,a
+	
+	; Get left edge.
+	ld a,(VDUQ(0,4))
+	or a
+	jp p,+
+	ld a,0
++:	cp b
+	jr c,+
+	ld a,b
+	dec a
++:	ld h,a
+
+	; Get right edge.
+	ld a,(VDUQ(2,4))
+	or a
+	jp p,+
+	ld a,0
++:	cp b
+	jr c,+
+	ld a,b
+	dec a
++:	ld d,a
+	
+	; Is left edge > right edge?
+	ld a,d
+	cp h
+	jp c,Console.ResetViewport
+	
+	; What's the maximum height?
+	ld a,(Console.MaxHeight)
+	ld b,a
+	
+	; Get bottom edge.
+	ld a,(VDUQ(1,4))
+	or a
+	jp p,+
+	ld a,0
++:	cp b
+	jr c,+
+	ld a,b
+	dec a
++:	ld l,a
+
+	; Get top edge.
+	ld a,(VDUQ(3,4))
+	or a
+	jp p,+
+	ld a,0
++:	cp b
+	jr c,+
+	ld a,b
+	dec a
++:	ld e,a
+	
+	; Is top edge > bottom edge?
+	ld a,l
+	cp e
+	jp c,Console.ResetViewport
+	
+	; New text viewport is between bottom left (h,l) and top right (d,e).
+	
+	ld a,h
+	ld (Console.MinCol),a
+	ld a,d
+	ld (Console.MaxCol),a
+	
+	ld a,e
+	ld (Console.MinRow),a
+	ld a,l
+	ld (Console.MaxRow),a
+	
+	; Is the current cursor outside the new viewport?
+	; If so, move it back inside.
+	
+	ld a,(Console.CurCol)
+	cp h
+	jr nc,+
+	ld a,h
++:	cp d
+	jr c,+
+	ld a,h
++:	ld (Console.CurCol),a
+
+	ld a,(Console.CurRow)
+	cp e
+	jr nc,+
+	ld a,e
++:	cp l
+	jr c,+
+	ld a,e
++:	ld (Console.CurRow),a
+	
+	ret
 
 ; ========================================================================================
 ; VDU 29,<x>;<y>;                                                      SET GRAPHICS ORIGIN
@@ -814,7 +912,7 @@ PutHexWord:
 	jr PutHexByte
 
 
-SlowClear:
+DefaultClear:
 
 	ld a,(Console.MinRow)
 	ld c,a
@@ -836,7 +934,6 @@ SlowClear:
 	ld a,(Console.MinCol)
 	ld (Console.CurCol),a
 	
-	
 -:	push bc
 	ld a,' '
 	call PutMap
@@ -857,5 +954,24 @@ SlowClear:
 	call Console.HomeUp
 	
 	ret
+
+DefaultResetConsoleViewport:
+	
+	xor a
+	ld (Console.MinRow),a
+	ld a,23
+	ld (Console.MaxRow),a
+	inc a
+	ld (Console.MaxHeight),a
+	
+	ld a,2
+	ld (Console.MinCol),a
+	ld a,29
+	ld (Console.MaxCol),a
+	ld a,32
+	ld (Console.MaxWidth),a
+	
+	ret
+	
 
 .endmodule

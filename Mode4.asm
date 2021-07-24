@@ -79,17 +79,6 @@ LoadCharRow:
 	out (Video.Data),a
 	djnz -
 	
-	; Screen bounds
-	ld a,0
-	ld (Console.MinRow),a
-	ld a,23
-	ld (Console.MaxRow),a
-	
-	ld a,2
-	ld (Console.MinCol),a
-	ld a,29
-	ld (Console.MaxCol),a
-	
 	ld hl,MinGraphicsTile
 	ld (FreeGraphicsTile),hl
 	
