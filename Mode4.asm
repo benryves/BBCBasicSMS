@@ -228,7 +228,6 @@ InvertPixel:
 	ld (GetPixelColour+1),hl
 	ld hl,ModifyPixelInvert
 	ld (ModifyPixel+1),hl
-	jr SetPixel
 	ret
 
 SetForegroundPixel:

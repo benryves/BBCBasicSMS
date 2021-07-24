@@ -550,22 +550,22 @@ PlotTransformedHorizontalSpan:
 	pop de
 	pop af
 	
-	or a
+	dec a
 	jr z,NoFullMiddleSegments
 	
 	push hl
 	push de
 	ld b,a
 	
--:	push de
+-:	ld a,8
+	add a,d
+	ld d,a
+	push de
 	push bc
 	ld hl,$FF00
 	call SetAlignedHorizontalLineSegment
 	pop bc
 	pop de
-	ld a,8
-	add a,d
-	ld d,a
 	djnz -
 	
 	pop de
