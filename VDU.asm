@@ -432,38 +432,38 @@ GetCommandJumpTable:
 	ret
 	
 CommandJumpTable:
-	.dw Stub                  \ .db  0 ;  0 NUL
-	.dw Stub                  \ .db  0 ;  1 Data -> Printer
-	.dw Stub                  \ .db  0 ;  2 Enable printer.
-	.dw Stub                  \ .db  0 ;  3 Disable printer.
-	.dw Stub                  \ .db  0 ;  4 Write text at text cursor position.
-	.dw Stub                  \ .db  0 ;  5 Write text at graphics cursor position.
-	.dw Stub                  \ .db  0 ;  6 Enable output to the screen.
-	.dw Stub                  \ .db  0 ;  7 BEL
-	.dw Console.CursorLeft    \ .db  0 ;  8 Move text cursor backwards one character.
-	.dw Console.CursorRight   \ .db  0 ;  9 Move text cursor forwards one character.
-	.dw Console.CursorDown    \ .db  0 ; 10 Move text cursor down a line.
-	.dw Console.CursorUp      \ .db  0 ; 11 Move text cursor up a line.
-	.dw Clear                 \ .db  0 ; 12 Clear the text area (CLS).
-	.dw Console.HomeLeft      \ .db  0 ; 13 Move text cursor to start of current line.
-	.dw Stub                  \ .db  0 ; 14 Enable the auto-paging mode.
-	.dw Stub                  \ .db  0 ; 15 Disable the auto-paging mode.
-	.dw Stub                  \ .db  0 ; 16 Clear the graphics area (CLG).
-	.dw TextColourCommand     \ .db -1 ; 17 Define a text colour (COLOUR).
-	.dw GraphicsColourCommand \ .db -2 ; 18 Define a graphics colour (CGOL).
-	.dw Stub                  \ .db -5 ; 19 Select a colour palette.
-	.dw VDU.ResetColours      \ .db  0 ; 20 Restore default logical colours.
-	.dw Stub                  \ .db  0 ; 21 Disable output to the screen.
-	.dw ModeCommand           \ .db -1 ; 22 Set the screen mode (MODE).
-	.dw UserCommand           \ .db -9 ; 23 User-defined characters and screen modes.
-	.dw Stub                  \ .db -8 ; 24 Define a graphics viewport.
-	.dw PlotCommand           \ .db -5 ; 25 PLOT
-	.dw Stub                  \ .db  0 ; 26 Restore default viewports.
-	.dw EscapeCharCommand     \ .db -1 ; 27 Send the next character to the screen.
-	.dw Stub                  \ .db -4 ; 28 Define a text viewport.
-	.dw SetOriginCommand      \ .db -4 ; 29 Set the graphics origin.
-	.dw Console.HomeUp        \ .db  0 ; 30 Home the cursor to the top-left of the screen.
-	.dw TabCommand            \ .db -2 ; 31 Move the text cursor (TAB(x,y)).
+	.dw Stub                    \ .db  0 ;  0 NUL
+	.dw Stub                    \ .db  0 ;  1 Data -> Printer
+	.dw Stub                    \ .db  0 ;  2 Enable printer.
+	.dw Stub                    \ .db  0 ;  3 Disable printer.
+	.dw Stub                    \ .db  0 ;  4 Write text at text cursor position.
+	.dw Stub                    \ .db  0 ;  5 Write text at graphics cursor position.
+	.dw Stub                    \ .db  0 ;  6 Enable output to the screen.
+	.dw Stub                    \ .db  0 ;  7 BEL
+	.dw Console.CursorLeft      \ .db  0 ;  8 Move text cursor backwards one character.
+	.dw Console.CursorRight     \ .db  0 ;  9 Move text cursor forwards one character.
+	.dw Console.CursorDown      \ .db  0 ; 10 Move text cursor down a line.
+	.dw Console.CursorUp        \ .db  0 ; 11 Move text cursor up a line.
+	.dw Clear                   \ .db  0 ; 12 Clear the text area (CLS).
+	.dw Console.HomeLeft        \ .db  0 ; 13 Move text cursor to start of current line.
+	.dw Stub                    \ .db  0 ; 14 Enable the auto-paging mode.
+	.dw Stub                    \ .db  0 ; 15 Disable the auto-paging mode.
+	.dw Stub                    \ .db  0 ; 16 Clear the graphics area (CLG).
+	.dw TextColourCommand       \ .db -1 ; 17 Define a text colour (COLOUR).
+	.dw GraphicsColourCommand   \ .db -2 ; 18 Define a graphics colour (CGOL).
+	.dw Stub                    \ .db -5 ; 19 Select a colour palette.
+	.dw VDU.ResetColours        \ .db  0 ; 20 Restore default logical colours.
+	.dw Stub                    \ .db  0 ; 21 Disable output to the screen.
+	.dw ModeCommand             \ .db -1 ; 22 Set the screen mode (MODE).
+	.dw UserCommand             \ .db -9 ; 23 User-defined characters and screen modes.
+	.dw GraphicsViewportCommand \ .db -8 ; 24 Define a graphics viewport.
+	.dw PlotCommand             \ .db -5 ; 25 PLOT
+	.dw Stub                    \ .db  0 ; 26 Restore default viewports.
+	.dw EscapeCharCommand       \ .db -1 ; 27 Send the next character to the screen.
+	.dw Stub                    \ .db -4 ; 28 Define a text viewport.
+	.dw SetOriginCommand        \ .db -4 ; 29 Set the graphics origin.
+	.dw Console.HomeUp          \ .db  0 ; 30 Home the cursor to the top-left of the screen.
+	.dw TabCommand              \ .db -2 ; 31 Move the text cursor (TAB(x,y)).
 
 .function VDUQ(offset, commandLength)
 	VDUQ = VDU.CommandQueue + offset + VDU.CommandQueue.Capacity - commandLength
@@ -541,12 +541,71 @@ UserCommand:
 	
 	ei
 	ret
-	
+
 
 ; ========================================================================================
-; VDU 24,<left>;<top>;<right>;<bottom>;                              SET GRAPHICS VIEWPORT
+; VDU 24,<left>;<bottom>;<right>;<top>;                              SET GRAPHICS VIEWPORT
 ; ========================================================================================
-;;; TODO
+GraphicsViewportCommand:
+	
+	; Bottom left corner:
+	ld hl,(VDUQ(2, 8))
+	ld bc,(Graphics.OriginY)
+	add hl,bc
+	ex de,hl
+	
+	ld hl,(VDUQ(0, 8))
+	ld bc,(Graphics.OriginX)
+	add hl,bc
+	
+	call Graphics.TransformPoint
+	
+	call Graphics.ClampTransformedHLX
+	call Graphics.ClampTransformedDEY
+	
+	ld d,l
+	push de
+	
+	; Top right corner:
+	ld hl,(VDUQ(6, 8))
+	ld bc,(Graphics.OriginY)
+	add hl,bc
+	ex de,hl
+	
+	ld hl,(VDUQ(4, 8))
+	ld bc,(Graphics.OriginX)
+	add hl,bc
+	
+	call Graphics.TransformPoint
+	
+	call Graphics.ClampTransformedHLX
+	call Graphics.ClampTransformedDEY
+	
+	ld d,l
+	pop hl
+	
+	; New graphics viewport is between bottom left (h,l) and top right (d,e).
+	
+	; Is left edge > right edge?
+	ld a,d
+	cp h
+	jp c,Graphics.ResetViewport
+	
+	; Is top edge > bottom edge?
+	ld a,l
+	cp e
+	jp c,Graphics.ResetViewport
+	
+	ld a,h
+	ld (Graphics.MinX),a
+	ld a,d
+	ld (Graphics.MaxX),a
+	
+	ld a,e
+	ld (Graphics.MinY),a
+	ld a,l
+	ld (Graphics.MaxY),a
+	ret
 
 ; ========================================================================================
 ; VDU 25,<command>,<x>;<y>;                                                           PLOT

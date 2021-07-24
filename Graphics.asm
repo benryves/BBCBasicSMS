@@ -58,7 +58,10 @@ Reset:
 	ld de,VisitedPoints+1
 	ld bc,VisitedPoints.Size-1
 	ldir	
+	; Fall-through to reset viewport.
 
+
+ResetViewport:
 	; Set default graphics bounds
 	xor a
 	ld (MinX),a
@@ -960,4 +963,47 @@ PlotEllipse:
 	pop iy
 	ret
 
+; ---------------------------------------------------------
+; ClampPhysicalHLX -> Clamps transformed HL X value to
+;                     physical screen coordinates.
+; ---------------------------------------------------------
+; Inputs:   hl = X value to clamp.
+; Outputs:  l = clamped value 0..255.
+; Destroys: af.
+; ---------------------------------------------------------
+ClampTransformedHLX:
+	bit 7,h
+	jr z,+
+	ld l,0
+	ret
++:	ld a,h
+	or a
+	ret z
+	ld l,255
+	ret
+
+; ---------------------------------------------------------
+; ClampPhysicalDEY -> Clamps transformed DE Y value to
+;                     physical screen coordinates.
+; ---------------------------------------------------------
+; Inputs:   de = Y value to clamp.
+; Outputs:  e = clamped value 0..191.
+; Destroys: af.
+; ---------------------------------------------------------
+ClampTransformedDEY:
+	bit 7,d
+	jr z,+
+	ld e,0
+	ret
++:	ld a,d
+	or a
+	jr z,+
+	ld e,191
+	ret
++:	ld a,e
+	cp 192
+	ret c
+	ld e,191
+	ret
+	
 .endmodule
