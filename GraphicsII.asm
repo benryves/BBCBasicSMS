@@ -4,9 +4,8 @@ Functions:
 	.db Function.Initialise \ .dw Initialise
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
-	.db Function.SetForegroundPixel \ .dw SetForegroundPixel
-	.db Function.SetBackgroundPixel \ .dw SetBackgroundPixel
-	.db Function.InvertPixel \ .dw InvertPixel
+	.db Function.BeginPlot \ .dw BeginPlot
+	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
 	.db Function.SetConsoleColour \ .dw SetConsoleColour
 	.db Function.SetGraphicsColour \ .dw SetGraphicsColour
@@ -346,26 +345,32 @@ CopyToWindowAbove:
 	
 	ret
 
+BeginPlot:
+	dec a
+	jr z,SetForegroundPixel
+	dec a
+	jr z,InvertPixel
+
+SetBackgroundPixel:
+	ld hl,ManipulatePixelColour.SetBackground
+	ld (ManipulatePixelColour+1),hl
+	ld hl,ManipulatePixelBitmask.SetBackground
+	ld (ManipulatePixelBitmask+1),hl
+	ret
 
 InvertPixel:
 	ld hl,ManipulatePixelColour.Invert
 	ld (ManipulatePixelColour+1),hl
 	ld hl,ManipulatePixelBitmask.Invert
 	ld (ManipulatePixelBitmask+1),hl
-	jr SetPixel
-	
-SetBackgroundPixel:
-	ld hl,ManipulatePixelColour.SetBackground
-	ld (ManipulatePixelColour+1),hl
-	ld hl,ManipulatePixelBitmask.SetBackground
-	ld (ManipulatePixelBitmask+1),hl
-	jr SetPixel
+	ret
 
 SetForegroundPixel:
 	ld hl,ManipulatePixelColour.SetForeground
 	ld (ManipulatePixelColour+1),hl
 	ld hl,ManipulatePixelBitmask.SetForeground
 	ld (ManipulatePixelBitmask+1),hl
+	ret
 
 SetPixel:
 	; IN (D,E) = (X,Y)

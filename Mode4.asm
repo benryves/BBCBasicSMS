@@ -26,10 +26,10 @@ Functions:
 	.db Function.Initialise \ .dw Initialise
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
-	.db Function.SetForegroundPixel \ .dw SetForegroundPixel
-	.db Function.SetBackgroundPixel \ .dw SetBackgroundPixel
-	.db Function.InvertPixel \ .dw InvertPixel
+	.db Function.BeginPlot \ .dw BeginPlot
+	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetGraphicsColour \ .dw SetGraphicsColour
+	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.End
 
 Initialise:
@@ -210,7 +210,18 @@ Scroll:
 	pop bc
 	ret
 
+BeginPlot:
+	dec a
+	jr z,SetForegroundPixel
+	dec a
+	jr z,InvertPixel
 
+SetBackgroundPixel:
+	ld hl,GetPixelBackgroundColour
+	ld (GetPixelColour+1),hl
+	ld hl,ModifyPixelPlot
+	ld (ModifyPixel+1),hl
+	ret
 
 InvertPixel:
 	ld hl,Stub
@@ -218,22 +229,41 @@ InvertPixel:
 	ld hl,ModifyPixelInvert
 	ld (ModifyPixel+1),hl
 	jr SetPixel
-
-SetBackgroundPixel:
-	ld hl,GetPixelBackgroundColour
-	ld (GetPixelColour+1),hl
-	ld hl,ModifyPixelPlot
-	ld (ModifyPixel+1),hl
-	jr SetPixel
+	ret
 
 SetForegroundPixel:
 	ld hl,GetPixelForegroundColour
 	ld (GetPixelColour+1),hl
 	ld hl,ModifyPixelPlot
 	ld (ModifyPixel+1),hl
+	ret
+
+SetAlignedHorizontalLineSegment:
 	
+	;  
+
 SetPixel:
 	; IN (D,E) = (X,Y)
+	
+	; Generate the masking values.
+	ld a,d
+	and %00000111
+	ld h,%10000000
+	jr z,+
+	ld b,a
+-:	srl h
+	djnz -
++:	ld a,h
+	cpl
+	ld l,a
+
+SetAlignedHorizontalLineSegment:
+	
+	; IN: (D,E) = (X,Y)
+	; H = set pixel mask (OR)
+	; L = clear pixel mask (AND)
+	
+	push hl
 	
 	; Get the address of the nametable tile from the (X,Y)
 	ld a,e
@@ -369,24 +399,14 @@ GotGraphicsTile:
 	ld b,0
 	add hl,bc
 	
+	; Retrieve masks
+	pop de
+	; D = bits to OR to set (DRAW)
+	; E = bits to AND to clear (ERASE)
+	
 	; HL -> pattern generator address for where we need to draw.
 	push hl
 	call Video.SetReadAddress
-	
-	; We'll use DE for our masking values.
-	ld a,d
-	and %00000111
-	ld d,%10000000
-	jr z,+
-	ld b,a
--:	srl d
-	djnz -
-+:	ld a,d
-	cpl
-	ld e,a
-	
-	; D = bits to OR to set (DRAW)
-	; E = bits to AND to clear (ERASE)
 	
 	; At this point, we'll  use TempTile to store the generated tile.
 	ld hl,TempTile

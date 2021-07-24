@@ -231,11 +231,13 @@ TransformPoint:
 Plot:
 	
 	ld a,(PlotShape)
-	ld c,a
 	and %11
 	ret z ; Invisible!
+	
+	; Ensure the graphics mode driver is set up to plot.
+	call BeginPlot
 
-	ld a,c
+	ld a,(PlotShape)
 	cp 208
 	ret nc
 	
@@ -301,7 +303,7 @@ PlotLine:
 	
 	ld h,b
 	ld l,c
-
+	
 	; Draw a line from (D,E) to (H,L)
 
 	; Is the line steep (|dy|>|dx|) or shallow (|dx|>|dy|)?
@@ -354,7 +356,7 @@ PlotLine.Steep:
 	push de
 	push bc
 	push af
-	call PlotTransformedPixel
+	call SetPixel
 	pop af
 	pop bc
 	pop de
@@ -412,7 +414,7 @@ PlotLine.Shallow:
 	push de
 	push bc
 	push af
-	call PlotTransformedPixel
+	call SetPixel
 	pop af
 	pop bc
 	pop de
@@ -474,24 +476,9 @@ PlotPixel:
 	jr z,+
 	ret nc
 +:	ld e,a
-	; Fall-through to PlotTransformedPixel
 
-; ---------------------------------------------------------
-; PlotTransformedPixel -> Plots a single pixels.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = pixel type to plot.
-;           (d,e) transformed pixel to plot.
-; Destroys: Everything.
-; ---------------------------------------------------------
-PlotTransformedPixel:
-	ld a,(PlotShape)
-	and %11
-	ret z ; No pixel
-	dec a
-	jp z,SetForegroundPixel
-	dec a
-	jp z,InvertPixel
-	jp SetBackgroundPixel
+	jp SetPixel
+
 
 ; ---------------------------------------------------------
 ; PlotTransformedHorizontalSpan -> Plots a horizontal span
@@ -512,7 +499,7 @@ PlotTransformedHorizontalSpan:
 	
 -:	push de
 	push bc
-	call PlotTransformedPixel
+	call SetPixel
 	pop bc
 	pop de
 	inc d
