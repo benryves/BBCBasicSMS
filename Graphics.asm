@@ -6,6 +6,7 @@
 .module Graphics
 
 .include "Clip.asm"
+.include "Ellipse.asm"
 
 OriginX = allocVar(2)
 OriginY = allocVar(2)
@@ -274,8 +275,8 @@ PlotCommands:
 .dw Stub              ; 120..127: Horizontal line fill to non-foreground right.
 .dw Stub              ; 128..135: Flood fill to non-background.
 .dw Stub              ; 136..143: Flood fill to foreground.
-.dw Stub              ; 144..151: Circle outline.
-.dw Stub              ; 152..159: Circle fill.
+.dw PlotDrawCircle    ; 144..151: Circle outline.
+.dw PlotFillCircle    ; 152..159: Circle fill.
 .dw Stub              ; 160..167: Draw circular arc.
 .dw Stub              ; 168..175: Draw solid segment.
 .dw Stub              ; 176..183: Draw solid sector.
@@ -752,6 +753,124 @@ PlotRectangle:
 	dec l
 	jr nz,-
 	
+	ret
+
+PlotDrawCircle:
+	push iy
+	ld iy,PlotShape
+	res fFillEllipse,(iy+ellipseFlags)
+	jr PlotCircle
+	
+PlotFillCircle:
+	push iy
+	ld iy,PlotShape
+	set fFillEllipse,(iy+ellipseFlags)
+
+PlotCircle:
+	ld b,2
+	call TransformPoints
+	
+	; dx = ?
+	ld hl,(TransformedPoint0X)
+	ld de,(TransformedPoint1X)
+	or a
+	sbc hl,de
+	ld a,h
+	or l
+	jr z,CircleRadiusZeroWidth
+	ld c,l
+	ld b,h
+	
+	; dy = ?
+	ld hl,(TransformedPoint0Y)
+	ld de,(TransformedPoint1Y)
+	or a
+	sbc hl,de
+	ld a,h
+	or l
+	jr z,CircleRadiusZeroHeight
+	
+	
+	; If we get this far, the radius is defined by a point on the radius that is
+	; not on the same axis as the centre.
+	push hl
+	
+	call AbsBC
+	call SquareBC
+	
+	pop bc
+	push hl
+	push de
+	
+	call AbsBC
+	call SquareBC
+	
+	ex de,hl
+	
+	pop bc
+	add hl,bc
+	jr nc,+
+	inc de
++:	ex de,hl
+	pop bc
+	add hl,bc
+	
+	; HL:DE = (dx*dx)+(dy*dy)
+
+	call Maths.Sqrt32 ; DE = SQR(HL:DE)
+	
+	jr CircleFoundRadius
+
+CircleRadiusZeroWidth:
+	
+	; Get dy
+	ld hl,(TransformedPoint0Y)
+	ld de,(TransformedPoint1Y)
+	or a
+	sbc hl,de
+	jr CalculateRadiusZeroAxis
+
+CircleRadiusZeroHeight:
+	
+	; We still have dx in bc
+	ld l,c
+	ld h,b
+	
+CalculateRadiusZeroAxis:
+	
+	bit 7,h
+	jr z,+
+	ld a,h \ cpl \ ld h,a
+	ld a,l \ cpl \ ld l,a
+	inc hl
++:	ex de,hl
+	jr CircleFoundRadius
+
+CircleFoundRadius:
+
+	; Copy the centre of the ellipse into the right field.
+	ld hl,(TransformedPoint1X)
+	ld (g_ellipseCX),hl
+	ld hl,(TransformedPoint1Y)
+	ld (g_ellipseCY),hl
+
+	; Store radius.
+	ld (g_ellipseRX),de
+	ld (g_ellipseRY),de
+
+	call DrawEllipse
+	
+	pop iy
+	ret
+
+AbsBC:
+	bit 7,b
+	ret z
+	push af
+	ld a,b \ cpl \ ld b,a
+	ld a,c \ cpl \ ld c,a
+	inc bc
+	pop af
 	ret
 
 .endmodule

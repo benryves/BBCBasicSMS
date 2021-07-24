@@ -93,6 +93,7 @@ FrameInterrupt:
 .include "Serial.asm"
 .include "PCLink2.asm"
 .include "Sound.asm"
+.include "Maths.asm"
 
 Boot:
 	; Make sure SP points somewhere sensible.
