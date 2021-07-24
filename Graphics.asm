@@ -258,13 +258,13 @@ Plot:
 ; Plot commands:
 PlotCommands:
 .dw PlotLine          ;     0..7: Regular lines.
-.dw PlotLine          ;    8..15: Lines but last point is omitted.
+.dw PlotLinePlusPixel ;    8..15: Lines but last point is omitted.
 .dw PlotLine          ;   16..23: Dotted lines.
-.dw PlotLine          ;   24..31: Dotted lines (cont).
+.dw PlotLinePlusPixel ;   24..31: Dotted lines (cont).
 .dw PlotLine          ;   32..39: Dashed lines.
-.dw PlotLine          ;   40..47: Dashed lines (cont).
+.dw PlotLinePlusPixel ;   40..47: Dashed lines (cont).
 .dw PlotLine          ;   48..55: Broken lines.
-.dw PlotLine          ;   56..63: Broken lines (cont).
+.dw PlotLinePlusPixel ;   56..63: Broken lines (cont).
 .dw PlotPixel         ;   64..71: Single point.
 .dw Stub              ;   72..79: Horizontal line fill to non-background.
 .dw Stub              ;   80..87: Triangle fill.
@@ -283,7 +283,6 @@ PlotCommands:
 .dw Stub              ; 184..191: Block transfer operations.
 .dw PlotDrawEllipse   ; 192..199: Ellipse outline.
 .dw PlotFillEllipse   ; 200..207: Ellipse fill.
-	
 
 ; ---------------------------------------------------------
 ; Plot -> Plots a line.
@@ -437,7 +436,23 @@ PlotLine.Shallow:
 	djnz -
 	
 	ret
-	
+
+; ---------------------------------------------------------
+; PlotLinePlusPixel -> Plots a line, then draws the end
+;                      pixel again.
+; ---------------------------------------------------------
+; This is useful for inverse lines, to avoid the connection
+; between line segments from inverting themselves.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = pixel type to plot.
+;           TransformedPoint0 = End coordinate.
+;           TransformedPoint1 = Start coordinate.
+; Destroys: Everything.
+; ---------------------------------------------------------
+PlotLinePlusPixel:
+	call PlotLine
+	; Fall-through to PlotPixel
+
 ; ---------------------------------------------------------
 ; PlotPixel -> Plots a single pixel.
 ; ---------------------------------------------------------
