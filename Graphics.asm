@@ -495,7 +495,118 @@ PlotTransformedHorizontalSpan:
 	neg
 	ld d,h
 +:	inc a
+	ld l,a
+	
+	; At this point, x = (d <= h); y = e; l = number of pixels.
+	
+	ld a,(SetAlignedHorizontalLineSegment)
+	cp $C9
+	jr z,NoSetAlignedHorizontalLineSegment
+	
+	push de
+	push hl
+	
+	; Are d and h in the same 8-byte aligned pixel?
+	srl d
+	srl d
+	srl d
+	
+	srl h
+	srl h
+	srl h
+	
+	ld a,h
+	sub d
+	jr z,SingleAlignedSegment
+	
+	; We have at least a start cap and an end cap.
+	; There may also be solid columns in the middle to fill.
+	
+	pop hl
+	pop de
+	
+	push af
+	push de
+	push hl
+	
+	; Left side mask.
+	ld c,%11111111
+	ld a,d
+	and %00000111
+	jr z,+
 	ld b,a
+-:	srl c
+	djnz -
++:
+	
+	ld a,c
+	cpl
+	ld h,c
+	ld l,a
+	
+	call SetAlignedHorizontalLineSegment
+	
+	pop hl
+	pop de
+	pop af
+	
+	or a
+	jr z,NoFullMiddleSegments
+	
+	push hl
+	push de
+	ld b,a
+	
+-:	push de
+	push bc
+	ld hl,$FF00
+	call SetAlignedHorizontalLineSegment
+	pop bc
+	pop de
+	ld a,8
+	add a,d
+	ld d,a
+	djnz -
+	
+	pop de
+	pop hl
+
+NoFullMiddleSegments:
+	
+	push de
+	push hl
+	
+	; Right side mask.
+	
+	ld d,h
+	ld c,%10000000
+	ld a,d
+	and %00000111
+	jr z,+
+	ld b,a
+-:	sra c
+	djnz -
++:
+	
+	ld a,c
+	cpl
+	ld h,c
+	ld l,a
+	
+	call SetAlignedHorizontalLineSegment
+	
+	pop hl
+	pop de
+	ret
+
+
+SingleAlignedSegment:
+	pop hl
+	pop de
+
+NoSetAlignedHorizontalLineSegment:
+
+	ld b,l
 	
 -:	push de
 	push bc

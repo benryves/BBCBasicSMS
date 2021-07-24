@@ -238,10 +238,6 @@ SetForegroundPixel:
 	ld (ModifyPixel+1),hl
 	ret
 
-SetAlignedHorizontalLineSegment:
-	
-	;  
-
 SetPixel:
 	; IN (D,E) = (X,Y)
 	
