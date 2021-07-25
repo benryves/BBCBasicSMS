@@ -9,6 +9,7 @@ Functions:
 	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
 	.db Function.SetConsoleColour \ .dw SetConsoleColour
 	.db Function.SetGraphicsColour \ .dw SetGraphicsColour
+	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.End
 
 PatternGenerator = $0000 ; 6KB
@@ -29,7 +30,7 @@ TopOfMemory      = $4000 ; 16KB
 
 ScrollValue = allocVar(1)
 
-ManipulatePixelBitmask = allocVar(3)
+ManipulatePixelBitmask = allocVar(2)
 ManipulatePixelColour = allocVar(3)
 
 Initialise:
@@ -97,9 +98,11 @@ Initialise:
 	jr nz,-
 	
 	; Set up my own vectors!
-	ld a,$C3
-	ld (ManipulatePixelBitmask),a
+	ld a,$C3 ; JP
 	ld (ManipulatePixelColour),a
+	
+	ld a,$C9 ; RET
+	ld (ManipulatePixelBitmask+1),a
 	ret
 
 PutMap:
@@ -341,26 +344,45 @@ BeginPlot:
 SetBackgroundPixel:
 	ld hl,ManipulatePixelColour.SetBackground
 	ld (ManipulatePixelColour+1),hl
-	ld hl,ManipulatePixelBitmask.SetBackground
-	ld (ManipulatePixelBitmask+1),hl
+	ld a,$A1 ; AND C
+	ld (ManipulatePixelBitmask+0),a
 	ret
 
 InvertPixel:
 	ld hl,ManipulatePixelColour.Invert
 	ld (ManipulatePixelColour+1),hl
-	ld hl,ManipulatePixelBitmask.Invert
-	ld (ManipulatePixelBitmask+1),hl
+	ld a,$A8 ; XOR B
+	ld (ManipulatePixelBitmask+0),a
 	ret
 
 SetForegroundPixel:
 	ld hl,ManipulatePixelColour.SetForeground
 	ld (ManipulatePixelColour+1),hl
-	ld hl,ManipulatePixelBitmask.SetForeground
-	ld (ManipulatePixelBitmask+1),hl
+	ld a,$B0 ; OR B
+	ld (ManipulatePixelBitmask+0),a
 	ret
 
 SetPixel:
 	; IN (D,E) = (X,Y)
+	
+	; Generate the masking values.
+	ld a,d
+	and %00000111
+	ld h,%10000000
+	jr z,+
+	ld b,a
+-:	srl h
+	djnz -
++:	ld a,h
+	cpl
+	ld l,a
+
+SetAlignedHorizontalLineSegment:
+	
+	; IN: (D,E) = (X,Y)
+	; H = set pixel mask (OR)
+	; L = clear pixel mask (AND)
+	push hl
 
 	; Character row = Y / 8
 	
@@ -394,26 +416,16 @@ SetPixel:
 	ld b,0
 	add hl,bc
 	
+	; Retrieve bitmask
+	pop bc
+	
 	; HL -> offset into VRAM to set pixel
-
 	push hl ; Store offset
 
 .if PatternGenerator != 0
 	ld de,PatternGenerator
-	add hl,bc
+	add hl,de
 .endif
-
-	
-	; Bitmask
-	ld c,%10000000
-	
-	ld a,d
-	and %00000111
-	jr z,+
-	ld b,a
--:	srl c
-	djnz -
-+:
 
 	call Video.SetReadAddress
 	in a,(Video.Data)
@@ -461,20 +473,6 @@ ManipulatePixelColour.SetBackground:
 	ret
 
 ManipulatePixelColour.Invert:
-	ret
-
-ManipulatePixelBitmask.SetForeground:
-	or c
-	ret
-	
-ManipulatePixelBitmask.SetBackground:
-	cpl
-	or c
-	cpl
-	ret
-
-ManipulatePixelBitmask.Invert:
-	xor c
 	ret
 
 ; ---------------------------------------------------------
