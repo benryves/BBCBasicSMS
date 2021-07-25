@@ -1388,7 +1388,12 @@ SOUND.Internal:
 	jp z,Basic.BBCBASIC_XEQ
 	
 	halt
-	call Trap
+	
+	push af
+	push hl
+	call TRAP
+	pop hl
+	pop af
 	
 	jr -
 
