@@ -34,6 +34,11 @@ FunctionVectors = allocVar(Functions.Count * 3)
 ; Mode files
 .module Modes
 
+	; Vectors usable by graphics drivers.
+	ManipulatePixelBitmask = allocVar(3)
+	ManipulatePixelColour = allocVar(3)
+
+
 	.include "Text.asm"
 	.include "GraphicsII.asm"
 	.include "Mode4.asm"

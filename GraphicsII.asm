@@ -30,9 +30,6 @@ TopOfMemory      = $4000 ; 16KB
 
 ScrollValue = allocVar(1)
 
-ManipulatePixelBitmask = allocVar(2)
-ManipulatePixelColour = allocVar(3)
-
 Initialise:
 
 	; Switch video mode to TMS9918 GRAPHICS II

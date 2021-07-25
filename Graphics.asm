@@ -667,6 +667,7 @@ Clear:
 	ld h,0
 	ld (TransformedPoint1Y),hl
 	
+	ld a,3
 	call BeginPlot
 	jr PlotTransformedRectangle
 

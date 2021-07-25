@@ -19,9 +19,6 @@ NameTablePtr = TempTile+0
 NameTableEntry = TempTile+2
 PatternGeneratorPtr = TempTile+4
 
-GetPixelColour = GraphicsII.ManipulatePixelColour
-ModifyPixel = GraphicsII.ManipulatePixelBitmask
-
 Functions:
 	.db Function.Initialise \ .dw Initialise
 	.db Function.PutMap \ .dw PutMap
@@ -90,8 +87,8 @@ LoadCharRow:
 	
 	; Callback jumps.
 	ld a,$C3
-	ld (GetPixelColour),a
-	ld (ModifyPixel),a
+	ld (ManipulatePixelColour),a
+	ld (ManipulatePixelBitmask),a
 
 	ret
 
@@ -207,23 +204,23 @@ BeginPlot:
 
 SetBackgroundPixel:
 	ld hl,GetPixelBackgroundColour
-	ld (GetPixelColour+1),hl
-	ld hl,ModifyPixelPlot
-	ld (ModifyPixel+1),hl
+	ld (ManipulatePixelColour+1),hl
+	ld hl,ManipulatePixelBitmaskPlot
+	ld (ManipulatePixelBitmask+1),hl
 	ret
 
 InvertPixel:
 	ld hl,Stub
-	ld (GetPixelColour+1),hl
-	ld hl,ModifyPixelInvert
-	ld (ModifyPixel+1),hl
+	ld (ManipulatePixelColour+1),hl
+	ld hl,ManipulatePixelBitmaskInvert
+	ld (ManipulatePixelBitmask+1),hl
 	ret
 
 SetForegroundPixel:
 	ld hl,GetPixelForegroundColour
-	ld (GetPixelColour+1),hl
-	ld hl,ModifyPixelPlot
-	ld (ModifyPixel+1),hl
+	ld (ManipulatePixelColour+1),hl
+	ld hl,ManipulatePixelBitmaskPlot
+	ld (ManipulatePixelBitmask+1),hl
 	ret
 
 SetPixel:
@@ -395,8 +392,8 @@ GotGraphicsTile:
 	; At this point, we'll  use TempTile to store the generated tile.
 	ld hl,TempTile
 	
-	call GetPixelColour
-	call ModifyPixel
+	call ManipulatePixelColour
+	call ManipulatePixelBitmask
 
 GeneratedTileRow:
 	
@@ -426,7 +423,7 @@ GetPixelBackgroundColour:
 	ld c,a
 	ret
 
-ModifyPixelPlot:
+ManipulatePixelBitmaskPlot:
 	ld b,4
 -:	in a,(Video.Data) ; 11
 	srl c             ; 8
@@ -444,7 +441,7 @@ ClearBit:
 	djnz -            ; 12/7
 	ret
 	
-ModifyPixelInvert:
+ManipulatePixelBitmaskInvert:
 	ld b,4
 -:	in a,(Video.Data) ; 11
 	xor d             ; 4
