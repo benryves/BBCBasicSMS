@@ -448,8 +448,8 @@ PlotLine.Shallow:
 ; between line segments from inverting themselves.
 ; ---------------------------------------------------------
 ; Inputs:   PlotShape = pixel type to plot.
-;           TransformedPoint0 = End coordinate.
-;           TransformedPoint1 = Start coordinate.
+;           VisitedPoint0 = End coordinate.
+;           VisitedPoint1 = Start coordinate.
 ; Destroys: Everything.
 ; ---------------------------------------------------------
 PlotLinePlusPixel:
@@ -460,7 +460,7 @@ PlotLinePlusPixel:
 ; PlotPixel -> Plots a single pixel.
 ; ---------------------------------------------------------
 ; Inputs:   PlotShape = pixel type to plot.
-;           TransformedPoint0 = Point coordinates.
+;           VisitedPoint0 = Point coordinates.
 ; Destroys: Everything.
 ; ---------------------------------------------------------
 PlotPixel:
@@ -564,6 +564,7 @@ PlotTransformedHorizontalSpan:
 	ld l,a
 	
 	call SetAlignedHorizontalLineSegment
+	ei
 	
 	pop hl
 	pop de
@@ -583,6 +584,7 @@ PlotTransformedHorizontalSpan:
 	push bc
 	ld hl,$FF00
 	call SetAlignedHorizontalLineSegment
+	ei
 	pop bc
 	pop de
 	djnz -
@@ -613,7 +615,7 @@ NoFullMiddleSegments:
 	ld l,a
 	
 	call SetAlignedHorizontalLineSegment
-	
+	ei
 	pop hl
 	pop de
 	ret
@@ -634,20 +636,54 @@ NoSetAlignedHorizontalLineSegment:
 	pop de
 	inc d
 	djnz -
+	ei
 	ret
+
+; ---------------------------------------------------------
+; Clear -> Clears the viewport.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = rectangle type to plot.
+;           VisitedPoint0 = One corner.
+;           VisitedPoint1 = The other corner.
+; Destroys: Everything.
+; ---------------------------------------------------------
+Clear:
+	ld a,103
+	ld (Graphics.PlotShape),a
+	
+	ld hl,(MinX)
+	ld h,0
+	ld (TransformedPoint0X),hl
+	
+	ld hl,(MinY)
+	ld h,0
+	ld (TransformedPoint0Y),hl
+	
+	ld hl,(MaxX)
+	ld h,0
+	ld (TransformedPoint1X),hl
+	
+	ld hl,(MaxY)
+	ld h,0
+	ld (TransformedPoint1Y),hl
+	
+	call BeginPlot
+	jr PlotTransformedRectangle
 
 ; ---------------------------------------------------------
 ; PlotRectangle -> Fills a rectangle.
 ; ---------------------------------------------------------
 ; Inputs:   PlotShape = rectangle type to plot.
-;           TransformedPoint0 = One corner.
-;           TransformedPoint1 = The other corner.
+;           VisitedPoint0 = One corner.
+;           VisitedPoint1 = The other corner.
 ; Destroys: Everything.
 ; ---------------------------------------------------------
 PlotRectangle:
 	; <corner>, <corner>
 	ld b,2
 	call TransformPoints
+
+PlotTransformedRectangle:
 
 	; Sort X so left <= right
 	ld hl,(TransformedPoint0X)
@@ -778,8 +814,8 @@ PlotRectangle:
 ; PlotDrawCircle -> Draws a circle outline.
 ; ---------------------------------------------------------
 ; Inputs:   PlotShape = circle type to plot.
-;           TransformedPoint0 = Point on circumference.
-;           TransformedPoint1 = Center.
+;           VisitedPoint0 = Point on circumference.
+;           VisitedPoint1 = Center.
 ; Destroys: Everything.
 ; ---------------------------------------------------------
 PlotDrawCircle:
@@ -792,8 +828,8 @@ PlotDrawCircle:
 ; PlotFillCircle -> Fills a circle.
 ; ---------------------------------------------------------
 ; Inputs:   PlotShape = circle type to plot.
-;           TransformedPoint0 = Point on circumference.
-;           TransformedPoint1 = Center.
+;           VisitedPoint0 = Point on circumference.
+;           VisitedPoint1 = Center.
 ; Destroys: Everything.
 ; ---------------------------------------------------------
 PlotFillCircle:
@@ -903,9 +939,9 @@ CircleFoundRadius:
 ; PlotDrawEllipse -> Draws an ellipse outline.
 ; ---------------------------------------------------------
 ; Inputs:   PlotShape = ellipse type to plot.
-;           TransformedPoint0 = Point on h tangent (v radius)
-;           TransformedPoint1 = Point on v tangent (h radius)
-;           TransformedPoint2 = Center.
+;           VisitedPoint0 = Point on h tangent (v radius)
+;           VisitedPoint1 = Point on v tangent (h radius)
+;           VisitedPoint2 = Center.
 ; Destroys: Everything.
 ; ---------------------------------------------------------
 PlotDrawEllipse:
@@ -918,9 +954,9 @@ PlotDrawEllipse:
 ; PlotFillEllipse -> Fills an ellipse.
 ; ---------------------------------------------------------
 ; Inputs:   PlotShape = ellipse type to plot.
-;           TransformedPoint0 = Point on h tangent (v radius)
-;           TransformedPoint1 = Point on v tangent (h radius)
-;           TransformedPoint2 = Center.
+;           VisitedPoint0 = Point on h tangent (v radius)
+;           VisitedPoint1 = Point on v tangent (h radius)
+;           VisitedPoint2 = Center.
 ; Destroys: Everything.
 ; ---------------------------------------------------------
 PlotFillEllipse:

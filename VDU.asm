@@ -446,7 +446,7 @@ CommandJumpTable:
 	.dw Console.HomeLeft        \ .db  0 ; 13 Move text cursor to start of current line.
 	.dw Stub                    \ .db  0 ; 14 Enable the auto-paging mode.
 	.dw Stub                    \ .db  0 ; 15 Disable the auto-paging mode.
-	.dw Stub                    \ .db  0 ; 16 Clear the graphics area (CLG).
+	.dw Graphics.Clear          \ .db  0 ; 16 Clear the graphics area (CLG).
 	.dw TextColourCommand       \ .db -1 ; 17 Define a text colour (COLOUR).
 	.dw GraphicsColourCommand   \ .db -2 ; 18 Define a graphics colour (CGOL).
 	.dw Stub                    \ .db -5 ; 19 Select a colour palette.
@@ -494,7 +494,7 @@ CommandJumpTable:
 ; ========================================================================================
 ; VDU 16                                                           CLEAR GRAPHICS VIEWPORT
 ; ========================================================================================
-;;; TODO
+ClearGraphicsCommand = Graphics.Clear
 
 ; ========================================================================================
 ; VDU 17,<colour>                                                          SET TEXT COLOUR
