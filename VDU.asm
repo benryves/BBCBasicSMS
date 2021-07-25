@@ -23,8 +23,9 @@ Function.SetUserDefinedCharacter = 8
 Function.SetConsoleColour = 9
 Function.SetGraphicsColour = 10
 Function.ResetConsoleViewport = 11
+Function.SelectPalette = 12
 
-Functions.Count = 11
+Functions.Count = 12
 FunctionVectors = allocVar(Functions.Count * 3)
 
 .function VDUFunctionAddress(function)
@@ -63,6 +64,7 @@ SetUserDefinedCharacter = VDUFunctionAddress(Function.SetUserDefinedCharacter)
 SetConsoleColour = VDUFunctionAddress(Function.SetConsoleColour)
 SetGraphicsColour = VDUFunctionAddress(Function.SetGraphicsColour)
 ResetConsoleViewport = VDUFunctionAddress(Function.ResetConsoleViewport)
+SelectPalette = VDUFunctionAddress(Function.SelectPalette)
 
 LoadModeFunctions:
 	
@@ -205,7 +207,7 @@ DefaultFunctions:
 	.db %100000 ;  4 = Blue
 	.db %100010 ;  5 = Magenta
 	.db %101000 ;  6 = Cyan
-	.db %111111 ;  7 = White
+	.db %101010 ;  7 = White
 	.db %010101 ;  8 = Grey
 	.db %000011 ;  9 = Bright red
 	.db %001100 ; 10 = Bright green
@@ -247,7 +249,7 @@ SetMode:
 	ld (CommandQueue.Waiting),a
 	
 	; Reset colours to their defaults.
-	call ResetColours
+	call ResetColoursCommand
 	
 	; Screen on, enable frame interrupts.
 	call Video.DisplayOn
@@ -454,8 +456,8 @@ CommandJumpTable:
 	.dw Graphics.Clear          \ .db  0 ; 16 Clear the graphics area (CLG).
 	.dw TextColourCommand       \ .db -1 ; 17 Define a text colour (COLOUR).
 	.dw GraphicsColourCommand   \ .db -2 ; 18 Define a graphics colour (CGOL).
-	.dw Stub                    \ .db -5 ; 19 Select a colour palette.
-	.dw VDU.ResetColours        \ .db  0 ; 20 Restore default logical colours.
+	.dw SelectPaletteCommand    \ .db -5 ; 19 Select a colour palette.
+	.dw ResetColoursCommand     \ .db  0 ; 20 Restore default logical colours.
 	.dw Stub                    \ .db  0 ; 21 Disable output to the screen.
 	.dw ModeCommand             \ .db -1 ; 22 Set the screen mode (MODE).
 	.dw UserCommand             \ .db -9 ; 23 User-defined characters and screen modes.
@@ -516,8 +518,44 @@ GraphicsColourCommand:
 	jp SetGraphicsColour
 
 ; ========================================================================================
+; VDU 19,<logical>,<physical>,<r>,<g>,<b>                                   SELECT PALETTE
+; ========================================================================================
+SelectPaletteCommand:
+	ld bc,(VDUQ(0, 5)) ; C = logical colour, B = physical colour.
+	ld a,b ; A = "actual" :)
+	ld hl,VDUQ(2, 5) ; hl -> RGB colour.
+	call SelectPalette
+	ret	
+
+; ========================================================================================
 ; VDU 20                                                                     RESET COLOURS
 ; ========================================================================================
+ResetColoursCommand:
+	
+	; Reset to default colours.
+	ld a,7
+	call SetConsoleColour
+	ld a,128
+	call SetConsoleColour
+	ld a,7
+	call SetGraphicsColour
+	ld a,128
+	call SetGraphicsColour
+	
+	; Reset to default palette.
+	ld bc,16*256
+-:	ld a,c
+	ld (VDUQ(0, 5)),a
+	ld (VDUQ(1, 5)),a
+	xor a
+	ld (VDUQ(2, 5)),a
+	ld (VDUQ(3, 5)),a
+	ld (VDUQ(4, 5)),a
+	push bc
+	call SelectPaletteCommand
+	pop bc
+	djnz -
+	ret
 
 ; ========================================================================================
 ; VDU 22                                                                          SET MODE
@@ -825,20 +863,6 @@ Delete:
 	call Console.CursorLeft
 	ld a,' '
 	jp PutMap
-
-; ---------------------------------------------------------
-; Reset colours to their defaults
-; ---------------------------------------------------------
-ResetColours:
-	ld a,7
-	call SetConsoleColour
-	ld a,128
-	call SetConsoleColour
-	ld a,7
-	call SetGraphicsColour
-	ld a,128
-	call SetGraphicsColour
-	ret
 
 ; ---------------------------------------------------------
 ; PutString -> Sends a string to the display.

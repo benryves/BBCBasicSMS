@@ -27,6 +27,7 @@ Functions:
 	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetGraphicsColour \ .dw SetGraphicsColour
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
+	.db Function.SelectPalette \ .dw SelectPalette
 	.db Function.End
 
 Initialise:
@@ -487,5 +488,70 @@ SetForegroundColour:
 	or d
 	ld (hl),a
 	ret
+
+SelectPalette:
+	; Get ready at the logical palette entry.
+	push af
+	ld a,c
+	and $0F
+	call Video.GotoPalette
+	pop af
+
+	; We need the palette in BGR order.
+	inc hl
+	inc hl
+	
+	; Are we setting a physical colour to an RGB value?
+	cp -1
+	jr z,SelectSixBitRGB
+	cp 16
+	jr z,SelectEightBitRGB
+	
+	; We're just loading one of the stock physical colours.
+	ld a,b
+	and $0F
+	ld c,a
+	ld b,0
+	ld hl,VDU.Palettes.SegaMasterSystem
+	add hl,bc
+	ld a,(hl)
+	
+	out (Video.Data),a
+	ei
+	ret
+	
+
+SelectEightBitRGB:
+	ld b,3
+-:	ld a,(hl)
+	add a,a
+	rl c
+	add a,a
+	rl c
+	dec hl
+	djnz -
+	ld a,c
+	out (Video.Data),a
+	ei
+	ret
+	
+SelectSixBitRGB:
+	ld b,3
+-:	ld a,(hl)
+	add a,a
+	add a,a
+	add a,a
+	rl c
+	add a,a
+	rl c
+	dec hl
+	djnz -
+	ld a,c
+	out (Video.Data),a
+	ei
+	ret
+	
+
+
 
 .endmodule

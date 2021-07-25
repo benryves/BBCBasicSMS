@@ -119,6 +119,7 @@ DisableRegisterBits: ; Clear the register B bits with the clear values in A (bit
 	ret
 
 GotoPalette: ; Set the CRAM pointer to colour a.
+	di
 	out (Control),a
 	ld a,$C0
 	out (Control),a
@@ -135,7 +136,7 @@ ClearAll:
 	jr nz,-
 	call GotoPalette
 	xor a
-	ld b,64
+	ld b,32
 -:	out (Data),a
 	djnz -
 	ret
