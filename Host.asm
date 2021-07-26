@@ -1161,23 +1161,34 @@ DRAW:
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-GCOL
+GCOL:
 	call Basic.BBCBASIC_EXPRI
 	exx
-	
+-:	ld a,(iy)
+	cp ','
+	jr z,GCOLWithComma
+	cp ' '
+	jr nz,+
+	inc iy
+	jr -
++:	xor a
+	jr FoundGCOL
+GCOLWithComma	
 	push hl
-	
-	ld h,0
-	ld l,18
-	
-	call VDU.WriteWord
-	
-	pop hl
+	call Basic.BBCBASIC_COMMA
+	call Basic.BBCBASIC_EXPRI
+	exx
+	pop de
+	ld a,e
+FoundGCOL
+	push af
+	ld a,18
+	call VDU.WriteByte
+	pop af
+	call VDU.WriteByte
 	ld a,l
 	call VDU.WriteByte
-	
 	jp Basic.BBCBASIC_XEQ
-
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 

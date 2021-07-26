@@ -5,9 +5,6 @@
 ; =========================================================
 .module Graphics
 
-.include "Clip.asm"
-.include "Ellipse.asm"
-
 OriginX = allocVar(2)
 OriginY = allocVar(2)
 
@@ -47,6 +44,10 @@ TransformedPoint2Y   = allocVar(2)
 PlotShape = allocVar(1)
 
 Colour = allocVar(1)
+
+.include "Clip.asm"
+.include "Ellipse.asm"
+.include "Triangle.asm"
 
 Reset:
 
@@ -270,7 +271,7 @@ PlotCommands:
 .dw PlotLinePlusPixel ;   56..63: Broken lines (cont).
 .dw PlotPixel         ;   64..71: Single point.
 .dw Stub              ;   72..79: Horizontal line fill to non-background.
-.dw Stub              ;   80..87: Triangle fill.
+.dw PlotTriangle      ;   80..87: Triangle fill.
 .dw Stub              ;   88..95: Horizontal line fill to background right.
 .dw PlotRectangle     ;  96..103: Rectangle fill.
 .dw Stub              ; 104..111: Horizontal line fill to foreground.
@@ -307,6 +308,7 @@ PlotLine:
 	ld h,b
 	ld l,c
 	
+SetLine:
 	; Draw a line from (D,E) to (H,L)
 
 	; Is the line steep (|dy|>|dx|) or shallow (|dx|>|dy|)?
@@ -999,6 +1001,11 @@ PlotEllipse:
 	
 	pop iy
 	ret
+
+PlotTriangle:
+	ld b,3
+	call TransformPoints
+	jp Triangle.Fill
 
 ; ---------------------------------------------------------
 ; ClampPhysicalHLX -> Clamps transformed HL X value to
