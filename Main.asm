@@ -3,11 +3,12 @@
 
 .emptyfill $FF
 
-; BBC BASIC's scratch memory will be in RAM ($C000..$C2FF)
-EndOfVariables = $DFF0
-Variables      = EndOfVariables - 256 - 192
+; BBC BASIC's scratch memory will be in RAM ($DC00..$DEFF)
+EndOfVariables = $DC00
+Variables      = EndOfVariables - 256
+
 HIMEM = Variables
-PAGE = $C300
+PAGE = $C000
 
 .function allocVar(size)
 	allocVar = Variables
@@ -139,10 +140,8 @@ Main:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; *TIJUMP,MAIN/P:4100,EXEC,EVAL,FPP,RAM/P:C000
+; *TIJUMP,MAIN/P:4100,EXEC,EVAL,FPP,RAM/P:DC00
 ; *BBCBASIC/N/Y/E
-
-;.include "Programs.inc"
 
 .if Variables > EndOfVariables
 	.fail strformat("Too many variables! Please free up {0} bytes.", Variables - EndOfVariables)
@@ -153,8 +152,10 @@ Main:
 .if $>$4000
 	.fail "Too much code."
 .else
-	.echoln strformat("{0} bytes free for code.", $4000 - $)
+	.echoln strformat("{0} bytes free for code page page 0.", $4000 - $)
 .endif
 
 .org $4000
 .include "BBC BASIC.asm"
+
+.echoln strformat("{0} bytes free for code page page 1.", $8000 - $)

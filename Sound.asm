@@ -37,6 +37,9 @@ PSG = $7F
 ; 31 -> initial pitch
 ; = 31 bytes per channel, pad to 32 for ease.
 
+MainVariables = Variables
+Variables = $DF00
+
 ChannelCount = 4
 ChannelSize = 32
 Channels = allocVar(ChannelSize * ChannelCount)
@@ -81,6 +84,14 @@ Status.CanPlaySynchronisedNotes = 0
 PSGState = allocVar(2 * ChannelCount)
 PSG.Amplitude = 0
 PSG.Pitch = 1
+
+.if Variables > $DFF8
+	.fail strformat("Too many sound variables! Please free up {0} bytes.", Variables - $DFF8)
+.else
+	;.echoln strformat("{0} bytes free for sound variables.", $DFF8 - Variables)
+.endif
+
+Variables = MainVariables
 
 ; ---------------------------------------------------------
 ; Reset -> Initialises the sound handler.
