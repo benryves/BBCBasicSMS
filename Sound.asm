@@ -308,7 +308,7 @@ ChannelNoteInactive:
 	ld h,a
 	and $0F
 	ld a,h
-	jr z,NotSynchronisationControl
+	jr z,PlayNoteInQueue
 	
 	; We can now only play this note if we counted enough channels earlier.
 	ld a,(Status)
@@ -320,30 +320,17 @@ ChannelNoteInactive:
 	pop hl
 	jr ChannelNoteNoDequeue
 
-NotSynchronisationControl:	
-	and $F0
-	jr z,PlayNoteInQueue
-	
-	; We get here if H in &HSFN of the channel number is non-zero.
-	; This indicates it's a continuation note, we process it through
-	; the queue but don't actually change the state of the note
-	; that's playing...
-	
-	pop ix
-	jr SkipWritingCommand
+PlayNoteInQueue:	
 
-PlayNoteInQueue:
-	ld b,a
+	ld a,(ix+Channel.State)
+	and $F0
+	
 	ld l,(ix+Channel.Amplitude)
 	ld e,(ix+Channel.Pitch)
 	ld a,(ix+Channel.Duration)
 	
 	pop ix
-	
-	; Write the data
-	call WriteCommand
-
-SkipWritingCommand:
+	call z,WriteCommand
 		
 	; Move the queue pointer backwards.
 	ld a,(ix+Channel.State)
@@ -918,7 +905,7 @@ QueueNotFull:
 	pop de
 	
 	; ix -> queue
-	ld (ix+Channel.State),b     ; The queue position is implied, so A contains a control byte.
+	ld (ix+Channel.State),b     ; The queue position is implied, so B contains a control byte.
 	ld (ix+Channel.Amplitude),l ; amplitude/envelope
 	ld (ix+Channel.Pitch),e     ; pitch
 	ld (ix+Channel.Duration),h  ; duration
@@ -932,7 +919,6 @@ QueueNotFull:
 ; WriteCommand -> Writes a sound command immediately.
 ; ---------------------------------------------------------
 ; Inputs:   ix = pointer to channel
-;           bc = channel number
 ;           e = pitch (0..255)
 ;           l = amplitude/envelope
 ;           a = duration (1..255)
