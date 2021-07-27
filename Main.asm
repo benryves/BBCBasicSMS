@@ -137,8 +137,8 @@ Boot:
 	djnz -
 	
 	; How much cartridge RAM do we have?
-	ld b,5
-	ld de,1024
+	ld de,1024 ; Start with 1KB.
+	ld b,5 ; Check for 1KB, 2KB, 4KB, 8KB, 16KB.
 
 	ld ix,$8000
 -:	push ix
@@ -158,7 +158,7 @@ Boot:
 	srl d
 +:	
 	; DE = amount of cartridge RAM.
-	; Decrease PAGE backwards to include it.
+	; Decrease PAGE backwards to include it in BASIC's memory map.
 	ld hl,(PAGE)
 	or a
 	sbc hl,de
