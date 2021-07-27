@@ -47,8 +47,8 @@ OSINIT:
 	ld (TrapKeyboardTimer),a
 	ld (Flags),a
 	
-	ld de, HIMEM ; HIMEM
-	ld hl, PAGE  ; PAGE
+	ld de,HIMEM  ; HIMEM
+	ld hl,(PAGE) ; PAGE
 	
 	scf ; don't boot
 	ret

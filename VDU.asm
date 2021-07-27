@@ -940,6 +940,61 @@ PutHexWord:
 	ld a,l
 	jr PutHexByte
 
+; ---------------------------------------------------------
+; PutDecimalByte -> Puts a byte (0..255) on the screen.
+; ---------------------------------------------------------
+; Inputs:   a = decimal byte.
+; Outputs:  None.
+; Destroys: af.
+; ---------------------------------------------------------
+PutDecimalByte:
+	push af
+	push bc
+	
+	cp 100
+	jr c,PutDecimalByteSub100
+	
+	ld b,'0'
+-:	cp 100
+	jr c,+
+	inc b
+	sub 100
+	jr -
++:	
+	
+	push af
+	ld a,b
+	call VDU.PutChar
+	pop af
+	
+	jr PutDecimalByteTens
+
+PutDecimalByteSub100:
+	cp 10
+	jr c,PutDecimalByteSub10
+
+PutDecimalByteTens:
+
+	ld b,'0'
+-:	cp 10
+	jr c,+
+	inc b
+	sub 10
+	jr -
++:
+	
+	push af
+	ld a,b
+	call VDU.PutChar
+	pop af
+
+PutDecimalByteSub10:
+	add a,'0'
+	call VDU.PutChar
+	
+	pop bc
+	pop af
+	ret
 
 DefaultClear:
 

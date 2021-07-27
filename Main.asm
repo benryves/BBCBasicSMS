@@ -8,13 +8,13 @@ EndOfVariables = $DC00
 Variables      = EndOfVariables - 256
 
 HIMEM = Variables
-PAGE = $C000
 
 .function allocVar(size)
 	allocVar = Variables
 	Variables += size
 .endfunction
 
+PAGE = allocVar(2)
 IOControl = allocVar(1)
 
 .org $00
@@ -109,6 +109,69 @@ Boot:
 	inc a
 	ld ($FFFF),a
 	
+	; Assume we have a stock 8KB machine, so place PAGE at $C000.
+	ld hl,$C000
+	ld (PAGE),hl
+	
+	; Additional memory is in the range $8000..$BFFF
+	; Enable the cartridge RAM.
+	ld a,($FFFC)
+	or %00001000 ; RAM enable ($8000..$BFFF)
+	ld ($FFFC),a
+	
+	; Check if the cartridge RAM is writable.
+	ld hl,$8000
+	ld b,0
+-:	ld a,(hl)
+	push hl
+	inc hl
+	dec hl
+	pop hl
+	inc (hl)
+	push hl
+	inc hl
+	dec hl
+	pop hl
+	cp (hl)
+	jp z,NoCartridgeRAM
+	djnz -
+	
+	; How much cartridge RAM do we have?
+	ld b,5
+	ld de,1024
+
+	ld ix,$8000
+-:	push ix
+	pop iy
+	add iy,de
+	
+	; Check the mirror address - changing (ix) should not change (iy).
+	ld a,(iy)
+	inc (ix)
+	sub (iy)
+	dec (ix)
+	or a
+	jr nz,+
+	
+	sla d
+	djnz -
+	srl d
++:	
+	; DE = amount of cartridge RAM.
+	; Decrease PAGE backwards to include it.
+	ld hl,(PAGE)
+	or a
+	sbc hl,de
+	ld (PAGE),hl
+	jr FoundCartridgeRAM
+
+NoCartridgeRAM:
+	ld a,($FFFC)
+	and %11110111 ; RAM disable ($8000..$BFFF)
+	ld ($FFFC),a
+
+FoundCartridgeRAM:
+	
 	; Set up the IOControl mirror
 	ld a,%11111111
 	ld (IOControl),a
@@ -134,9 +197,34 @@ Main:
 	
 	; Sound initialisation.
 	call Sound.Reset
+	
+	; Sign on message.
+	ld hl,SignOnMessage
+	call VDU.PutString
+
+	; How much RAM do we have?
+	ld hl,$E000 ; Top of memory
+	ld de,(PAGE)
+	or a
+	sbc hl,de
+	srl h
+	srl h
+	ld b,h
+	xor a
+-:	inc a
+	djnz -
+	
+	call VDU.PutDecimalByte
+	ld a,'K'
+	call VDU.PutChar
+	ld a,'\r'
+	call VDU.PutChar
 
 	; Jump into BASIC.
 	jp Basic.BBCBASIC_START
+
+SignOnMessage:
+.db "SEGA Master System ",0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
