@@ -121,6 +121,8 @@ RunKeyLoop:
 	halt
 	
 	call TrapConsoleButtons
+	call VDU.Console.FlushPendingScroll
+	
 	pop af
 	call VDU.PutMap
 
