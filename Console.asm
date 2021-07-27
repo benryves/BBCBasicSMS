@@ -18,13 +18,22 @@ MaxHeight = allocVar(1)
 
 Colour = allocVar(1)
 
+Status = allocVar(1)
+PendingScroll = 0
+PageMode = 1
+
 Reset:
+	
+	xor a
+	ld (Status),a
 
 ResetViewport:
-
+	
+	call ClearPendingScroll
 	call ResetConsoleViewport ; Driver-specific function.
 
 HomeUp:
+	call ClearPendingScroll
 	ld a,(MinRow)
 	ld (CurRow),a
 	; Fall-through to HomeLeft
@@ -57,6 +66,9 @@ NewLine:
 	; Fall-through to CursorDown
 
 CursorDown:
+
+	call FlushPendingScroll
+
 	ld a,(CurRow)
 	inc a
 	push bc
@@ -65,7 +77,9 @@ CursorDown:
 	pop bc
 	jr z,+
 	jr c,+
-	call Scroll
+	
+	call SetPendingScroll
+	
 	ld a,(MaxRow)
 +:	ld (CurRow),a
 	ret
@@ -106,6 +120,29 @@ Tab:
 	ret
 
 FlushPendingScroll:
+	push af
+	ld a,(Status)
+	bit PendingScroll,a
+	res PendingScroll,a
+	ld (Status),a
+	call nz,Scroll
+	pop af
+	ret
+	
+ClearPendingScroll:
+	push af
+	ld a,(Status)
+	res PendingScroll,a
+	ld (Status),a
+	pop af
+	ret
+
+SetPendingScroll:
+	push af
+	ld a,(Status)
+	set PendingScroll,a
+	ld (Status),a
+	pop af
 	ret
 	
 .endmodule

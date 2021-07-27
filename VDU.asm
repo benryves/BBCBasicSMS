@@ -416,6 +416,7 @@ NotCommand:
 	jp z,Delete
 
 PutLiteralChar:
+	call Console.FlushPendingScroll
 	call PutMap
 	jp Console.CursorRight
 
@@ -826,7 +827,7 @@ SetOriginCommand:
 ; VDU 31,<X>,<Y>                                                               MOVE CURSOR
 ; ========================================================================================
 TabCommand:
-	call Console.FlushPendingScroll
+	call Console.ClearPendingScroll
 
 	ld de,(VDUQ(0,2))
 	ld hl,(VDUQ(1,2))
