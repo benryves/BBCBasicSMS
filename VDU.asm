@@ -464,7 +464,7 @@ CommandJumpTable:
 	.dw UserCommand             \ .db -9 ; 23 User-defined characters and screen modes.
 	.dw GraphicsViewportCommand \ .db -8 ; 24 Define a graphics viewport.
 	.dw PlotCommand             \ .db -5 ; 25 PLOT
-	.dw Stub                    \ .db  0 ; 26 Restore default viewports.
+	.dw ResetViewports          \ .db  0 ; 26 Restore default viewports.
 	.dw EscapeCharCommand       \ .db -1 ; 27 Send the next character to the screen.
 	.dw ConsoleViewportCommand  \ .db -4 ; 28 Define a text viewport.
 	.dw SetOriginCommand        \ .db -4 ; 29 Set the graphics origin.
