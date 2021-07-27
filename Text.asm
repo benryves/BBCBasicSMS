@@ -100,56 +100,114 @@ Scroll:
 	push de
 	push hl
 	
-	ld de,0
-	ld b,23
+	; Get the pointer to the top left corner.
+	ld a,(Console.MinRow)
+	ld l,a
+	ld h,0
 	
-	ei
-	halt
-
--:	ld a,b
-	and %111
-	jr nz,+
+	; *40 = *32+*8
+	add hl,hl ; *2
+	add hl,hl ; *4
+	add hl,hl ; *8
+	ld e,l
+	ld d,h
+	add hl,hl ; *16
+	add hl,hl ; *32
+	add hl,de ; *40
 	
-	ei
-	halt
-
-+:	push bc
-	
-	ld hl,NameTable + 40 ; Source to copy from
+	ld a,(Console.MinCol)
+	ld e,a
+	ld d,0
 	add hl,de
 	
+	; Move one row down.
+	ld de,NameTable + 40
+	add hl,de
+	
+	
+	; How many columns will we need to move?
+	ld a,(Console.MinCol)
+	ld c,a
+	ld a,(Console.MaxCol)
+	sub c
+	inc a
+	ld c,a
+	
+	; How many rows will we need to move?
+	ld a,(Console.MinRow)
+	ld b,a
+	ld a,(Console.MaxRow)
+	sub b
+	ld b,a
+	
+	; We'll be moving row by row.
+	ld de,40
+	
+	; If there are zero rows to scroll, skip ahead.
+	jr z,ClearBottomRow
+	
+ScrollRows:
+	push hl
+	push bc
+	
+	; Copy one row.
 	call Video.SetReadAddress
 	ld hl,(Basic.BBCBASIC_FREE)
-	ld bc,40*256 + Video.Data
-	inir
 	
-	ld hl,NameTable ; Destination to copy to
-	add hl,de
-	call Video.SetWriteAddress
+	ld b,c
+-:	in a,(Video.Data) ; 11
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12 <- 36
 	
-	ld hl,(Basic.BBCBASIC_FREE)
-	ld bc,40*256 + Video.Data
-	otir
-	
-	ld hl,40
-	add hl,de
-	ex de,hl
-
 	pop bc
-	djnz -
+	pop hl
 	
-	ld hl,NameTable + 23*40
+	ei
+	
+	; Write back to the row above.
+	push hl
+	push bc
+	
+	or a
+	sbc hl,de
+	
+	call Video.SetWriteAddress
+	ld hl,(Basic.BBCBASIC_FREE)
+	
+	ld b,c
+-:	ld a,(hl)          ; 7
+	out (Video.Data),a ; 11
+	inc hl             ; 6
+	djnz -             ; 12 <- 36
+	
+	pop bc
+	pop hl
+	
+	ei
+	
+	; Move down to the next row.
+	add hl,de
+	djnz ScrollRows
+
+ClearBottomRow:
+	
+	
+	; Now that we've scrolled, clear that bottom row.
+	or a
+	sbc hl,de
 	call Video.SetWriteAddress
 	
-	ld a,' '*1+FontCharOffset
-	ld b,40
--:	out (Video.Data),a
-	djnz -
+	ld b,c
+-:	ld a,' '*1+FontCharOffset ; 7
+	out (Video.Data),a        ; 11
+	nop                       ; 4
+	djnz -                    ; 12 <- 34
+	ei
 	
 	pop hl
 	pop de
 	pop bc
-	ei
 	ret
 
 SetConsoleColour:
