@@ -33,12 +33,12 @@ ResetViewport:
 	call ResetConsoleViewport ; Driver-specific function.
 
 HomeUp:
-	call ClearPendingScroll
 	ld a,(MinRow)
 	ld (CurRow),a
 	; Fall-through to HomeLeft
 	
 HomeLeft:
+	call ClearPendingScroll
 	ld a,(MinCol)
 	ld (CurCol),a
 	ret
@@ -78,7 +78,7 @@ CursorDown:
 	jr z,+
 	jr c,+
 	
-	call SetPendingScroll
+	call Scroll
 	
 	ld a,(MaxRow)
 +:	ld (CurRow),a
