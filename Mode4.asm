@@ -145,55 +145,119 @@ PutMap:
 
 Scroll:
 	push bc
+	push de
 	push hl
 	
-	; Adjust the scroll counter and VDP scroll register.
+	; Get the pointer to the top left corner.
+	ld a,(Console.MinRow)
+	ld l,a
 	ld a,(ScrollRowOffset)
-	inc a
-	cp 28
-	jr nz,+
-	xor a
-+:	ld (ScrollRowOffset),a
-	
-	add a,a
-	add a,a
-	add a,a
-	ld b,$09
-	call Video.SetRegister
-	
-	; Blank the line that's just hoved into view.
-	ld a,(ScrollRowOffset)
-	add a,23
+	add a,l
 	cp 28
 	jr c,+
 	sub 28
-+:	
-	ld l,a
++:	ld l,a
 	ld h,0
+
+	; *64
 	ld b,6
--	add hl,hl
+-:	add hl,hl
 	djnz -
 	
-.if NameTable != 0
-	ld bc,NameTable
-	add hl,bc
-.endif
+	ld a,(Console.CurCol)
+	add a,a
 	
-	call Video.SetWriteAddress
+	ld e,a
+	ld d,0
+	add hl,de
+	
+	; Move one row down.
+	ld de,NameTable + 64
+	add hl,de
+	
+	; How many columns will we need to move?
+	ld a,(Console.MinCol)
+	ld c,a
+	ld a,(Console.MaxCol)
+	sub c
+	inc a
+	add a,a
+	ld c,a
+	
+	; How many rows will we need to move?
+	ld a,(Console.MinRow)
+	ld b,a
+	ld a,(Console.MaxRow)
+	sub b
+	ld b,a
+	
+	; We'll be moving row by row.
+	ld de,64
+	
+	; If there are zero rows to scroll, skip ahead.
+	jr z,ClearBottomRow
+	
+ScrollRows:
+	push hl
+	push bc
+	
+	; Copy one row.
+	call Video.SetReadAddress
+	ld hl,(Basic.BBCBASIC_FREE)
+	
+	ld b,c
+-:	in a,(Video.Data) ; 11
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12 <- 36
+	
+	pop bc
+	pop hl
+	
 	ei
 	
-	ld b,32
--:	ld a,' '*1+FontCharOffset
-	out (Video.Data),a
+	; Write back to the row above.
 	push hl
+	push bc
+	
+	or a
+	sbc hl,de
+	
+	call Video.SetWriteAddress
+	ld hl,(Basic.BBCBASIC_FREE)
+	
+	ld b,c
+-:	ld a,(hl)          ; 7
+	out (Video.Data),a ; 11
+	inc hl             ; 6
+	djnz -             ; 12 <- 36
+	
+	pop bc
 	pop hl
-	xor a
-	out (Video.Data),a
-	nop
-	nop
-	djnz -
+	
+	ei
+	
+	; Move down to the next row.
+	add hl,de
+	djnz ScrollRows
+
+ClearBottomRow:
+	
+	
+	; Now that we've scrolled, clear that bottom row.
+	or a
+	sbc hl,de
+	call Video.SetWriteAddress
+	
+	ld b,c
+-:	ld a,0                    ; 7
+	out (Video.Data),a        ; 11
+	nop                       ; 4
+	djnz -                    ; 12 <- 34
+	ei
 	
 	pop hl
+	pop de
 	pop bc
 	ret
 
