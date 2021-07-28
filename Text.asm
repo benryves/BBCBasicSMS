@@ -120,10 +120,10 @@ Scroll:
 	ld d,0
 	add hl,de
 	
-	; Move one row down.
-	ld de,NameTable + 40
+.if NameTable != 0
+	ld de,NameTable
 	add hl,de
-	
+.endif
 	
 	; How many columns will we need to move?
 	ld a,(Console.MinCol)
@@ -138,72 +138,13 @@ Scroll:
 	ld b,a
 	ld a,(Console.MaxRow)
 	sub b
+	inc a
 	ld b,a
 	
 	; We'll be moving row by row.
 	ld de,40
 	
-	; If there are zero rows to scroll, skip ahead.
-	jr z,ClearBottomRow
-	
-ScrollRows:
-	push hl
-	push bc
-	
-	; Copy one row.
-	call Video.SetReadAddress
-	ld hl,(Basic.BBCBASIC_FREE)
-	
-	ld b,c
--:	in a,(Video.Data) ; 11
-	ld (hl),a         ; 7
-	inc hl            ; 6
-	djnz -            ; 12 <- 36
-	
-	pop bc
-	pop hl
-	
-	ei
-	
-	; Write back to the row above.
-	push hl
-	push bc
-	
-	or a
-	sbc hl,de
-	
-	call Video.SetWriteAddress
-	ld hl,(Basic.BBCBASIC_FREE)
-	
-	ld b,c
--:	ld a,(hl)          ; 7
-	out (Video.Data),a ; 11
-	inc hl             ; 6
-	djnz -             ; 12 <- 36
-	
-	pop bc
-	pop hl
-	
-	ei
-	
-	; Move down to the next row.
-	add hl,de
-	djnz ScrollRows
-
-ClearBottomRow:
-	
-	
-	; Now that we've scrolled, clear that bottom row.
-	or a
-	sbc hl,de
-	call Video.SetWriteAddress
-	
-	ld b,c
--:	ld a,' '*1+FontCharOffset ; 7
-	out (Video.Data),a        ; 11
-	nop                       ; 4
-	djnz -                    ; 12 <- 34
-	ei
+	call Console.ScrollBlock
 	
 	pop hl
 	pop de

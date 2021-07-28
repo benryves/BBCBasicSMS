@@ -28,8 +28,6 @@ TopOfMemory      = $4000 ; 16KB
 .echoln "Bad address for Graphics II Pattern Generator"
 .endif
 
-ScrollValue = allocVar(1)
-
 Initialise:
 
 	; Switch video mode to TMS9918 GRAPHICS II
@@ -68,7 +66,6 @@ Initialise:
 	
 	; 768 bytes (3*256) that just count up from 0..255 and loop.
 	xor a
-	ld (ScrollValue),a
 	ld b,a
 	ld c,3
 -:	out (Video.Data),a
@@ -114,7 +111,7 @@ PutMap:
 	and %11111000
 	ld h,a
 	
-	ld a,(ScrollValue)
+	ld a,0 ; <- optimise
 	add a,l
 	and %00000111
 	or h
@@ -211,125 +208,64 @@ Scroll:
 	push de
 	push hl
 	
-	; Fill name table with sensible data
-	ld hl,NameTable
-	call Video.SetWriteAddress
+	; Get the pointer to the top left corner in the pattern table.
+	ld a,(Console.MinRow)
+	ld h,a
+	ld l,0
 	
-	; 768 bytes (3*256) that just count up from 0..255 and loop.
-	ld a,(ScrollValue)
+	ld a,(Console.MinCol)
+	add a,a
+	add a,a
+	add a,a
+	ld e,a
+	ld d,0
+	add hl,de
 	
-	ld d,a ; for later...
-	ld e,0
+	push hl
+
+.if PatternGenerator != 0
+	ld de,PatternGenerator
+	add hl,de
+.endif
 	
+	; How many columns will we need to move?
+	ld a,(Console.MinCol)
+	ld c,a
+	ld a,(Console.MaxCol)
+	sub c
 	inc a
-	and 7
-	ld (ScrollValue),a	
+	add a,a
+	add a,a
+	add a,a
+	ld c,a
 	
-	; Top window
+	; How many rows will we need to move?
+	ld a,(Console.MinRow)
+	ld b,a
+	ld a,(Console.MaxRow)
+	sub b
+	inc a
+	ld b,a
 	
-	ld hl,NameTable + 0 * 32
-	call RotateWindow
+	push bc
 	
-	ld hl,PatternGenerator + 8 * 256
-	call CopyToWindowAbove
+	ld de,256
+	call Console.ScrollBlock
 	
-	ld hl,ColourTable + 8 * 256
-	call CopyToWindowAbove
-	
-	; Middle window
-	
-	ld hl,NameTable + 8 * 32
-	call RotateWindow
-	
-	ld hl,PatternGenerator + 16 * 256
-	call CopyToWindowAbove
+	pop bc
+	pop hl
 
-	ld hl,ColourTable + 16 * 256
-	call CopyToWindowAbove
-
-	; Bottom window
-	
-	ld hl,NameTable + 16 * 32
-	call RotateWindow
-	
-	; Clear bottom row
-	
-	ld hl,PatternGenerator + 16 * 256
+.if ColourTable != 0
+	ld de,ColourTable
 	add hl,de
-	call Video.SetWriteAddress
-	ei
+.endif
 
-	ld b,0
-	xor a
--:	out (Video.Data),a ; 11
-	nop                ; 4
-	nop                ; 4
-	djnz -             ; 13 = 32
-	
-	ld hl,ColourTable + 16 * 256
-	add hl,de
-	call Video.SetWriteAddress
-	ei
-	
-	ld b,0
-	ld a,(VDU.Console.Colour)
--:	out (Video.Data),a ; 11
-	nop                ; 4
-	nop                ; 4
-	djnz -             ; 13 = 32
+	ld de,256	
+	call Console.ScrollBlock
 	
 	pop hl
 	pop de
 	pop bc
-	ret
-
-; HL = address of nametable window to rotate
-RotateWindow:
-	; Multiply by 32.
-	ld a,(ScrollValue)
-	ld b,5
--:	add a,a
-	djnz -
-	
-	call Video.SetWriteAddress
-	ei
-
--:	out (Video.Data),a ; 11
-	inc a              ; 4
-	djnz -             ; 13 = 28
-	
-	ret
-
-; HL = address of where to copy data from
-; DE = offset into scrolled area (previous scroll value * 256)
-CopyToWindowAbove:
-	push hl
-	add hl,de
-	call Video.SetReadAddress
-	ei
-	
-	ld hl,(Basic.BBCBASIC_FREE)
-	ld b,0
--:	in a,(Video.Data) ; 11
-	ld (hl),a         ; 7
-	inc hl            ; 6
-	djnz -            ; 13 = 37
-	
-	pop hl
-	ld bc,-8*256
-	add hl,bc
-	
-	add hl,de
-	call Video.SetWriteAddress
-	ei
-	
-	ld hl,(Basic.BBCBASIC_FREE)
-	ld b,0
--:	ld a,(hl)          ; 7
-	out (Video.Data),a ; 11
-	inc hl             ; 6
-	djnz -             ; 13 = 37
-	
 	ret
 
 BeginPlot:
@@ -392,7 +328,7 @@ SetAlignedHorizontalLineSegment:
 	and %11111000
 	ld h,a
 	
-	ld a,(ScrollValue)
+	ld a,0 ; <- optimise
 	add a,l
 	and %00000111
 	or h
