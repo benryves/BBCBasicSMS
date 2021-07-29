@@ -113,11 +113,17 @@ PointsSorted:
 	sbc hl,de
 	ld (LongEdgeErrorDY),hl
 	
-	; Initial error = -|DY|/2
-	srl h \ rr l
-	ld a,h \ cpl \ ld h,a
-	ld a,l \ cpl \ ld l,a
-	inc hl
+	; Initial error = -max(|DY|,|DX|)/2
+	ld hl,(LongEdgeErrorDX)
+	ld de,(LongEdgeErrorDY)
+	or a
+	sbc hl,de
+	jr c,+
+	ld de,(LongEdgeErrorDX)
++:	srl d \ rr e
+	or a
+	ld hl,0
+	sbc hl,de
 	ld (LongEdgeError),hl
 	
 	; Calculate the short edge
@@ -161,7 +167,8 @@ PointsSorted:
 	ld a,l \ cpl \ ld l,a
 	inc hl
 	ld (ShortEdgeError),hl
-	
+
+	ld a,1
 	call FillHalf
 
 SkipTopHalf:
@@ -194,19 +201,104 @@ SkipTopHalf:
 	;  We'll be filling in the bottom half.
 	ld (EdgeCounter),hl
 	
-	; Initial error = -|DY|/2
-	srl h \ rr l
-	ld a,h \ cpl \ ld h,a
-	ld a,l \ cpl \ ld l,a
-	inc hl
-	ld (ShortEdgeError),hl
-	
+	ld a,2
 	call FillHalf
 	
 	ret
 
 FillHalf:
+
+	; Get the error for the short edge.
+	ld hl,(ShortEdgeErrorDX)
+	ld de,(ShortEdgeErrorDY)
+	or a
+	sbc hl,de
+	jr c,+
+	ld de,(ShortEdgeErrorDX)
++:	srl d \ rr e
+	or a
+	ld hl,0
+	sbc hl,de
+	ld (ShortEdgeError),hl
 	
+	dec a
+	jr nz,FillHalfLoop
+	
+	; If we're filling the top half (A=1) of the triangle,
+	; pre-advance any shallow edges.
+	
+	ld hl,(ShortEdgeErrorDY)
+	ld de,(ShortEdgeErrorDX)
+	or a
+	sbc hl,de
+	jr nc,ShortEdgeNotShallow
+	
+	ld hl,(ShortEdgeError)
+	ld de,(ShortEdgeErrorDX)
+	add hl,de
+	jr nc,+
+	
+-:	push hl
+	ld hl,(ShortEdgeX)
+	ld de,(ShortEdgeDX)
+	add hl,de
+	ld (ShortEdgeX),hl
+	pop hl
+	
+	or a
+	ld de,(ShortEdgeErrorDY)
+	sbc hl,de
+	jr nc,-
+	
+	; Back one pixel if we've already advanced.
+	push hl
+	ld hl,(ShortEdgeX)
+	ld de,(ShortEdgeDX)
+	or a
+	sbc hl,de
+	ld (ShortEdgeX),hl
+	pop hl
+	
++:	ld (ShortEdgeError),hl
+
+ShortEdgeNotShallow:
+
+	ld hl,(LongEdgeErrorDY)
+	ld de,(LongEdgeErrorDX)
+	or a
+	sbc hl,de
+	jr nc,LongEdgeNotShallow
+	
+	ld hl,(LongEdgeError)
+	ld de,(LongEdgeErrorDX)
+	add hl,de
+	jr nc,+
+	
+-:	push hl
+	ld hl,(LongEdgeX)
+	ld de,(LongEdgeDX)
+	add hl,de
+	ld (LongEdgeX),hl
+	pop hl
+	
+	or a
+	ld de,(LongEdgeErrorDY)
+	sbc hl,de
+	jr nc,-
+	
+	; Back one pixel if we've already advanced.
+	push hl
+	ld hl,(LongEdgeX)
+	ld de,(LongEdgeDX)
+	or a
+	sbc hl,de
+	ld (LongEdgeX),hl
+	pop hl
+	
++:	ld (LongEdgeError),hl
+
+LongEdgeNotShallow:
+
 FillHalfLoop:
 	; Clip the span.
 	
