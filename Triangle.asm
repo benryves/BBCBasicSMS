@@ -207,6 +207,7 @@ SkipTopHalf:
 
 FillHalf:
 	
+FillHalfLoop:
 	; Clip the span.
 	
 	; Start with Y and a quick range check (Y<0 or Y>255, it's definitely off-screen!)
@@ -275,9 +276,7 @@ FillHalf:
 	cp l
 	jr nc,+
 	ld l,a
-+:
-
-	
++:	
 	; We need to fill (DE,C)-(HL,C)
 	; PlotTransformedHorizontalSpan goess from (D,E)-(H,E)
 	ld d,e
@@ -289,7 +288,13 @@ FillHalf:
 
 SpanOffScreen:
 
+	; Move down.
+	ld hl,(EdgeY)
+	inc hl
+	ld (EdgeY),hl
+
 	; Do we need to advance the long edge's X?
+	; We always run this as the "long" edge is always safe (non-zero-height).
 	ld hl,(LongEdgeError)
 	ld de,(LongEdgeErrorDX)
 	add hl,de
@@ -308,8 +313,17 @@ SpanOffScreen:
 	jr nc,-
 	
 +:	ld (LongEdgeError),hl
+
+	; Is there more of the half to draw?
+	ld hl,(EdgeCounter)
+	ld a,h
+	or l
+	ret z
+	dec hl
+	ld (EdgeCounter),hl
 	
 	; Do we need to advance the short edge's X?
+	; We only run this now as zero-height short sections can cause infinite loops here.
 	ld hl,(ShortEdgeError)
 	ld de,(ShortEdgeErrorDX)
 	add hl,de
@@ -329,18 +343,6 @@ SpanOffScreen:
 	
 +:	ld (ShortEdgeError),hl
 	
-	; Move down.
-	ld hl,(EdgeY)
-	inc hl
-	ld (EdgeY),hl
-	
-	; Is there more of the half to draw?
-	ld hl,(EdgeCounter)
-	ld a,h
-	or l
-	ret z
-	dec hl
-	ld (EdgeCounter),hl
-	jp FillHalf
+	jp FillHalfLoop
 
 .endmodule
