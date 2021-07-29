@@ -86,7 +86,6 @@ PointsSorted:
 	ld hl,(TransformedPoint0Y)
 	ld (EdgeY),hl
 	
-	
 	; Long and short edges start from the same point.
 	ld de,(TransformedPoint0X)
 	ld (LongEdgeX),de
@@ -160,13 +159,6 @@ PointsSorted:
 	;  We'll be filling in the top edge.
 	ld (EdgeCounter),hl
 	inc hl
-	
-	; Initial error = -|DY|/2
-	srl h \ rr l
-	ld a,h \ cpl \ ld h,a
-	ld a,l \ cpl \ ld l,a
-	inc hl
-	ld (ShortEdgeError),hl
 
 	ld a,1
 	call FillHalf
@@ -222,7 +214,7 @@ FillHalf:
 	ld (ShortEdgeError),hl
 	
 	dec a
-	jr nz,FillHalfLoop
+	jp nz,FillHalfLoop
 	
 	; If we're filling the top half (A=1) of the triangle,
 	; pre-advance any shallow edges.
@@ -236,7 +228,7 @@ FillHalf:
 	ld hl,(ShortEdgeError)
 	ld de,(ShortEdgeErrorDX)
 	add hl,de
-	jr nc,+
+	jr nc,NoShortEdgeError
 	
 -:	push hl
 	ld hl,(ShortEdgeX)
@@ -245,13 +237,15 @@ FillHalf:
 	ld (ShortEdgeX),hl
 	pop hl
 	
-	or a
 	ld de,(ShortEdgeErrorDY)
+	ld a,d
+	or e
+	jr z,+
 	sbc hl,de
 	jr nc,-
 	
 	; Back one pixel if we've already advanced.
-	push hl
++:	push hl
 	ld hl,(ShortEdgeX)
 	ld de,(ShortEdgeDX)
 	or a
@@ -259,7 +253,8 @@ FillHalf:
 	ld (ShortEdgeX),hl
 	pop hl
 	
-+:	ld (ShortEdgeError),hl
+NoShortEdgeError:
+	ld (ShortEdgeError),hl
 
 ShortEdgeNotShallow:
 
@@ -272,7 +267,7 @@ ShortEdgeNotShallow:
 	ld hl,(LongEdgeError)
 	ld de,(LongEdgeErrorDX)
 	add hl,de
-	jr nc,+
+	jr nc,NoLongEdgeError
 	
 -:	push hl
 	ld hl,(LongEdgeX)
@@ -281,11 +276,13 @@ ShortEdgeNotShallow:
 	ld (LongEdgeX),hl
 	pop hl
 	
-	or a
 	ld de,(LongEdgeErrorDY)
+	ld a,d
+	or e
+	jr z,+
 	sbc hl,de
 	jr nc,-
-	
++:	
 	; Back one pixel if we've already advanced.
 	push hl
 	ld hl,(LongEdgeX)
@@ -295,7 +292,8 @@ ShortEdgeNotShallow:
 	ld (LongEdgeX),hl
 	pop hl
 	
-+:	ld (LongEdgeError),hl
+NoLongEdgeError:
+	ld (LongEdgeError),hl
 
 LongEdgeNotShallow:
 
@@ -386,7 +384,6 @@ SpanOffScreen:
 	ld (EdgeY),hl
 
 	; Do we need to advance the long edge's X?
-	; We always run this as the "long" edge is always safe (non-zero-height).
 	ld hl,(LongEdgeError)
 	ld de,(LongEdgeErrorDX)
 	add hl,de
@@ -399,8 +396,10 @@ SpanOffScreen:
 	ld (LongEdgeX),hl
 	pop hl
 	
-	or a
 	ld de,(LongEdgeErrorDY)
+	ld a,d
+	or e
+	jr z,+
 	sbc hl,de
 	jr nc,-
 	
@@ -428,8 +427,10 @@ SpanOffScreen:
 	ld (ShortEdgeX),hl
 	pop hl
 	
-	or a
 	ld de,(ShortEdgeErrorDY)
+	ld a,d
+	or e
+	jr z,+
 	sbc hl,de
 	jr nc,-
 	
