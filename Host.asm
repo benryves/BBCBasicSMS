@@ -278,8 +278,9 @@ OSLINE.EnoughSpace:
 	call OSASCI
 	
 	cp '\r'
-	ret z
-	jr OSLINE.Loop
+	jr nz,OSLINE.Loop
+	xor a
+	ret
 	
 
 OSLINE.Backspace:
