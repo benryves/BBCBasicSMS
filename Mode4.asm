@@ -5,7 +5,6 @@ NameTable        = $3800 ; 1792 bytes
 SpriteTable      = $3F00 ; 256 bytes
 TopOfMemory      = $4000 ; 16KB
 
-ScrollRowOffset = allocVar(1) ; Row number that's at the top of the screen
 FreeGraphicsTile = allocVar(2) ; What's the next free graphics tile number?
 
 MinGraphicsTile = 128+FontCharOffset
@@ -31,10 +30,6 @@ Functions:
 	.db Function.End
 
 Initialise:
-
-	; The default state from Video.Reset is pretty close to Master System Mode 4 anyway!
-	xor a
-	ld (ScrollRowOffset),a
 	
 	;ld a,5 ; Scroll along to centre
 	;ld b,$08
@@ -101,12 +96,6 @@ PutMap:
 
 	ld a,(Console.CurRow)
 	ld l,a
-	ld a,(ScrollRowOffset)
-	add a,l
-	cp 28
-	jr c,+
-	sub 28
-+:	ld l,a
 	ld h,0
 
 	; *64
@@ -151,12 +140,6 @@ Scroll:
 	; Get the pointer to the top left corner.
 	ld a,(Console.MinRow)
 	ld l,a
-	ld a,(ScrollRowOffset)
-	add a,l
-	cp 28
-	jr c,+
-	sub 28
-+:	ld l,a
 	ld h,0
 
 	; *64
@@ -164,7 +147,7 @@ Scroll:
 -:	add hl,hl
 	djnz -
 	
-	ld a,(Console.CurCol)
+	ld a,(Console.MinCol)
 	add a,a
 	
 	ld e,a
@@ -259,12 +242,6 @@ SetAlignedHorizontalLineSegment:
 	srl a
 	srl a
 	ld l,a
-	ld a,(ScrollRowOffset)
-	add a,l
-	cp 28
-	jr c,+
-	sub 28
-+:	ld l,a
 	ld h,0
 
 	; *32
