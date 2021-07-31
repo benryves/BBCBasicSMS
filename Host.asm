@@ -14,6 +14,7 @@ TIME = allocVar(4)
 
 Flags = allocVar(1)
 Pause = 0
+Overwrite = 1
 
 TrapKeyboardTimer = allocVar(1)
 
@@ -116,13 +117,24 @@ RunKeyLoop:
 	jr NoFlashCursor
 +:
 	
+	; Is the cursor flashing?
 	ld a,(TIME)
 	sub b
-	and %00010000
-	ld a,'_' ; Cursor character
-	jr z,+
+	and %00100000
+	jr nz,CursorNotVisible
+	
+	; What is the cursor?
+	ld a,(Flags)
+	bit Overwrite,a
+	ld a,'_' ; Insert mode cursor
+	jr z,ShowKeyCursor
+	ld a,127 ; Overwrite mode cursor 
+	jr ShowKeyCursor
+
+CursorNotVisible:
 	ld a,(hl) ; Current character
-+:	cp c
+ShowKeyCursor:
+	cp c
 	jr z,NoFlashCursor
 	pop bc
 	ld c,a
@@ -317,8 +329,31 @@ OSLINE.Loop:
 	cp 128
 	jr nc,OSLINE.Loop
 	
-	; Check if we've got enough space.
+	; Store the character in E.
 	ld e,a
+	
+	; Is this going to be an insert or overwrite command?
+	ld a,(Flags)
+	bit Overwrite,a
+	jr z,OSLINE.InsertCharacter
+	
+	; If we're at the end of the current string, treat it as an insert, even in overwrite mode.
+	ld a,d
+	cp b
+	jr z,OSLINE.InsertCharacter
+	
+	; This is an overwrite.
+	ld a,e
+	ld (hl),a
+	inc hl
+	inc d
+	
+	; Print the character.
+	call VDU.PutChar
+	jr OSLINE.Loop
+
+OSLINE.InsertCharacter
+	; Check if we've got enough space.
 	ld a,c
 	or a
 	jr z,OSLINE.Loop
@@ -439,6 +474,9 @@ OSLINE.ExtendedKey:
 	cp Keyboard.KeyCode.Right
 	call z,OSLINE.Right
 	
+	cp Keyboard.KeyCode.Insert
+	call z,OSLINE.Insert
+	
 	jp OSLINE.Loop
 
 OSLINE.Delete:
@@ -552,6 +590,14 @@ OSLINE.Right:
 	inc d
 	
 +:	pop af
+	ret
+
+OSLINE.Insert:
+	push af
+	ld a,(Flags)
+	xor 1 << Overwrite
+	ld (Flags),a
+	pop af
 	ret
 
 ;------------------------------------------------------------------------------- 
