@@ -71,7 +71,19 @@ OSINIT:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSRDCH:
+	push hl
+	ld hl,EmptyChar
+-:	call ReadChar
+	jp m,-
+	pop hl
+	ret
+
+EmptyChar:
+	.db ' '
+
+ReadChar:
 	push bc
+	push hl
 	
 	call InitKeyLoop
 
@@ -80,15 +92,15 @@ OSRDCH:
 
 	call EndKeyLoop
 	
+	pop hl
 	pop bc
 	ei
 	ret
 
-
 InitKeyLoop:
 	ld a,(TIME)
 	ld b,a
-	ld c,'X'
+	ld c,255
 	ret
 
 RunKeyLoop:
@@ -99,7 +111,7 @@ RunKeyLoop:
 	or a
 	jr nz,+
 	pop bc
-	ld c,'X'
+	ld c,255
 	push bc
 	jr NoFlashCursor
 +:
@@ -107,9 +119,9 @@ RunKeyLoop:
 	ld a,(TIME)
 	sub b
 	and %00010000
-	ld a,127
+	ld a,'_' ; Cursor character
 	jr z,+
-	ld a,'_'
+	ld a,(hl) ; Current character
 +:	cp c
 	jr z,NoFlashCursor
 	pop bc
@@ -124,7 +136,10 @@ RunKeyLoop:
 	call VDU.Console.FlushPendingScroll
 	
 	pop af
-	call VDU.PutMap
+	cp '\r'
+	jr nz,+
+	ld a,' '
++:	call VDU.PutMap
 
 NoFlashCursor:
 	call Keyboard.GetKey
@@ -135,9 +150,16 @@ NoFlashCursor:
 	jr c,NoKey    ; key released
 	jp p,GotKey   ; printable key
 	
+	push af
 	cp Keyboard.KeyCode.Escape
-	jr nz,NoKey
-	
+	jr z,KeyLoopEscape
+	pop af
+	scf
+	ccf
+	ret
+
+KeyLoopEscape:
+	pop af
 	ld a,17 ; Escape
 	call Basic.BBCBASIC_EXTERR
 	.db "Escape", 0
@@ -147,17 +169,21 @@ NoKey:
 	ret
 
 GotKey:
-	or a
+	scf
+	ccf
 	ret
 
 EndKeyLoop:
 	push af
 	ld a,c
 	or a
-	jr z,+
+	jr z,++
+	ld a,(hl)
+	cp '\r'
+	jr nz,+
 	ld a,' '
-	call VDU.PutMap
-+:	pop af
++:	call VDU.PutMap
+++:	pop af
 	ret
 
 	
@@ -195,28 +221,37 @@ OSKEY:
 	call InitKeyLoop
 
 	ld c,0 ; Skip the flashing cursor on the first loop.
-
--:	call RunKeyLoop
+	
+-:	push hl
+	ld hl,EmptyChar
+	call RunKeyLoop
+	pop hl
+	jr nz,+ ; No keys at all.
+	jp m,+  ; Ignore special keys
 	jr nc,GotTimedKey ; We have a key!
 	
 	; Has the timer expired?
-	push hl
++:	push hl
 	ld de,(TIME)
 	or a
 	sbc hl,de
 	ex de,hl
 	pop hl
 	
-	; Check if timer has gone native.
+	; Check if timer has gone negative.
 	bit 7,d
-	jr nz,KeyTimedOut
+	jr z,-
 
 KeyTimedOut:
-	scf ; Timed out, so pretend we dont 
+	scf ; Timed out, so pretend we dont have a key.
 	
 GotTImedKey:
 	ccf
+	
+	push hl
+	ld hl,EmptyChar
 	call EndKeyLoop
+	pop hl
 	
 	pop de
 	pop bc
@@ -246,58 +281,278 @@ GotTImedKey:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSLINE:
+
+	call InitKeyLoop
+
 	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
+	
+	; Clear the input buffer.
+	ld (hl),'\r'
+	push hl
+	push hl
+	pop de
+	inc de
+	push bc
+	ldir
+	pop bc
+	pop hl
+	
+	ld d,0 ; D = index into current string.
 
 OSLINE.Loop:
-	call OSRDCH
+	call ReadChar
+	jp m,OSLINE.ExtendedKey
 	
+	; Control keys.
 	cp '\b'
-	jr z,OSLINE.Backspace
+	jp z,OSLINE.Backspace
 	cp 127
-	jr z,OSLINE.Backspace
+	jp z,OSLINE.Delete
+	cp '\r'
+	jp z,OSLINE.Return
 
-	ld e,a
+	; Check if it's in the range 32..127.
+	cp 32
+	jr c,OSLINE.Loop
+	cp 128
+	jr nc,OSLINE.Loop
 	
+	; Check if we've got enough space.
+	ld e,a
 	ld a,c
 	or a
-	jr nz,OSLINE.EnoughSpace
-	
-	; We're out of space... but there's always space for \r, so check
-	ld a,e
-	cp '\r'
-	jr nz,OSLINE.Loop
+	jr z,OSLINE.Loop
 
 OSLINE.EnoughSpace:	
+	
+	; Move all characters after the current one right.
+	push bc
+	push de
+	push hl
+	
+	; Where's the end of the string?
+	; It's at HL+B-D
+	push bc
+	ld c,b
+	ld b,0
+	add hl,bc
+	ld c,d
+	or a
+	sbc hl,bc
+	pop bc
+	
+	; Quantity to copy is B-D+1
+	ld a,b
+	sub d
+	inc a
+	ld c,a
+	ld b,0
+	
+	; Set DE to point to the last character in the string.
+	ld e,l
+	ld d,h
+	
+	; Advance DE to point at the character just after the end of the string (\r terminator).
+	inc de
+	
+	lddr
+	
+	pop hl
+	pop de
+	pop bc
+	
+	; Store the character.
 	ld a,e
 	ld (hl),a
 	inc hl
+	inc d
 	
+	; Increment the current length (B), decrement the maximum length (C).
 	inc b
 	dec c
 	
-	call OSASCI
+	; Print the character.
+	call VDU.PutChar
 	
+	ld e,0 ; Don't draw a blank character on the end of the new line.
+
+OSLINE.RepaintToEnd:
+	
+	; Are there any characters between the current one and the end of the line?
+	ld a,b
+	sub d
+	jp z,OSLINE.Loop
+	
+	; We need to repaint...
+	push bc
+	push hl
+	ld b,a
+	
+	; Redraw the rest of the characters.
+	push bc
+-:	ld a,(hl)
+	call VDU.PutChar
+	inc hl
+	djnz -
+	
+	ld a,e
 	cp '\r'
-	jr nz,OSLINE.Loop
+	jr nz,+
+	ld a,' '
++:	or a
+	call nz,VDU.PutMap
+	
+	; Move the cursor back to where it should be.
+	pop bc
+-:	call VDU.Console.CursorLeft
+	djnz -
+	
+	pop hl
+	pop bc
+	jp OSLINE.Loop
+
+OSLINE.Return:
+	
+	; Move to the end.
+	call OSLINE.End
+	
+	; Finish up and return.
+	call EndKeyLoop
+	
+	ld a,'\r'
+	call VDU.PutChar
+	
 	xor a
 	ret
+
+OSLINE.ExtendedKey:
 	
+	cp Keyboard.KeyCode.Home
+	call z,OSLINE.Home
+	
+	cp Keyboard.KeyCode.End
+	call z,OSLINE.End
+	
+	cp Keyboard.KeyCode.Left
+	call z,OSLINE.Left
+	
+	cp Keyboard.KeyCode.Right
+	call z,OSLINE.Right
+	
+	jp OSLINE.Loop
+
+OSLINE.Delete:
+	; Same as moving right once, then backspacing.
+	
+	; Are we at the end?
+	ld a,d
+	cp b
+	jp z,OSLINE.Loop
+	
+	call VDU.Console.CursorRight
+	inc hl
+	inc d
+	
+	; Run-on to Backspace handler.
 
 OSLINE.Backspace:
-	ld a,b
+	; Are we at the start of the string? (Offset from start = 0)?
+	ld a,d
 	or a
-	jr z,OSLINE.Loop
+	jp z,OSLINE.Loop
 	
+	; Move all characters from the current cursor position+1 to the end of the string left one.
+	push hl
+	push de
+	push bc
+	
+	ld a,b
+	sub d
+	inc a
+	ld c,a
+	ld b,0
+	
+	ld e,l
+	ld d,h
+	dec de
+	ldir
+	
+	pop bc
+	pop de
+	pop hl
+	
+	; Decrease the current length of the string, increase the free space.
 	dec b
 	inc c
 	
-	dec hl
-	ld (hl),'\r'
-	
+	; Move the cursor left.
 	call VDU.Console.CursorLeft
 	
-	jr OSLINE.Loop
+	dec hl
+	dec d
 
+	ld e,' ' ; Blank off the end of the backspaced line.
+	jp OSLINE.RepaintToEnd
+
+OSLINE.Home:
+	push af
+	; Are we already at the start?
+	ld a,d
+	or a
+	jr z,+
+
+-:	call VDU.Console.CursorLeft
+	dec hl
+	dec d
+	jr nz,-
++:	pop af
+	ret
+	
+OSLINE.End:
+	push af
+	; Are we already at the end?
+	ld a,d
+	cp b
+	jr z,+
+
+-:	call VDU.Console.CursorRight
+	inc hl
+	inc d
+	ld a,b
+	cp d
+	jr nz,-
++:	pop af
+	ret
+
+OSLINE.Left:
+	push af
+	
+	; Are we already at the start?
+	ld a,d
+	or a
+	jr z,+
+	
+	call VDU.Console.CursorLeft
+	dec hl
+	dec d
+	
++:	pop af
+	ret
+
+OSLINE.Right:
+	push af
+	
+	; Are we already at the end?
+	ld a,d
+	cp b
+	jr z,+
+	
+	call VDU.Console.CursorRight
+	inc hl
+	inc d
+	
++:	pop af
+	ret
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
