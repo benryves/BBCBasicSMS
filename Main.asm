@@ -1,6 +1,9 @@
 ﻿; Script
 .incscript "Scripts.cs"
 
+; Resources
+.include "Tokens.inc"
+
 .emptyfill $FF
 
 ; BBC BASIC's scratch memory will be in RAM ($DC00..$DEFF)
