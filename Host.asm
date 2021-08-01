@@ -18,6 +18,9 @@ Overwrite = 1
 
 TrapKeyboardTimer = allocVar(1)
 
+OSLINE.Override = allocVar(2)
+OSWRCH.Override = allocVar(2)
+
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
 ; 
@@ -43,6 +46,9 @@ OSINIT:
 	ld hl,0
 	ld (TIME+0),hl
 	ld (TIME+2),hl
+	
+	ld (OSLINE.Override),hl
+	ld (OSWRCH.Override),hl
 	
 	xor a
 	ld (TrapKeyboardTimer),a
@@ -299,7 +305,7 @@ GotTImedKey:
 ; 
 ; === Host.OSLINE ===
 ;
-;   Read a line, terminated by RETURN, from the Vdu.Text.
+;   Read a line, terminated by RETURN, from the console.
 ;
 ; INPUTS:
 ;   REGISTERS
@@ -318,7 +324,14 @@ GotTImedKey:
 ;------------------------------------------------------------------------------- 
 OSLINE:
 
-	call InitKeyLoop
+	ld bc,(OSLINE.Override)
+	ld a,b
+	or a
+	jr z,+
+	push bc
+	ret
+
++:	call InitKeyLoop
 	
 	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
 	ld d,0 ; D = index into current string.
@@ -612,6 +625,43 @@ OSLINE.Right:
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
 ; 
+; === Host.OSLINE.Prefilled ===
+;
+;   Read a line, terminated by RETURN, from the console.
+;   The input buffer pointed to by HL may be pre-filled.
+;
+; INPUTS:
+;   REGISTERS
+;   * HL - pointer to destination RAM for entered line. A maximum of 256 bytes
+;          are available for the line, including the CR terminator.
+;
+; OUTPUTS:
+;   REGISTERS
+;   * A  - Must be zero.
+;
+; DESTROYED:
+;   REGISTERS:
+;   * AF, BC, DE, HL
+;
+;@doc:end
+;------------------------------------------------------------------------------- 
+OSLINE.Prefilled:
+	call InitKeyLoop
+	ld bc,255
+	ld d,0
+-:	ld a,(hl)
+	cp '\r'
+	jp z,OSLINE.Loop
+	call VDU.PutChar
+	inc d
+	inc hl
+	inc b
+	dec c
+	jr -
+
+;------------------------------------------------------------------------------- 
+;@doc:routine 
+; 
 ; === Host.OSASCI ===
 ;
 ;   Outputs a character using OSWRCH.
@@ -663,6 +713,32 @@ PROMPT:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSWRCH:
+	push hl
+	push af
+	
+	ld hl,(OSWRCH.Override)
+	ld a,h
+	or l
+	jr z,OSWRCH.NoOverride
+
+	pop af
+	
+	push bc
+	ld bc,OSWRCH.OverrideReturn
+	
+	push bc
+	jp (hl)
+
+OSWRCH.OverrideReturn:	
+	pop bc
+	pop hl
+	ei
+	ret
+
+OSWRCH.NoOverride:
+	pop af
+	pop hl
+	
 	call VDU.WriteByte
 	ei
 	ret

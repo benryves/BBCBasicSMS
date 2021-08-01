@@ -1,5 +1,7 @@
 .module CLI
 
+TempPtr = PCLink2.TempPtr
+
 ; ---------------------------------------------------------
 ; Execute -> Executes the *COMMAND.
 ; ---------------------------------------------------------
@@ -18,6 +20,14 @@ BadCommand:
 	ld a,254
 	call Basic.BBCBASIC_EXTERR
 	.db Tokens.Bad, "command", 0
+TooBig:
+	ld a,20
+	call Basic.BBCBASIC_EXTERR
+	.db "Too big", 0
+NoRoom:
+	xor a
+	call Basic.BBCBASIC_EXTERR
+	.db Tokens.No, "room", 0
 
 ; ---------------------------------------------------------
 ; SkipWhitespace -> Skip past the whitespace in a command.
@@ -114,6 +124,72 @@ DispatchCommandNoMatch:
 	.db name
 	.dw target
 .endfunction
+
+; ---------------------------------------------------------
+; GetDecimalWord -> Gets a value between 0..65565.
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to command line.
+; Outputs:  hl = pointer to next character in the command.
+;           de = parsed value.
+; Destroys: af, hl, de.
+; ---------------------------------------------------------
+GetDecimalWord:
+	ld de,0
+	call SkipWhitespace
+	ld a,(hl)
+	or a
+	jp z,BadCommand
+	cp '\r'
+	jp z,BadCommand
+	cp ' '
+	jp z,BadCommand
+	cp ','
+	jp z,BadCommand
+
+-:	ld a,(hl)
+	or a
+	ret z
+	cp '\r'
+	ret z
+	cp ' '
+	ret z
+	cp ','
+	ret z
+	
+	; Parse the value.
+	cp '0'
+	jp c,BadCommand
+	cp '9'*1+1
+	jp nc,BadCommand
+	sub '0'
+	
+	inc hl
+	
+	ex de,hl
+
+	push bc
+	
+	; Multiply existing value by 10.
+	add hl,hl
+	jp c,TooBig
+	ld c,l \ ld b,h
+	add hl,hl
+	jp c,TooBig
+	add hl,hl
+	jp c,TooBig
+	add hl,bc
+	jp c,TooBig
+	
+	; Add the parsed value.
+	ld b,0 \ ld c,a
+	add hl,bc
+	jp c,TooBig
+	
+	ex de,hl
+	
+	pop bc
+	
+	jr -
 
 Terminal:
 	call CheckCommandEnd
@@ -291,12 +367,130 @@ Catalogue.PrintEndOfItem:
 
 Catalogue.PrintEndOfList:
 	jp VDU.Console.NewLine
+
+
+Edit:
+	; Is there enough room to edit the line?
+	push hl
+	push de
 	
+	ld hl,0
+	ld de,(Basic.BBCBASIC_FREE)
+	or a
+	sbc hl,de	
+	add hl,sp
+	ld de,384
+	or a
+	sbc hl,de
+	jp c,NoRoom
+	pop de
+	pop hl
+	
+	; Check there's a valid line number after *EDIT
+	push hl
+	call GetDecimalWord
+	call CheckCommandEnd
+	pop hl
+	
+	; Store the *EDIT line number in BASIC's free memory.
+	ld de,(Basic.BBCBASIC_FREE)
+	ld (TempPtr),de
+-:	ld a,(hl)
+	ldi
+	cp '\r'
+	jr nz,-
+	
+	; Override OSLINE with our "L.<line>" routine.
+	ld hl,Edit.OSLine.List
+	ld (Host.OSLINE.Override),hl
+	scf
+	ret
+
+Edit.OSLINE.List:
+	
+	; Pretend we typed "L."
+	ld (hl),'L'
+	inc hl
+	ld (hl),'.'
+	inc hl
+	
+	; Copy the line number
+	ex de,hl
+	ld hl,(Basic.BBCBASIC_FREE)
+-:	ld a,(hl)
+	ldi
+	cp '\r'
+	jr nz,-
+	
+	; We'll want to capture the LISTed program line.
+	ld hl,Edit.OSWRCH.List.FirstChar
+	ld (Host.OSWRCH.Override),hl
+	
+	; We want the next OSLINE to edit the captured LISTed line.
+	ld hl,Edit.OSLINE.Edit
+	ld (Host.OSLINE.Override),hl
+	
+	xor a
+	ret
+
+Edit.OSWRCH.List.FirstChar:
+	cp '>' ; is it the prompt?
+	jr nz,+
+
+	; If the first character of the LISTed line is the > prompt, there is no line to edit.
+	push hl
+	ld hl,0
+	ld (Host.OSWRCH.Override),hl
+	ld (Host.OSLINE.Override),hl
+	pop hl
+	ret
+
++:	push hl
+	ld hl,Edit.OSWRCH.List
+	ld (Host.OSWRCH.Override),hl
+	pop hl
+Edit.OSWRCH.List:
+	push hl
+	ld hl,(TempPtr)
+	ld (hl),a
+	inc hl
+	ld (TempPtr),hl
+	pop hl
+	ret
+
+Edit.OSLINE.Edit:
+	; Now, we finally perform our editing duties!
+	ld de,0
+	ld (Host.OSLINE.Override),de
+	ld (Host.OSWRCH.Override),de
+	
+	push hl
+	
+	; Make sure our captured line always ends in a CR.
+	ld hl,(TempPtr)
+	ld (hl),'\r'
+	
+	pop de
+	push de
+	
+	; Read LISTed line from memory.
+	ld hl,(Basic.BBCBASIC_FREE)
+	call SkipWhitespace
+-:	ld a,(hl)
+	ldi
+	cp '\r'
+	jr nz,-
+	
+	; Now edit the line.
+	pop hl
+	jp Host.OSLINE.Prefilled
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
 	osclicommand("DIR", Catalogue)
 	osclicommand(".", Catalogue)
+	osclicommand("EDIT", Edit)
 	.db 0
 
 .endmodule
