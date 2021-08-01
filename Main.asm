@@ -86,7 +86,6 @@ FrameInterrupt:
 
 ; Libraries:
 .include "Video.asm"
-.include "Host.asm"
 .include "AT.asm"
 .include "Keyboard.asm"
 .include "UK.inc"
@@ -95,6 +94,8 @@ FrameInterrupt:
 .include "PCLink2.asm"
 .include "Sound.asm"
 .include "Maths.asm"
+.include "CLI.asm"
+.include "Host.asm"
 
 Boot:
 	; Make sure SP points somewhere sensible.
