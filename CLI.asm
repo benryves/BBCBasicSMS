@@ -55,7 +55,7 @@ SkipWhitespace:
 ;                    command, raise an error if not.
 ; ---------------------------------------------------------
 ; Inputs:   hl = pointer to command line.
-; Destroys: Everything.
+; Destroys: af.
 ; ---------------------------------------------------------
 CheckCommandEnd:
 	call SkipWhitespace
@@ -65,6 +65,20 @@ CheckCommandEnd:
 	ret z
 	jp BadCommand
 
+; ---------------------------------------------------------
+; CheckCommandInteractive -> Check that the command is
+;     being run interactively and not as part of a BASIC
+;     program.
+; ---------------------------------------------------------
+; Inputs:   iy = Program pointer.
+; Destroys: af.
+; ---------------------------------------------------------
+CheckCommandInteractive:
+	ld a,iyh
+	cp Basic.BBCBASIC_BUFFER >> 8
+	ret z
+	jp BadCommand
+	
 ; ---------------------------------------------------------
 ; DispatchCommand -> Execute a command based on its name.
 ; ---------------------------------------------------------
@@ -370,10 +384,11 @@ Catalogue.PrintEndOfList:
 
 
 Edit:
+	; We cannot use *EDIT inside a BASIC program!
+	call CheckCommandInteractive
 	; Is there enough room to edit the line?
 	push hl
 	push de
-	
 	ld hl,0
 	ld de,(Basic.BBCBASIC_FREE)
 	or a
