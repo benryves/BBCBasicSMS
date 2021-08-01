@@ -436,9 +436,11 @@ SetUserDefinedCharacter:
 	
 	call Video.SetWriteAddress
 	
-	ex de,hl
-	ld bc,8*256 + Video.Data
-	otir
+	ld b,8
+-:	ld a,(de)           ; 7
+	out (Video.Data),a  ; 11
+	inc de              ; 6
+	djnz -              ; 13 = 37 clocks
 	
 	ei
 	ret
