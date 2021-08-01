@@ -90,7 +90,22 @@ ReadChar:
 
 -:	call RunKeyLoop
 	jr c,-
+	jp p,ReadCharPrintable
+	
+	push af
+	
+	cp Keyboard.KeyCode.Insert
+	jr nz,+
+	ld a,(Flags)
+	xor 1<<Overwrite
+	ld (Flags),a
+	
+	pop af
+	jr -
 
++:	pop af
+
+ReadCharPrintable:
 	call EndKeyLoop
 	
 	pop hl
@@ -171,6 +186,7 @@ NoFlashCursor:
 	ret
 
 KeyLoopEscape:
+	call EndKeyLoop
 	pop af
 	ld a,17 ; Escape
 	call Basic.BBCBASIC_EXTERR
@@ -239,8 +255,16 @@ OSKEY:
 	call RunKeyLoop
 	pop hl
 	jr nz,+ ; No keys at all.
-	jp m,+  ; Ignore special keys
-	jr nc,GotTimedKey ; We have a key!
+	jr c,+  ; Released key.
+	jp p,GotTimedKey  ; It's a printable key.
+	
+	cp Keyboard.KeyCode.Insert
+	jr nz,+
+	
+	; Toggle insert/overwrite.
+	ld a,(Flags)
+	xor 1<<Overwrite
+	ld (Flags),a
 	
 	; Has the timer expired?
 +:	push hl
@@ -473,10 +497,7 @@ OSLINE.ExtendedKey:
 	
 	cp Keyboard.KeyCode.Right
 	call z,OSLINE.Right
-	
-	cp Keyboard.KeyCode.Insert
-	call z,OSLINE.Insert
-	
+		
 	jp OSLINE.Loop
 
 OSLINE.Delete:
@@ -590,14 +611,6 @@ OSLINE.Right:
 	inc d
 	
 +:	pop af
-	ret
-
-OSLINE.Insert:
-	push af
-	ld a,(Flags)
-	xor 1 << Overwrite
-	ld (Flags),a
-	pop af
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -765,8 +778,6 @@ RESET:
 	
 	xor a
 	ld (VDU.CommandQueue.Waiting),a
-	ld a,' '
-	call VDU.PutMap
 	
 	pop bc
 	pop de
