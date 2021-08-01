@@ -56,11 +56,11 @@ CheckCommandEnd:
 	jp BadCommand
 
 ; ---------------------------------------------------------
-; DispatchCommand -> 
+; DispatchCommand -> Execute a command based on its name.
 ; ---------------------------------------------------------
 ; Inputs:   hl = pointer to command line.
 ;           de = pointer to command table.
-; Outputs:  hl = pointer to next character.
+; Outputs:  hl = pointer to next character in the command.
 ; Destroys: af.
 ; ---------------------------------------------------------
 DispatchCommand:
@@ -114,120 +114,6 @@ DispatchCommandNoMatch:
 	.db name
 	.dw target
 .endfunction
-
-
-Sync:
-	call CheckCommandEnd
-	ld hl,Sync.Text
-	call VDU.PutString
-	call PCLink2.Sync
-	ld hl,Sync.OK
-	jr z,+
-	ld hl,Sync.Failed
-+:	call VDU.PutString
-	scf
-	ret
-
-Sync.Text:
-	.db "Sync...",0
-Sync.OK:
-	.db "OK\r",0
-Sync.Failed:
-	.db "Failed\r",0
-
-Hello:
-	call CheckCommandEnd
-	ld hl,Hello.Text
-	call VDU.PutString
-	ld a,'?'
-	call VDU.PutChar
-	call VDU.Console.NewLine
-	
-	call PCLink2.Hello
-	scf
-	ret nz
-
-	ld hl,Hello.Text
-	call VDU.PutString
-	ld a,'!'
-	call VDU.PutChar
-	call VDU.Console.NewLine
-	scf
-	ret
-	
-Hello.Text:
-.db "Hello",0
-
-Goodbye:
-	call CheckCommandEnd
-	ld hl,Goodbye.Text
-	call VDU.PutString
-	ld a,'?'
-	call VDU.PutChar
-	call VDU.Console.NewLine
-	
-	call PCLink2.Goodbye
-	scf
-	ret nz
-	
-	ld hl,Goodbye.Text
-	call VDU.PutString
-	ld a,'!'
-	call VDU.PutChar
-	call VDU.Console.NewLine
-	scf
-	ret
-	
-Goodbye.Text
-.db "Goodbye",0
-
-ListDevices:
-	call CheckCommandEnd
-	ld hl,ListDevices.Text
-	call VDU.PutString
-	call PCLink2.ListDevices
-	ld hl,Sync.OK
-	jr z,+
-	ld hl,Sync.Failed
-+:	call VDU.PutString
-	scf
-	ret
-ListDevices.Text:
-.db "List Devices...",0
-
-ListDirectories:
-	call SkipWhitespace
-	push hl
-	ld hl,ListDirectories.Text
-	call VDU.PutString
-	pop hl
-	inc hl
-	call PCLink2.ListDirectories
-	ld hl,Sync.OK
-	jr z,+
-	ld hl,Sync.Failed
-+:	call VDU.PutString
-	scf
-	ret
-ListDirectories.Text:
-.db "List Directories...",0
-
-ListFiles:
-	call SkipWhitespace
-	push hl
-	ld hl,ListFiles.Text
-	call VDU.PutString
-	pop hl
-	inc hl
-	call PCLink2.ListFiles
-	ld hl,Sync.OK
-	jr z,+
-	ld hl,Sync.Failed
-+:	call VDU.PutString
-	scf
-	ret
-ListFiles.Text:
-.db "List Files...",0
 
 Terminal:
 	call CheckCommandEnd
@@ -284,14 +170,133 @@ Terminal.GotByte:
 SerialTerminal:
 	.db "Testing serial port...\r", 0
 
+Catalogue:
+	call SkipWhitespace
+	
+	; Is there an argument?
+	ld a,(hl)
+	or a
+	jr z,Catalogue.NoArgument
+	cp '\r'
+	jr nz,Catalogue.FoundArgument
+Catalogue.NoArgument:
+	; List devices if there is no arguments.
+	push ix
+	push hl
+	ld ix,Catalogue.PrintDirectoryName
+	call PCLink2.ListDevices
+	pop hl
+	pop ix
+	jr nz,Catalogue.Error
+	scf
+	ret
+	
+Catalogue.FoundArgument:
+	
+	; Start by listing directories.
+	push ix
+	push hl
+	ld ix,Catalogue.PrintDirectoryName
+	call PCLink2.ListDirectories
+	pop hl
+	pop ix
+	jr nz,Catalogue.error
+	
+	; Then list files.
+	push ix
+	push hl
+	ld ix,Catalogue.PrintFileName
+	call PCLink2.ListFiles
+	pop hl
+	pop ix
+	jr nz,Catalogue.error
+	
+	; We have success!
+	scf
+	ret
+
+Catalogue.Error:
+	ld a,202
+	call Basic.BBCBASIC_EXTERR
+	.db "Device fault", 0
+
+Catalogue.PrintStartOfDirectoryName:
+	call Catalogue.PrintStartOfItem
+	ld a,'['
+	jp VDU.PutChar
+
+Catalogue.PrintDirectoryName:
+	cp PCLink2.ListItems.StartOfItem
+	jr z,Catalogue.PrintStartOfDirectoryName
+	cp PCLink2.ListItems.EndOfItem
+	jr z,Catalogue.PrintEndOfDirectoryName
+	; Fall-through 
+Catalogue.PrintFileName:
+	cp PCLink2.ListItems.StartOfItem
+	jr z,Catalogue.PrintStartOfItem
+	cp PCLink2.ListItems.EndOfItem
+	jr z,Catalogue.PrintEndOfItem
+	cp PCLink2.ListItems.EndOfList
+	jr z,Catalogue.PrintEndOfList
+	
+	; It must be a regular character.
+	jp VDU.PutChar
+
+Catalogue.PrintStartOfItem:
+	ld a,(VDU.Console.MinCol)
+	ld c,a
+	ld a,(VDU.Console.MaxCol)
+	sub c
+	sub 18 
+	jr nc,+
+	xor a
++:	ld c,a ; C = maximum cursor column relative to viewport.
+	
+	ld a,(VDU.Console.MinCol)
+	ld b,a
+	ld a,(VDU.Console.CurCol)
+	sub b
+	ld b,a ; B = current cursor column relative to the vieport.
+	
+	xor a
+-:	cp b
+	jr nc,+
+	add a,18
+	cp c
+	jr c,-
+	; We've moved back to the left column, so trigger a newline.
+	call VDU.Console.NewLine
+	xor a
++:	
+	; A = our new desired cursor column relative to the viewport.
+	push bc
+	ld b,a
+	ld a,(VDU.Console.MinCol)
+	add a,b
+	ld (VDU.Console.CurCol),a
+	pop bc
+	
+	ld a,' '
+	call VDU.PutChar
+	call VDU.PutChar
+	
+	ret
+	
+Catalogue.PrintEndOfDirectoryName:
+	ld a,']'
+	call VDU.PutChar
+	; Fall-through.
+Catalogue.PrintEndOfItem:
+	ret
+
+Catalogue.PrintEndOfList:
+	jp VDU.Console.NewLine
+	
 Commands:
-	osclicommand("SYNC", Sync)
-	osclicommand("HELLO", Hello)
-	osclicommand("GOODBYE", Goodbye)
-	osclicommand("LISTDEVICES", ListDevices)
-	osclicommand("LISTDIRS", ListDirectories)
-	osclicommand("LISTFILES", ListFiles)
 	osclicommand("TERM", Terminal)
+	osclicommand("CAT", Catalogue)
+	osclicommand("DIR", Catalogue)
+	osclicommand(".", Catalogue)
 	.db 0
 
 .endmodule

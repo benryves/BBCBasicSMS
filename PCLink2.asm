@@ -2,10 +2,11 @@
 
 TempPtr = allocVar(2)
 TempCapacity = allocVar(2)
-TempChecksum = allocVar(2)
 TempSize = allocVar(2)
 
-Debug.ShowChecksum = 0
+ListItems.StartOfItem = 2 ; STX
+ListItems.EndOfItem   = 3 ; ETX
+ListItems.EndOfList   = 4 ; EOF
 
 ; ---------------------------------------------------------
 ; Sync -> Synchronises the PC LINK 2 protocol.
@@ -378,7 +379,7 @@ Goodbye:
 ; ---------------------------------------------------------
 ; ListDevices -> Shows a list of devices.
 ; ---------------------------------------------------------
-; Inputs:   None
+; Inputs:   ix = callback to print characters with.
 ; Outputs:  z on success, nz on failure.
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
@@ -391,6 +392,7 @@ ListDevices:
 ; ListDirectories -> Shows a list of directories.
 ; ---------------------------------------------------------
 ; Inputs:   hl = pointer to full path string.
+;           ix = callback to print characters with.
 ; Outputs:  z on success, nz on failure.
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
@@ -402,6 +404,7 @@ ListDirectories:
 ; ListFiles -> Shows a list of files.
 ; ---------------------------------------------------------
 ; Inputs:   hl = pointer to full path string.
+;           ix = callback to print characters with.
 ; Outputs:  z on success, nz on failure.
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
@@ -414,6 +417,7 @@ ListFiles:
 ; ---------------------------------------------------------
 ; Inputs:   c = type of item do list.
 ;           hl = pointer to path or 0 to omit.
+;           ix = callback to print characters with.
 ; Outputs:  z on success, nz on failure.
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
@@ -458,34 +462,74 @@ ListItems.SendPath:
 	
 ListItems.PathSent:
 	
+	; Item count = 0.
+	ld bc,0
+	ld (TempPtr),bc
+	
 	; End the path with a 'Z' escape code.
 	ld a,'Z'
 	call SendEscapeCode
 	ret nz
 
 ListItems.NoPath:
-	
--:	call GetDataByte
+ListItems.Loop:
+	call GetDataByte
 	ret nz
 	
 	jr nc,List.NotEscapeCode
 	
 	cp 'Z' ; End of list.
 	jr nz,+
-	call VDU.Console.NewLine
+	
+	ld bc,(TempPtr)
+	ld a,b
+	or c
+	jr z,ListItems.EmptyList
+	
+	ld a,ListItems.EndOfItem
+	ld hl,ListItems.EmptyList
+	push hl
+	jp (ix)
+	
+ListItems.EmptyList:
+	ld a,ListItems.EndOfList
+	ld hl,ListItems.ReturnEndOfList
+	push hl
+	jp (ix)
+	
+ListItems.ReturnEndOfList:
 	xor a ; Set z.
 	ret
+	
 +:
 	
 	cp 'N' ; Item name.
 	ret nz
-	call VDU.Console.NewLine
-	jr -
+	
+	
+	ld bc,(TempPtr)
+	ld a,b
+	or c
+	inc bc
+	ld (TempPtr),bc
+	
+	jr z,ListItems.FirstItem
+	
+	ld a,ListItems.EndOfItem
+	ld hl,ListItems.FirstItem
+	push hl
+	jp (ix)
+ListItems.FirstItem:
+	ld a,ListItems.StartOfItem
+	ld hl,ListItems.Loop
+	push hl
+	jp (ix)
 
 List.NotEscapeCode:
-	
-	call VDU.PutChar
-	jr -
+	ld bc,(TempPtr)
+	ld hl,ListItems.Loop
+	push hl
+	jp (ix)
 	
 ; ---------------------------------------------------------
 ; GetFile -> Gets a file.
@@ -500,9 +544,6 @@ List.NotEscapeCode:
 GetFile:
 	ld (TempPtr),de
 	ld (TempCapacity),bc
-	ld bc,0
-	ld (TempChecksum),bc
-	ld (TempSize),bc
 	
 	; Sync.
 	push hl
@@ -553,10 +594,6 @@ GetFile.ReceiveFileLoop:
 	
 	cp 'Z' ; End of file.
 	jr nz,GetFile.ProtocolError
-
-.if Debug.ShowChecksum
-	call GetFile.CompareChecksum ; Debugging
-.endif
 	
 	xor a ; Set z.
 	ret
@@ -564,28 +601,18 @@ GetFile.ReceiveFileLoop:
 GetFile.NotEscapeCode:
 
 	ld e,a
-	ld d,0
-	ld hl,(TempChecksum)
-	add hl,de
-	ld (TempChecksum),hl
 	
 	ld bc,(TempCapacity)
-	
 	ld a,b
 	or c
 	jr z,GetFile.SizeError
+	dec bc
+	ld (TempCapacity),bc
 	
 	ld hl,(TempPtr)
 	ld (hl),e
-	
 	inc hl
-	dec de
 	ld (TempPtr),hl
-	ld (TempCapacity),hl
-	
-	ld hl,(TempSize)
-	inc hl
-	ld (TempSize),hl
 	
 	jr GetFile.ReceiveFileLoop
 
@@ -699,122 +726,5 @@ SendFile.PathSent:
 	; Only one file, so end with a 'Z' escape code.
 	ld a,'Z'
 	jp SendEscapeCode
-
-
-.if Debug.ShowChecksum
-
-GetFile.CompareChecksum:
-	call VDU.Console.NewLine
-	
-	ld a,'S'
-	call VDU.PutChar
-	ld a,'='
-	call VDU.PutChar
-	ld hl,(TempSize)
-	call PutHexWord
-	call VDU.Console.NewLine
-	
-	ld a,'C'
-	call VDU.PutChar
-	ld a,'='
-	call VDU.PutChar
-	ld hl,(TempChecksum)
-	call PutHexWord
-	call VDU.Console.NewLine
-	
-	; Is the received data the same size as the checksum test file?
-	ld hl,(TempSize)
-	ld de,ChecksumTestFile.Size
-	or a
-	sbc hl,de
-	ld a,h
-	or l
-	ret nz
-	
-	; Start from the beginning of the file.
-	ld hl,(TempPtr)
-	ld de,-ChecksumTestFile.Size
-	add hl,de
-	ld de,ChecksumTestFile
-	
-	ld bc,ChecksumTestFile.Size
-	
--:	ld a,(de)
-	cp (hl)
-	jr z,+
-	
-	push hl
-	push de
-	push bc
-	
-	ld a,'E'
-	call VDU.PutChar
-	ld a,'@'
-	call VDU.PutChar
-	
-	ld hl,(TempSize)
-	pop bc
-	push bc
-	or a
-	sbc hl,bc
-	call PutHexWord
-	
-	ld a,' '
-	call VDU.PutChar
-	ld a,':'
-	call VDU.PutChar
-	ld a,')'
-	call VDU.PutChar
-	ld a,'='
-	call VDU.PutChar
-	
-	pop bc
-	pop de
-	push de
-	push bc
-	
-	ld a,(de)
-	call PutHexByte
-	
-	ld a,' '
-	call VDU.PutChar
-	ld a,':'
-	call VDU.PutChar
-	ld a,'('
-	call VDU.PutChar
-	ld a,'='
-	call VDU.PutChar
-	
-	pop bc
-	pop de
-	pop hl
-	push hl
-	push de
-	push bc
-	
-	ld a,(hl)
-	call PutHexByte
-	
-	call VDU.Console.NewLine
-	
-	pop bc
-	pop de
-	pop hl
-
-+:	inc hl
-	inc de
-	dec bc
-	ld a,b
-	or c
-	jr nz,-
-	
-	ret
-
-ChecksumTestFile:
-.incbin "Programs/MANDELBAUM.BBC"
-ChecksumTestFile.End:
-ChecksumTestFile.Size = ChecksumTestFile.End - ChecksumTestFile
-
-.endif
 
 .endmodule
