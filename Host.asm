@@ -319,23 +319,19 @@ GotTImedKey:
 OSLINE:
 
 	call InitKeyLoop
-
+	
 	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
-	
-	; Clear the input buffer.
-	ld (hl),'\r'
-	push hl
-	push hl
-	pop de
-	inc de
-	push bc
-	ldir
-	pop bc
-	pop hl
-	
 	ld d,0 ; D = index into current string.
 
 OSLINE.Loop:
+	
+	; Are we typing the last character of the string?
+	; If so, make sure it's CR-terminated.
+	ld a,d
+	cp b
+	jr nz,+
+	ld (hl),'\r'
++:
 	call ReadChar
 	jp m,OSLINE.ExtendedKey
 	
