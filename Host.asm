@@ -1339,12 +1339,152 @@ CLRSCN:
 ; 
 ; === Host.ADVAL ===
 ; 
-;   Analogue-to-digital conversion (mouse).
+;   Analogue-to-digital conversion.
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 ADVAL:
-	jp SORRY
+	call Basic.BBCBASIC_ITEMI
+	bit 7,h
+	jr nz,ADVAL.Negative
+
+ADVAL.Positive:
+	; Check that MSB = 0
+	ld a,h
+	or l
+	exx
+	push bc
+	
+	jr nz,ADVAL.Return0
+	
+	; Check that H = 0
+	ld a,h
+	or a
+	jr nz,ADVAL.Return0
+	
+	; Now we can actually perform the ADVAL reading!
+	ld a,l
+	
+	or a  \ jr z,ADVAL.JoystickButtons
+	dec a \ jr z,ADVAL.Joystick1X
+	dec a \ jr z,ADVAL.Joystick1Y
+	dec a \ jr z,ADVAL.Joystick2X
+	dec a \ jr z,ADVAL.Joystick2Y
+	
+	jr ADVAL.Return0
+
+ADVAL.Negative:
+	; Check that MSB = -1
+	ld a,h
+	and l
+	inc a
+	exx
+	push bc
+	
+	jr nz,ADVAL.Return0
+	
+	; Check that H = -1
+	ld a,h
+	inc a
+	jr nz,ADVAL.Return0
+	
+	ld a,l
+	
+	inc a \ jr z,ADVAL.Return0 ; Number of characters in keyboard buffer.
+	inc a \ jr z,ADVAL.Return0 ; Number of characters in serial input buffer.
+	inc a \ jr z,ADVAL.Return0 ; Number of characters in serial output buffer.
+	inc a \ jr z,ADVAL.Return0 ; Number of characters in printer output buffer.
+	inc a \ jr z,ADVAL.Return0 ; Number of free spaces in sound channel 0 buffer.
+	inc a \ jr z,ADVAL.Return0 ; Number of free spaces in sound channel 1 buffer.
+	inc a \ jr z,ADVAL.Return0 ; Number of free spaces in sound channel 2 buffer.
+	inc a \ jr z,ADVAL.Return0 ; Number of free spaces in sound channel 3 buffer.
+	inc a \ jr z,ADVAL.Return0 ; Number of free spaces in speech buffer.
+	
+	jr ADVAL.Return0
+	
+ADVAL.Return0:
+	ld hl,0
+ADVAL.Return:
+	pop bc
+	exx
+	xor a
+	ld c,a
+	ld h,a
+	ld l,a
+	ret
+
+
+ADVAL.JoystickButtons:
+	ld hl,0
+	
+	in a,($DD) ; Bit 2 = B.TL
+	rrca
+	rrca
+	rrca
+	ccf
+	rl l
+	
+	in a,($DC) ; Bit 4 = A.TL
+	rlca
+	rlca
+	rlca
+	rlca
+	ccf
+	rl l
+	
+	jr ADVAL.Return
+
+ADVAL.Joystick1X:
+	in a,($DC) ; Bits 2,3 = A.Left,A.Right
+	ld b,2
+	jr ADVAL.ReturnJoystickBits
+
+ADVAL.Joystick1Y:
+	in a,($DC) ; Bits 0,1 = A.Up,A.Down
+	ld b,0
+	jr ADVAL.ReturnJoystickBits
+
+ADVAL.Joystick2X:
+	in a,($DD) ; Bits 0,0 = B.Left,B.Right
+	ld b,0
+	jr ADVAL.ReturnJoystickBits
+
+ADVAL.Joystick2Y:
+	in a,($DC) ; Bits 6,7 = B.Up,B.Down
+	ld b,6
+	; Fall-through
+
+ADVAL.ReturnJoystickBits:
+	; Shift the value by B
+	inc b
+	dec b
+	jr z,+
+-:	rrca
+	djnz -
++:	
+	ld c,0
+	ld h,c
+	ld l,c
+	
+	rrca
+	adc hl,bc
+	rrca
+	sbc hl,bc
+	inc hl
+	
+	; Now HL is either 0, 1, or 2.
+	
+	; Scale up to 0, 16384, 32768.
+	srl l \ rr h
+	srl l \ rr h
+	
+	; Scale up to 65535, 32767, 0.
+	add hl,hl
+	dec hl
+	adc hl,bc
+	
+	jr ADVAL.Return
+
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
