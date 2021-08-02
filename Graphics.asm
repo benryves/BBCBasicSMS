@@ -5,9 +5,6 @@
 ; =========================================================
 .module Graphics
 
-OriginX = allocVar(2)
-OriginY = allocVar(2)
-
 MinX = allocVar(1)
 MaxX = allocVar(1)
 MinY = allocVar(1)
@@ -18,6 +15,8 @@ g_wndXMax = MaxX ; in this order.
 g_wndYMin = MinY
 g_wndYMax = MaxY
 
+OriginX              = allocVar(2) ; Stores the graphics origin.
+OriginY              = allocVar(2)
 VisitedPoints        = allocVar(0) ; Stores recently visited points.
 VisitedPoint0        = allocVar(0)
 VisitedPoint0X       = allocVar(2)
@@ -55,9 +54,10 @@ Reset:
 	xor a
 	ld (PlotShape),a
 	ld (VisitedPoints),a
-	ld hl,VisitedPoints
-	ld de,VisitedPoints+1
-	ld bc,VisitedPoints.Size-1
+	ld hl,OriginX
+	ld (hl),a
+	ld de,OriginX+1
+	ld bc,VisitedPoints.Size+4-1 ; Extra 4 bytes for the graphics origin.
 	ldir	
 	; Fall-through to reset viewport.
 
