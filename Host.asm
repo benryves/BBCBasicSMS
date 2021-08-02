@@ -1373,6 +1373,7 @@ ADVAL.Positive:
 	
 	jr ADVAL.Return0
 
+
 ADVAL.Negative:
 	; Check that MSB = -1
 	ld a,h
@@ -1390,15 +1391,15 @@ ADVAL.Negative:
 	
 	ld a,l
 	
-	inc a \ jr z,ADVAL.Return0 ; Number of characters in keyboard buffer.
-	inc a \ jr z,ADVAL.Return0 ; Number of characters in serial input buffer.
-	inc a \ jr z,ADVAL.Return0 ; Number of characters in serial output buffer.
-	inc a \ jr z,ADVAL.Return0 ; Number of characters in printer output buffer.
-	inc a \ jr z,ADVAL.Return0 ; Number of free spaces in sound channel 0 buffer.
-	inc a \ jr z,ADVAL.Return0 ; Number of free spaces in sound channel 1 buffer.
-	inc a \ jr z,ADVAL.Return0 ; Number of free spaces in sound channel 2 buffer.
-	inc a \ jr z,ADVAL.Return0 ; Number of free spaces in sound channel 3 buffer.
-	inc a \ jr z,ADVAL.Return0 ; Number of free spaces in speech buffer.
+	inc a \ jr z,ADVAL.Return0     ; Number of characters in keyboard buffer.
+	inc a \ jr z,ADVAL.SerialIn    ; Number of characters in serial input buffer.
+	inc a \ jr z,ADVAL.Return0     ; Number of characters in serial output buffer.
+	inc a \ jr z,ADVAL.Return0     ; Number of characters in printer output buffer.
+	inc a \ jr z,ADVAL.SoundBuffer ; Number of free spaces in sound channel 0 buffer.
+	inc a \ jr z,ADVAL.SoundBuffer ; Number of free spaces in sound channel 1 buffer.
+	inc a \ jr z,ADVAL.SoundBuffer ; Number of free spaces in sound channel 2 buffer.
+	inc a \ jr z,ADVAL.SoundBuffer ; Number of free spaces in sound channel 3 buffer.
+	inc a \ jr z,ADVAL.Return0     ; Number of free spaces in speech buffer.
 	
 	jr ADVAL.Return0
 	
@@ -1412,7 +1413,6 @@ ADVAL.Return:
 	ld h,a
 	ld l,a
 	ret
-
 
 ADVAL.JoystickButtons:
 	ld hl,0
@@ -1485,6 +1485,37 @@ ADVAL.ReturnJoystickBits:
 	
 	jr ADVAL.Return
 
+ADVAL.SerialIn:
+	ld hl,(Serial.SerialReadBuffer.Count)
+	ld h,0
+	jr ADVAL.Return
+
+ADVAL.SoundBuffer:
+	; l = -5 to -8
+	ld a,-5
+	sub l
+	; *32
+.if Sound.ChannelSize != 32
+.fail "Sound channel size is expected to be 32"
+.endif
+	rrca
+	rrca
+	rrca
+	ld c,a
+	ld b,0
+	ld hl,Sound.Channels+Sound.Channel.State
+	add hl,bc
+	ld a,(hl)
+	
+	cpl ; We have the queue length, so invert for free space.
+	and %00001100
+	
+	bit 7,(hl)
+	jr nz,+
+	add a,4 ; If the channel is free, that's an implicit extra free space in the queue.
++:	ld l,a
+	ld h,0
+	jr ADVAL.Return
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
