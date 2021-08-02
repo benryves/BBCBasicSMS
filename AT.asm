@@ -63,6 +63,11 @@ SendByte:
 	out ($3F),a
 	
 	nop
+	
+	; We need to hold them low for at least 100uS.
+	; That's ~356 clock cycles at our ~3.58MHz.
+	ld b,30
+-:	djnz - ; 13 * b + 8 delay.
 
 	; Release clock again
 	ld a,(IOControl)
