@@ -60,8 +60,10 @@ SkipWhitespace:
 CheckCommandEnd:
 	call SkipWhitespace
 	or a
+	scf
 	ret z
 	cp '\r'
+	scf
 	ret z
 	jp BadCommand
 
@@ -500,12 +502,49 @@ Edit.OSLINE.Edit:
 	pop hl
 	jp Host.OSLINE.Prefilled
 
+Serial:
+	call SkipWhitespace
+	
+	ld de,Serial.Commands
+	call DispatchCommand
+	
+	jp nc,BadCommand
+	
+	call SkipWhitespace
+	cp ','
+	jp nz,CheckCommandEnd
+	inc hl
+	jr Serial
+
+Serial.BaudRate:
+	call SkipWhitespace
+	cp '='
+	jr nz,+
+	inc hl
+	call SkipWhitespace
++:	call GetDecimalWord
+	push hl
+	ld l,e
+	ld h,d
+	call Serial.SetRate
+	pop hl
+	scf
+	ret z
+	or a
+	ret
+
+Serial.Commands:
+	osclicommand("BAUDRATE", Serial.BaudRate)
+	osclicommand("BAUD", Serial.BaudRate)
+	.db 0
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
 	osclicommand("DIR", Catalogue)
 	osclicommand(".", Catalogue)
 	osclicommand("EDIT", Edit)
+	osclicommand("SERIAL", Serial)
 	.db 0
 
 .endmodule

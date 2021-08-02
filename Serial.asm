@@ -9,6 +9,7 @@
 ; Z80 CPU Frequency = 3546893 Hz (PAL), 3579540 Hz (NTSC)
 ; Assume it's 3563217
 ; 38400 :    93
+; 31250 :   114
 ; 19200 :   186
 ;  9600 :   371
 ;  4800 :   742
@@ -62,7 +63,7 @@ Reset:
 ; SetRate -> Sets the baud rate of the serial port.
 ; ---------------------------------------------------------
 ; Inputs:   hl = baud rate (300-38400).
-; Outputs:  None.
+; Outputs:  z = success, nz = failure.
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
 SetRate:
@@ -84,7 +85,7 @@ SetRate:
 	; Table of bit delays in case we need to slow down.
 	
 	ld ix,BitDelays
-	ld b,BitDelays.Count
+	ld b,BitDelays.Count+1
 	
 -:	; Does HL = the selected rate?
 	push hl
@@ -123,6 +124,19 @@ SetRate:
 	pop hl
 	
 	djnz -
+	
+	; If we get this far, it's not one of the nice round multiple-of-two rates.
+	
+	; MIDI 31250 baud?
+	ld de,31250
+	or a
+	sbc hl,de
+	jr nz,+
+	
+	ld hl,BitDelay.31250
+	ld (BitDelay+1),hl
+	ld a,$C9 ; RET
+	ld (HalfDelay+0),a
 	
 +:	pop de
 	pop ix
@@ -467,6 +481,12 @@ BitDelays:
 	.dw BitDelay.600
 	.dw BitDelay.300
 BitDelays.Count = ($-BitDelays)/2
+
+BitDelay.31250:
+	nop
+	jp +
++:	nop
+	ret
 
 BitDelay.19200:
 	push bc
