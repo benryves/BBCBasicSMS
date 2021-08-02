@@ -355,6 +355,8 @@ OSLINE.Loop:
 	jp z,OSLINE.Delete
 	cp '\r'
 	jp z,OSLINE.Return
+	cp 21 ; NAK
+	jp z,OSLINE.Clear
 
 	; Check if it's in the range 32..127.
 	cp 32
@@ -621,6 +623,38 @@ OSLINE.Right:
 	
 +:	pop af
 	ret
+
+OSLINE.Clear:
+	
+	; Is the line already clear?
+	ld a,b
+	or a
+	jp z,OSLINE.Loop
+	
+	; Move to the end of the line.
+	sub d
+	jr z,+
+	
+-:	push af
+	call VDU.Console.CursorRight
+	inc hl
+	inc d
+	pop af
+	dec a
+	jr nz,-
++:
+	
+	; Move back to the start, clearing as we go.
+-:	dec hl
+	dec d
+	inc c
+	ld (hl),'\r'
+	call VDU.Console.CursorLeft
+	ld a,' '
+	call VDU.PutMap
+	djnz -
+	
+	jp OSLINE.Loop
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
