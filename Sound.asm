@@ -137,6 +137,8 @@ Silence:
 	push de
 	push bc
 
+	di
+	
 	ld a,ChannelUpdatePeriod
 	ld (ChannelUpdateTimer),a
 
@@ -159,6 +161,8 @@ Silence:
 	add ix,de
 	djnz -
 	pop ix
+	
+	ei
 	
 	pop bc
 	pop de
