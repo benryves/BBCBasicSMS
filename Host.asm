@@ -1539,9 +1539,89 @@ POINT:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 COLOUR:
+	; Get the first argument.
 	call Basic.BBCBASIC_EXPRI
 	exx
 	
+-:	ld a,(iy)
+	cp ','
+	jr z,COLOUR.AtLeastTwoArguments
+	cp ' '
+	jr nz,COLOUR.SingleArgument
+	inc iy
+	jr -
+
+COLOUR.AtLeastTwoArguments:
+
+	push hl
+	inc iy
+	
+	call Basic.BBCBASIC_EXPRI
+	exx
+	
+-:	ld a,(iy)
+	cp ','
+	jr z,COLOUR.AtLeastThreeArguments
+	cp ' '
+	jr nz,COLOUR.TwoArguments
+	inc iy
+	jr -
+
+COLOUR.AtLeastThreeArguments
+	
+	; COLOUR l,r,g,b
+	push hl ; Push R to stack.
+	inc iy
+	
+	call Basic.BBCBASIC_EXPRI
+	exx
+	push hl ; Push G to stack.
+	
+	call Basic.BBCBASIC_COMMA
+	call Basic.BBCBASIC_EXPRI
+	exx
+	
+	       ; hl = B
+	pop bc ; bc = G
+	ld b,l ; bc = G,B
+	
+	pop de ; bc = R
+	ld d,e
+	ld e,16 ; bc = 16,R
+	
+	pop hl  ; hl = L
+	ld h,l
+	ld l,19 ; hl = 19,L
+	
+	call VDU.WriteWord
+	ld l,e \ ld h,d
+	call VDU.WriteWord
+	ld l,c \ ld h,b
+	call VDU.WriteWord
+		
+	jp Basic.BBCBASIC_XEQ
+
+COLOUR.TwoArguments:
+	
+	; COLOUR l,p
+	pop de
+	ex de,hl
+	ld h,e
+	
+	ld a,19
+	call VDU.WriteByte
+	call VDU.WriteWord
+	
+	ld b,3
+-:	xor a
+	call VDU.WriteByte
+	djnz -
+	jp Basic.BBCBASIC_XEQ
+	
+
+COLOUR.SingleArgument:
+	
+	; COLOUR c
 	ld h,l
 	ld l,17
 	
@@ -1596,14 +1676,14 @@ GCOL:
 	jr -
 +:	xor a
 	jr FoundGCOL
-GCOLWithComma	
+GCOLWithComma:
 	push hl
 	call Basic.BBCBASIC_COMMA
 	call Basic.BBCBASIC_EXPRI
 	exx
 	pop de
 	ld a,e
-FoundGCOL
+FoundGCOL:
 	push af
 	ld a,18
 	call VDU.WriteByte
