@@ -1,6 +1,8 @@
 .module Video
 
 ; Port defnitions
+VCounter =  $7E
+HCounter =  $7F
 Data = $BE
 Control = $BF
 
@@ -160,5 +162,54 @@ DisableFrameInterrupt:
 	ld a,%11011111
 	ld b,$01
 	jr DisableRegisterBits
+
+; Gets the total number of scanlines.
+GetScanlineCount:
+	di
+	push bc
+	
+	ld hl,0
+	
+	; Wait for vblank twice.
+	ld b,2
+-:	in a,(Control)
+	add a,a
+	jr nc,-
+	djnz -
+	
+	; Count up the number of changes to the vcounter.
+	in a,(VCounter)
+	ld b,a
+	ld c,a
+	
+-:	in a,(VCounter)
+	cp b
+	jr z,-
+	inc hl
+	ld b,a
+	cp c
+	jr nz,-
+	in a,(Control)
+	add a,a
+	jr nc,-
+	
+	pop bc
+	ei
+	ret
+
+; Gets the field rate (50Hz or 60Hz).
+GetFieldRate:
+	push hl
+	push de
+	call GetScanlineCount
+	ld de,288 ; 313=50Hz, 262=60Hz
+	or a
+	sbc hl,de
+	ld a,50
+	jr nc,+
+	ld a,60
++:	pop de
+	pop hl
+	ret
 
 .endmodule

@@ -6,6 +6,8 @@ TempTile = allocVar(8)
 FontTileIndex = 0
 FontCharOffset = FontTileIndex-' '
 
+FieldRate = allocVar(1)
+
 ; Dependencies
 .include "Console.asm"
 .include "Graphics.asm"
@@ -233,6 +235,16 @@ SetMode:
 	
 	; Reset all video settings to their defaults.
 	call Video.Reset
+
+	; Set up a dummy field rate to avoid interrupts hanging.
+	ld a,(FieldRate)
+	cp 50
+	jr z,+
+	cp 60
+	jr z,+
+	ld a,60
+	ld (FieldRate),a
++:
 	
 	pop af
 	
@@ -254,6 +266,11 @@ SetMode:
 	; Screen on, enable frame interrupts.
 	call Video.DisplayOn
 	call Video.EnableFrameInterrupt
+	
+	; Field rate
+	call Video.GetFieldRate
+	ld (FieldRate),a
+	
 	ei
 	
 Stub:
@@ -942,11 +959,106 @@ PutHexWord:
 	jr PutHexByte
 
 ; ---------------------------------------------------------
+; PutDecimalWord -> Puts a word (0..65535) on the screen.
+; ---------------------------------------------------------
+; Inputs:   hl = decimal byte.
+; Outputs:  None.
+; Destroys: None.
+; ---------------------------------------------------------
+PutDecimalWord:
+	push af
+	push de
+	push bc
+	
+	ld de,10000
+	or a
+	sbc hl,de
+	jr c,PutDecimalWordSub10000
+	
+	call PutDecimalWordDigit
+	
+	ld de,1000
+	or a
+	sbc hl,de
+	jr PutDecimalWordThousands
+
+PutDecimalWordSub10000:
+	add hl,de
+	ld de,1000
+	or a
+	sbc hl,de
+	jr c,PutDecimalWordSub1000
+
+PutDecimalWordThousands:
+
+	call PutDecimalWordDigit
+	
+	ld de,100
+	or a
+	sbc hl,de
+	jr PutDecimalWordHundreds
+
+PutDecimalWordSub1000:
+	add hl,de
+	ld de,100
+	or a
+	sbc hl,de
+	jr c,PutDecimalWordSub100
+
+PutDecimalWordHundreds:
+
+	call PutDecimalWordDigit
+	
+	ld de,10
+	or a
+	sbc hl,de
+	jr PutDecimalWordTens
+
+PutDecimalWordSub100:
+	add hl,de
+	ld de,10
+	or a
+	sbc hl,de
+	jr c,PutDecimalWordSub10
+
+PutDecimalWordTens:
+	
+	call PutDecimalWordDigit
+	
+	jr PutDecimalWordUnits
+	
+PutDecimalWordSub10:
+	add hl,de
+PutDecimalWordUnits:
+	
+	ld a,'0'
+	add a,l
+	call VDU.PutChar
+
+	pop bc
+	pop de
+	pop af
+	ret
+
+PutDecimalWordDigit:
+	add hl,de
+	ld b,'0'
+-:	or a
+	sbc hl,de
+	jr c,+
+	inc b
+	jr -
++:	add hl,de
+	ld a,b
+	call VDU.PutChar
+	ret
+
+; ---------------------------------------------------------
 ; PutDecimalByte -> Puts a byte (0..255) on the screen.
 ; ---------------------------------------------------------
 ; Inputs:   a = decimal byte.
 ; Outputs:  None.
-; Destroys: af.
+; Destroys: None.
 ; ---------------------------------------------------------
 PutDecimalByte:
 	push af
@@ -954,6 +1066,8 @@ PutDecimalByte:
 	
 	cp 100
 	jr c,PutDecimalByteSub100
+
+PutDecimalByteHundreds:
 	
 	ld b,'0'
 -:	cp 100

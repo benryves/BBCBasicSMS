@@ -54,11 +54,12 @@ FrameInterrupt:
 	
 	ld a,(FrameCounter)
 	sub 100 ; 100Hz timer
+	jr nc,FinishedFrameInterrupt
 	
--:	push af
+-:	push hl
+	push af
 	
 	; Update TIME.
-	push hl
 	ld hl,(Host.TIME)
 	inc hl
 	ld (Host.TIME),hl
@@ -68,7 +69,7 @@ FrameInterrupt:
 	ld hl,(Host.TIME+2)
 	inc hl
 	ld (Host.TIME+2),hl
-+:	pop hl
++:	
 	
 	; Will we need to read the keyboard to trap Escape?
 	ld a,(Host.TrapKeyboardTimer)
@@ -81,9 +82,15 @@ FrameInterrupt:
 	; Update the sound.
 	call Sound.Tick
 	
+	ld a,(VDU.FieldRate)
+	ld l,a
+	
 	pop af
-	add a,60 ; 60Hz video refresh
-	jp m,-
+	add a,l
+	pop hl
+	jr nc,-
+
+FinishedFrameInterrupt:
 	ld (FrameCounter),a
 	ret
 
@@ -223,7 +230,7 @@ Main:
 	call VDU.PutChar
 	ld a,'\r'
 	call VDU.PutChar
-
+	
 	; Jump into BASIC.
 	jp Basic.BBCBASIC_START
 
