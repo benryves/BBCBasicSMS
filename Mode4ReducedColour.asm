@@ -4,6 +4,8 @@ PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1792 bytes
 SpriteTable      = $3F00 ; 256 bytes
 TopOfMemory      = $4000 ; 16KB
+MinGraphicsTile  = 0
+MaxGraphicsTile  = 384   ; +1
 
 Functions:
 	.db Function.Initialise \ .dw Initialise
@@ -24,10 +26,10 @@ Initialise:
 	ld hl,NameTable
 	call Video.SetWriteAddress
 	
-	ld hl,$0000
+	ld hl,MinGraphicsTile
 	call WriteNameTable
 	
-	ld hl,$0800
+	ld hl,MinGraphicsTile | $0800
 	call WriteNameTable
 	
 	; Initialise the two palettes.
@@ -65,7 +67,7 @@ Initialise:
 	ret
 
 WriteNameTable:
-	ld bc,448 ; 448 = maximum number of tiles.
+	ld bc,MaxGraphicsTile - MinGraphicsTile
 -:	ld a,l
 	out (Video.Data),a
 	ld a,h
