@@ -139,12 +139,10 @@ PutMap:
 	
 	; Restore pattern generator pointer.
 	pop hl
+	call Video.SetWriteAddress
 	
 	ld b,8
 --:	push bc
-	call Video.SetWriteAddress
-	push hl
-	
 	
 	; Write the two bitplanes
 	ld a,(Console.Colour)
@@ -170,15 +168,16 @@ PutMap:
 	or h      ; Result
 	
 	out (Video.Data),a
-	djnz -
+	djnz -            ; 8
 	
-	pop hl
-	ld bc,4
-	add hl,bc
+	inc de            ; 10 Next value from character mask
+	pop bc            ; 10
+	in a,(Video.Data) ; 11 <- 39
 	
-	pop bc
-	inc de ; Next value from character mask
-	djnz --
+	push hl           ; 11
+	pop hl            ; 10
+	in a,(Video.Data) ; 11
+	djnz --           ; 13
 	
 	
 	pop bc
