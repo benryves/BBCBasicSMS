@@ -122,7 +122,7 @@ ReadCharPrintable:
 InitKeyLoop:
 	ld a,(TIME)
 	ld b,a
-	ld c,255
+	ld c,1
 	ret
 
 RunKeyLoop:
@@ -211,6 +211,8 @@ EndKeyLoop:
 	push af
 	ld a,c
 	or a
+	jr z,++
+	inc a
 	jr z,++
 	ld a,(hl)
 	cp '\r'
