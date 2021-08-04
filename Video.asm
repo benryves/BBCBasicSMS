@@ -34,7 +34,7 @@ ResetData:
 .db $FF
 .db $FF
 .db $FF
-.db $FF
+.db $00
 .db $00
 .db $00
 .db $FF

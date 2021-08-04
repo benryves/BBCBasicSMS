@@ -59,18 +59,15 @@ LoadCharRow:
 	; Load the palette
 	xor a
 	call Video.GotoPalette
-	ld hl,VDU.Palettes.SegaMasterSystem
+	ld c,2
+--:	ld hl,VDU.Palettes.SegaMasterSystem
 	ld b,16
 -:	ld a,(hl)
 	inc hl
 	out (Video.Data),a
 	djnz -
-
-	ld b,16	
--:	dec hl
-	ld a,(hl)
-	out (Video.Data),a
-	djnz -
+	dec c
+	jr nz,--
 	
 	ld hl,MinGraphicsTile
 	ld (FreeGraphicsTile),hl
