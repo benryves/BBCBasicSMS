@@ -30,10 +30,6 @@ Functions:
 	.db Function.End
 
 Initialise:
-	
-	;ld a,5 ; Scroll along to centre
-	;ld b,$08
-	;call Video.SetRegister
 
 	; Load the font.
 	ld hl,0

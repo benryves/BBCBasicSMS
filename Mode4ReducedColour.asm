@@ -10,7 +10,10 @@ Functions:
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
 	.db Function.SetConsoleColour \ .dw SetConsoleColour
+	.db Function.SetGraphicsColour \ .dw SetGraphicsColour
+	.db Function.BeginPlot \ .dw BeginPlot
 	.db Function.SetPixel \ .dw SetPixel
+	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.SelectPalette \ .dw SelectPalette
 	.db Function.End
 
@@ -54,6 +57,11 @@ Initialise:
 	ld a,$D0
 	out (Video.Data),a
 	
+	; Callback jumps.
+	ld a,$C3
+	ld (ManipulatePixelColour),a
+	ld (ManipulatePixelBitmask),a
+	
 	ret
 
 WriteNameTable:
@@ -69,7 +77,14 @@ WriteNameTable:
 	jr nz,-
 	ret
 	
-
+; ---------------------------------------------------------
+; PutMap -> Draws a character on the display.
+; ---------------------------------------------------------
+; Inputs:   a = character to display.
+;           (Console.CurCol) = cursor column.
+;           (Console.CurRow) = cursor row.
+; Destroys: None.
+; ---------------------------------------------------------
 PutMap:
 	push hl
 	push de
@@ -77,9 +92,9 @@ PutMap:
 	push af
 	
 	; What is the pattern underneath (CurCol, CurRow)?
-	ld a,(VDU.Console.CurCol)
+	ld a,(Console.CurCol)
 	ld e,a
-	ld a,(VDU.Console.CurRow)
+	ld a,(Console.CurRow)
 	
 	call GetNameTableValueForTile
 	
@@ -393,7 +408,220 @@ SetConsoleColour.Background:
 	or c
 	ld (Console.Colour),a
 	ret
+	
 
-SelectPalette:
+; ---------------------------------------------------------
+; SetGraphicsColour -> Updates the current graphics colour.
+; ---------------------------------------------------------
+; Inputs:   a = the new colour.
+; Destroys: af, c.
+; ---------------------------------------------------------
+SetGraphicsColour:
+	bit 7,a
+	jr nz,SetGraphicsColour.Background
+
+SetGraphicsColour.Foreground:
+	and %11
+	ld c,a
+	ld a,(Graphics.Colour)
+	and %1100
+	or c
+	ld (Graphics.Colour),a
+	ret
+	
+SetGraphicsColour.Background:
+	and %11
+	add a,a
+	add a,a
+	ld c,a
+	ld a,(Graphics.Colour)
+	and %11
+	or c
+	ld (Graphics.Colour),a
+	ret
+
+BeginPlot:
+	dec a
+	jr z,SetForegroundPixel
+	dec a
+	jr z,InvertPixel
+
+SetBackgroundPixel:
+	ld hl,GetPixelBackgroundColour
+	ld (ManipulatePixelColour+1),hl
+	ld hl,ManipulatePixelBitmaskPlot
+	ld (ManipulatePixelBitmask+1),hl
+	ret
+
+InvertPixel:
+	ld hl,Stub
+	ld (ManipulatePixelColour+1),hl
+	ld hl,ManipulatePixelBitmaskInvert
+	ld (ManipulatePixelBitmask+1),hl
+	ret
+
+SetForegroundPixel:
+	ld hl,GetPixelForegroundColour
+	ld (ManipulatePixelColour+1),hl
+	ld hl,ManipulatePixelBitmaskPlot
+	ld (ManipulatePixelBitmask+1),hl
+	ret
+
+GetPixelForegroundColour:
+	ld a,(Graphics.Colour)
+	ld c,a
+	ret
+
+GetPixelBackgroundColour:
+	ld a,(Graphics.Colour)
+	rrca
+	rrca
+	ld c,a
+	ret
+
+ManipulatePixelBitmaskPlot:
+	ld b,2
+-:	in a,(Video.Data) ; 11
+	srl c             ; 8
+	jr nc,ClearBit    ; 12/7
+SetBit:
+	or d              ; 4
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12/7
+	ret
+ClearBit:
+	and e             ; 4
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12/7
+	ret
+	
+ManipulatePixelBitmaskInvert:
+	ld b,2
+-:	in a,(Video.Data) ; 11
+	xor d             ; 4
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12 <- 40
+	ret
+
+; ---------------------------------------------------------
+; SetPixel -> Sets a pixel according to the current plot
+;             mode.
+; ---------------------------------------------------------
+; Inputs:   d = X coordinate.
+;           e = Y cooridnate.
+; Destroys: af, bc, de, hl.
+; ---------------------------------------------------------
+SetPixel:
+	; IN (D,E) = (X,Y)
+	
+	; Generate the masking values.
+	ld a,d
+	and %00000111
+	ld h,%10000000
+	jr z,+
+	ld b,a
+-:	srl h
+	djnz -
++:	ld a,h
+	cpl
+	ld l,a
+
+; ---------------------------------------------------------
+; SetAlignedHorizontalLineSegment -> Sets a tile-aligned
+;                                horizontal line segment.
+; ---------------------------------------------------------
+; Inputs:   d = X coordinate.
+;           e = Y cooridnate.
+;           h = set pixel mask (OR).
+;           l = clear pixel mask (AND).
+; Destroys: af, bc, de, hl.
+; ---------------------------------------------------------
+SetAlignedHorizontalLineSegment:
+	
+	push hl
+	
+	push de
+	
+	srl d
+	srl d
+	srl d
+	
+	srl e
+	srl e
+	srl e
+	
+	ld a,e
+	ld e,d
+	
+	; (E,A)
+	call GetNameTableValueForTile
+	
+	; Now we need to find that tile inside the pattern generator.
+	; Address = (nametable entry & 511) * 32
+	
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	
+	; Carry flag = colour palette.
+	; If we're using the second colour palette, shift the pointer by two bytes.
+	jr nc,+
+	inc hl
+	inc hl
++:
+
+	; Offset by the pattern generator address.
+.if PatternGenerator != 0
+	ld de,PatternGenerator
+	add hl,de
+.endif
+	
+	pop de
+	
+	; DE = pixel (X,Y)
+	; We need to advance 4 bytes for Y & 7
+	
+	ld a,e
+	and %111
+	add a,a
+	add a,a
+	ld e,a
+	ld d,0
+	add hl,de
+	
+	; Retrieve masks
+	pop de
+	; D = bits to OR to set (DRAW)
+	; E = bits to AND to clear (ERASE)
+	
+	; HL -> pattern generator address for where we need to draw.
+	push hl
+	call Video.SetReadAddress
+	
+	; At this point, we'll  use TempTile to store the generated tile.
+	ld hl,TempTile
+	
+	call ManipulatePixelColour
+	call ManipulatePixelBitmask
+	
+	; Get ready to write the new data to VRAM!
+	pop hl
+	call Video.SetWriteAddress
+	
+	
+	ld hl,TempTile
+	ld b,2
+-:	ld a,(hl)           ; 7
+	out (Video.Data),a  ; 11
+	inc hl              ; 6
+	djnz -              ; 12 <- 36
+	
+	ei
+	ret
 
 .endmodule
