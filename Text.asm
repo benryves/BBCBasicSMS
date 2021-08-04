@@ -93,6 +93,7 @@ PutMap:
 	pop bc
 	pop de
 	pop hl
+	ei
 	ret
 
 Scroll:
@@ -149,6 +150,7 @@ Scroll:
 	pop hl
 	pop de
 	pop bc
+	ei
 	ret
 
 SetConsoleColour:

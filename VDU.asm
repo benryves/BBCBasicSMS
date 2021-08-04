@@ -45,10 +45,12 @@ FunctionVectors = allocVar(Functions.Count * 3)
 	.include "Text.asm"
 	.include "GraphicsII.asm"
 	.include "Mode4.asm"
+	.include "Mode4ReducedColour.asm"
 
-	Count = 3
+	Count = 4
 	
 	Functions:
+		.dw Mode4ReducedColour.Functions
 		.dw Text.Functions
 		.dw GraphicsII.Functions
 		.dw Mode4.Functions

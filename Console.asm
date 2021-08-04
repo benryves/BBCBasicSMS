@@ -146,7 +146,25 @@ SetPendingScroll:
 	ret
 
 ; ---------------------------------------------------------
-; ScrollBlock -> Scrolls a block of characters.
+; ScrollBlockNoClear -> Scrolls a block of characters but
+;                       doesn't clear the bottom row.
+; ---------------------------------------------------------
+; Inputs:   hl = offset in VRAM to top left corner.
+;           de = stride of VRAM in bytes.
+;           b = number of rows to scroll.
+;           c = number of columns to scroll.
+; Outputs:  None.
+; Destroys: af, hl, de, bc.
+; ---------------------------------------------------------
+ScrollBlockNoClear:
+	
+	xor a
+	dec a
+	jr ScrollBlockSetNZ
+
+; ---------------------------------------------------------
+; ScrollBlock -> Scrolls a block of characters and clears
+;                the bottom row.
 ; ---------------------------------------------------------
 ; Inputs:   hl = offset in VRAM to top left corner.
 ;           de = stride of VRAM in bytes.
@@ -156,6 +174,11 @@ SetPendingScroll:
 ; Destroys: af, hl, de, bc.
 ; ---------------------------------------------------------
 ScrollBlock:
+	
+	xor a
+
+ScrollBlockSetNZ:
+	push af
 	
 	dec b
 	jr z,ClearBottomRow
@@ -208,13 +231,16 @@ ClearBottomRow:
 	; Now that we've scrolled, clear that bottom row.
 	call Video.SetWriteAddress
 	
+	pop af
+	jr nz,+
+	
 	ld b,c
 -:	ld a,0              ; 7
 	out (Video.Data),a  ; 11
 	nop                 ; 4
 	djnz -              ; 12 <- 34
-	
-	ei
+
++:	ei
 	ret
 	
 .endmodule

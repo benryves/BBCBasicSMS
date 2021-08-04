@@ -130,6 +130,7 @@ PutMap:
 	pop bc
 	pop de
 	pop hl
+	ei
 	ret
 
 Scroll:
@@ -184,6 +185,7 @@ Scroll:
 	pop hl
 	pop de
 	pop bc
+	ei
 	ret
 
 BeginPlot:
@@ -391,6 +393,7 @@ GeneratedTileRow:
 	inc hl             ; 6
 	djnz -             ; 12/7 <- 36
 	
+	ei
 	ret
 
 GetPixelForegroundColour:
@@ -480,6 +483,23 @@ SelectPalette:
 	call Video.GotoPalette
 	pop af
 
+	call ParsePaletteCommand
+	
+	out (Video.Data),a
+	ei
+	ret
+
+
+; ---------------------------------------------------------
+; ParsePaletteCommand -> Converts a palette command into
+;                        a CRAM colour value.
+; ---------------------------------------------------------
+; Inputs:   a = "physical" colour (from BBC BASIC palette).
+;           hl = pointer to RGB colour (if applicable).
+; Outputs:  a = CRAM colour value in 00bbggrr form.
+; Destroys: af, hl, bc.
+; ---------------------------------------------------------
+ParsePaletteCommand:
 	; We need the palette in BGR order.
 	inc hl
 	inc hl
@@ -491,18 +511,13 @@ SelectPalette:
 	jr z,SelectEightBitRGB
 	
 	; We're just loading one of the stock physical colours.
-	ld a,b
 	and $0F
 	ld c,a
 	ld b,0
 	ld hl,VDU.Palettes.SegaMasterSystem
 	add hl,bc
 	ld a,(hl)
-	
-	out (Video.Data),a
-	ei
 	ret
-	
 
 SelectEightBitRGB:
 	ld b,3
@@ -514,8 +529,6 @@ SelectEightBitRGB:
 	dec hl
 	djnz -
 	ld a,c
-	out (Video.Data),a
-	ei
 	ret
 	
 SelectSixBitRGB:
@@ -530,11 +543,7 @@ SelectSixBitRGB:
 	dec hl
 	djnz -
 	ld a,c
-	out (Video.Data),a
-	ei
 	ret
-	
-
 
 
 .endmodule
