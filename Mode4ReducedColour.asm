@@ -372,8 +372,10 @@ WritePaletteEntry:
 	
 	ld a,c
 	ld b,4
--:	out (Video.Data),a
-	djnz -
+-:	out (Video.Data),a ; 11
+	inc hl             ; 6
+	dec hl             ; 6
+	djnz -             ; 13 <- 36
 	
 	ei
 	ret
