@@ -466,6 +466,15 @@ ManipulatePixelBitmaskORNOT: ; GCOL 7,<c>
 	ld c,a
 	jr ManipulatePixelBitmaskOR
 
+; ---------------------------------------------------------
+; SelectPalette -> Selects the palette.
+; ---------------------------------------------------------
+; Inputs:   a = "physical" colour (from BBC BASIC palette).
+;           b = "physical" colour.
+;           c = logical colour.
+;           hl = pointer to RGB colour (if applicable).
+; Destroys: af, hl, bc.
+; ---------------------------------------------------------
 SelectPalette:
 	; Get ready at the logical palette entry.
 	push af
@@ -479,7 +488,6 @@ SelectPalette:
 	out (Video.Data),a
 	ei
 	ret
-
 
 ; ---------------------------------------------------------
 ; ParsePaletteCommand -> Converts a palette command into

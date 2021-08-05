@@ -600,6 +600,7 @@ ResetColoursCommand:
 	
 	; Reset plotting mode.
 	xor a
+	ld (Graphics.ColourMode),a
 	ld (Graphics.PlotMode),a
 	
 	; Reset to default colours.

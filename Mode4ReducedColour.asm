@@ -11,7 +11,7 @@ Functions:
 	.db Function.Initialise \ .dw Initialise
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
-	.db Function.BeginPlot \ .dw BeginPlot
+	.db Function.BeginPlot \ .dw Mode4.BeginPlot
 	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.SelectPalette \ .dw SelectPalette
@@ -149,15 +149,21 @@ PutMap:
 	ld l,a
 
 	ld b,2	
--:	rrc l
+-:	rrc l ; 0
 	sbc a,a
 	ld c,a  ; Foreground bitmask.
-	rrc l
-	rrc l
+	rrc l ; 1
+	rrc l ; 2
+	rrc l ; 3
+	
+	rrc l ; 4
 	sbc a,a
 	ld h,a ; Background bitmask.
-	rlc l
-	rlc l
+	
+	rlc l ; 3
+	rlc l ; 2
+	rlc l ; 1
+	rlc l ; 0
 	
 	ld a,(de) ; Character value.
 	cpl
@@ -381,102 +387,6 @@ WritePaletteEntry:
 	ret
 
 ; ---------------------------------------------------------
-; SetConsoleColour -> Updates the current text colour.
-; ---------------------------------------------------------
-; Inputs:   a = the new colour.
-; Destroys: af, c.
-; ---------------------------------------------------------
-SetConsoleColour:
-	bit 7,a
-	jr nz,SetConsoleColour.Background
-
-SetConsoleColour.Foreground:
-	and %11
-	ld c,a
-	ld a,(Console.Colour)
-	and %1100
-	or c
-	ld (Console.Colour),a
-	ret
-	
-SetConsoleColour.Background:
-	and %11
-	add a,a
-	add a,a
-	ld c,a
-	ld a,(Console.Colour)
-	and %11
-	or c
-	ld (Console.Colour),a
-	ret
-
-BeginPlot:
-	dec a
-	jr z,SetForegroundPixel
-	dec a
-	jr z,InvertPixel
-
-SetBackgroundPixel:
-	ld hl,GetPixelBackgroundColour
-	ld (ManipulatePixelColour+1),hl
-	ld hl,ManipulatePixelBitmaskPlot
-	ld (ManipulatePixelBitmask+1),hl
-	ret
-
-InvertPixel:
-	ld hl,Stub
-	ld (ManipulatePixelColour+1),hl
-	ld hl,ManipulatePixelBitmaskInvert
-	ld (ManipulatePixelBitmask+1),hl
-	ret
-
-SetForegroundPixel:
-	ld hl,GetPixelForegroundColour
-	ld (ManipulatePixelColour+1),hl
-	ld hl,ManipulatePixelBitmaskPlot
-	ld (ManipulatePixelBitmask+1),hl
-	ret
-
-GetPixelForegroundColour:
-	ld a,(Graphics.Colour)
-	ld c,a
-	ret
-
-GetPixelBackgroundColour:
-	ld a,(Graphics.Colour)
-	rrca
-	rrca
-	ld c,a
-	ret
-
-ManipulatePixelBitmaskPlot:
-	ld b,2
--:	in a,(Video.Data) ; 11
-	srl c             ; 8
-	jr nc,ClearBit    ; 12/7
-SetBit:
-	or d              ; 4
-	ld (hl),a         ; 7
-	inc hl            ; 6
-	djnz -            ; 12/7
-	ret
-ClearBit:
-	and e             ; 4
-	ld (hl),a         ; 7
-	inc hl            ; 6
-	djnz -            ; 12/7
-	ret
-	
-ManipulatePixelBitmaskInvert:
-	ld b,2
--:	in a,(Video.Data) ; 11
-	xor d             ; 4
-	ld (hl),a         ; 7
-	inc hl            ; 6
-	djnz -            ; 12 <- 40
-	ret
-
-; ---------------------------------------------------------
 ; SetPixel -> Sets a pixel according to the current plot
 ;             mode.
 ; ---------------------------------------------------------
@@ -576,7 +486,9 @@ SetAlignedHorizontalLineSegment:
 	; At this point, we'll  use TempTile to store the generated tile.
 	ld hl,TempTile
 	
-	call ManipulatePixelColour
+	ld a,(Graphics.PlotColour)
+	ld c,a
+	ld b,2
 	call ManipulatePixelBitmask
 	
 	; Get ready to write the new data to VRAM!
