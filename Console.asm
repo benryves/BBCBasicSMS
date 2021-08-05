@@ -26,6 +26,8 @@ Reset:
 	
 	xor a
 	ld (Status),a
+	ld a,$0F
+	ld (Colour),a
 
 ResetViewport:
 	

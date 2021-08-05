@@ -11,8 +11,6 @@ Functions:
 	.db Function.Initialise \ .dw Initialise
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
-	.db Function.SetConsoleColour \ .dw SetConsoleColour
-	.db Function.SetGraphicsColour \ .dw SetGraphicsColour
 	.db Function.BeginPlot \ .dw BeginPlot
 	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
@@ -410,37 +408,6 @@ SetConsoleColour.Background:
 	and %11
 	or c
 	ld (Console.Colour),a
-	ret
-	
-
-; ---------------------------------------------------------
-; SetGraphicsColour -> Updates the current graphics colour.
-; ---------------------------------------------------------
-; Inputs:   a = the new colour.
-; Destroys: af, c.
-; ---------------------------------------------------------
-SetGraphicsColour:
-	bit 7,a
-	jr nz,SetGraphicsColour.Background
-
-SetGraphicsColour.Foreground:
-	and %11
-	ld c,a
-	ld a,(Graphics.Colour)
-	and %1100
-	or c
-	ld (Graphics.Colour),a
-	ret
-	
-SetGraphicsColour.Background:
-	and %11
-	add a,a
-	add a,a
-	ld c,a
-	ld a,(Graphics.Colour)
-	and %11
-	or c
-	ld (Graphics.Colour),a
 	ret
 
 BeginPlot:

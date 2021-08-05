@@ -40,9 +40,12 @@ TransformedPoint2    = allocVar(0)
 TransformedPoint2X   = allocVar(2)
 TransformedPoint2Y   = allocVar(2)
 
-PlotShape = allocVar(1)
+PlotShape  = allocVar(1)
+PlotMode   = allocVar(1)
+PlotColour = allocVar(1)
 
-Colour = allocVar(1)
+ColourMode = allocVar(1) ; GCOL <m>, ....
+Colour     = allocVar(1) ; GCOL ..., <c>
 
 .include "Clip.asm"
 .include "Ellipse.asm"
@@ -53,15 +56,21 @@ Reset:
 	; Clear the plot shape and visited points.
 	xor a
 	ld (PlotShape),a
+	ld (PlotMode),a
+	ld (ColourMode),a
 	ld (VisitedPoints),a
 	ld hl,OriginX
 	ld (hl),a
 	ld de,OriginX+1
 	ld bc,VisitedPoints.Size+4-1 ; Extra 4 bytes for the graphics origin.
-	ldir	
+	ldir
+	
+	; Reset the colours.
+	ld a,$0F
+	ld (Colour),a
+	ld (PlotColour),a
 	; Fall-through to reset viewport.
-
-
+	
 ResetViewport:
 	; Set default graphics bounds
 	xor a
@@ -235,11 +244,50 @@ TransformPoint:
 ; ---------------------------------------------------------
 Plot:
 	
+	; Assume that the plot mode = the colour mode.
+	ld a,(ColourMode)
+	ld (PlotMode),a
+	
+	; Plot mode 5 is a no-op.
+	cp 5
+	ret z
+	
+	; What's the plot shape?
 	ld a,(PlotShape)
 	and %11
 	ret z ; Invisible!
 	
+	dec a
+	jr nz,Plot.NotForegroundColour
+
+Plot.ForegroundColour: ; PLOT %..01
+	ld a,(Colour)
+	ld (PlotColour),a
+	jr Plot.SelectedColour
+
+Plot.NotForegroundColour:
+	dec a
+	jr nz,Plot.BackgroundColour
+
+Plot.Inverted:  ; PLOT %..10
+	ld a,4
+	ld (PlotMode),a
+	ld a,$FF
+	jr Plot.SelectedColour
+
+Plot.BackgroundColour:  ; PLOT %..11
+	ld a,(Colour)
+	rrca
+	rrca
+	rrca
+	rrca
+	ld (PlotColour),a
+	
+Plot.SelectedColour:
+
 	; Ensure the graphics mode driver is set up to plot.
+	ld a,(PlotMode)
+	and 7
 	call BeginPlot
 
 	ld a,(PlotShape)
@@ -650,8 +698,8 @@ NoSetAlignedHorizontalLineSegment:
 ; Destroys: Everything.
 ; ---------------------------------------------------------
 Clear:
-	ld a,103
-	ld (Graphics.PlotShape),a
+	
+
 	
 	ld hl,(MinX)
 	ld h,0
@@ -669,8 +717,24 @@ Clear:
 	ld h,0
 	ld (TransformedPoint1Y),hl
 	
-	ld a,3
+	; Set the shape to plot to be a rectangle.
+	ld a,103
+	ld (Graphics.PlotShape),a	
+	
+	; Set the plot colour to the background colour.
+	ld a,(Colour)
+	rrca
+	rrca
+	rrca
+	rrca
+	ld (PlotColour),a
+	
+	; Load the plot mode.
+	ld a,(ColourMode)
+	ld (PlotMode),a
+	and 7
 	call BeginPlot
+	
 	jr PlotTransformedRectangle
 
 ; ---------------------------------------------------------

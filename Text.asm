@@ -4,7 +4,6 @@ Functions:
 	.db Function.Initialise \ .dw Initialise
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
-	.db Function.SetConsoleColour \ .dw SetConsoleColour
 	.db Function.ResetConsoleViewport \ .dw ResetConsoleViewport
 	.db Function.End
 
@@ -150,14 +149,6 @@ Scroll:
 	pop hl
 	pop de
 	pop bc
-	ei
-	ret
-
-SetConsoleColour:
-	call GraphicsII.SetConsoleColour
-	ld a,(Console.Colour)
-	ld b,$07
-	call Video.SetRegister
 	ei
 	ret
 

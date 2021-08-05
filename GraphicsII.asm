@@ -7,8 +7,6 @@ Functions:
 	.db Function.BeginPlot \ .dw BeginPlot
 	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
-	.db Function.SetConsoleColour \ .dw SetConsoleColour
-	.db Function.SetGraphicsColour \ .dw SetGraphicsColour
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.End
 
@@ -446,60 +444,5 @@ SetUserDefinedCharacter:
 	
 	ei
 	ret
-
-
-SetGraphicsColour:
-	ld hl,Graphics.Colour
-	jr SetColour
-
-SetConsoleColour:
-	ld hl,Console.Colour
-
-SetColour:
-	or a
-	ld e,a
-	ld a,(hl)
-	push hl
-	ld d,a
-	ld bc,Palettes.TMS9918A
-	jp p,SetForegroundColour
 	
-SetBackgroundColour:
-	ld a,d
-	and $F0
-	ld d,a
-	
-	ld a,e
-	and $0F
-	ld l,a
-	ld h,0
-	add hl,bc
-	ld a,(hl)
-	and $0F
-	or d
-	pop hl
-	ld (hl),a
-	ret
-
-SetForegroundColour:
-	ld a,d
-	and $0F
-	ld d,a
-	
-	ld a,e
-	and $0F
-	ld l,a
-	ld h,0
-	add hl,bc
-	ld a,(hl)
-	rrca
-	rrca
-	rrca
-	rrca
-	and $F0
-	or d
-	pop hl
-	ld (hl),a
-	ret
-
 .endmodule

@@ -22,12 +22,10 @@ Function.BeginPlot = 5
 Function.SetPixel = 6
 Function.SetAlignedHorizontalLineSegment = 7
 Function.SetUserDefinedCharacter = 8
-Function.SetConsoleColour = 9
-Function.SetGraphicsColour = 10
-Function.ResetConsoleViewport = 11
-Function.SelectPalette = 12
+Function.ResetConsoleViewport = 9
+Function.SelectPalette = 10
 
-Functions.Count = 12
+Functions.Count = 10
 FunctionVectors = allocVar(Functions.Count * 3)
 
 .function VDUFunctionAddress(function)
@@ -41,7 +39,6 @@ FunctionVectors = allocVar(Functions.Count * 3)
 	ManipulatePixelBitmask = allocVar(3)
 	ManipulatePixelColour = allocVar(3)
 
-
 	.include "Text.asm"
 	.include "GraphicsII.asm"
 	.include "Mode4.asm"
@@ -50,10 +47,10 @@ FunctionVectors = allocVar(Functions.Count * 3)
 	Count = 4
 	
 	Functions:
-		.dw Mode4ReducedColour.Functions
 		.dw Text.Functions
-		.dw GraphicsII.Functions
+		.dw Mode4ReducedColour.Functions
 		.dw Mode4.Functions
+		.dw GraphicsII.Functions
 
 
 .endmodule
@@ -65,8 +62,6 @@ BeginPlot = VDUFunctionAddress(Function.BeginPlot)
 SetPixel = VDUFunctionAddress(Function.SetPixel)
 SetAlignedHorizontalLineSegment = VDUFunctionAddress(Function.SetAlignedHorizontalLineSegment)
 SetUserDefinedCharacter = VDUFunctionAddress(Function.SetUserDefinedCharacter)
-SetConsoleColour = VDUFunctionAddress(Function.SetConsoleColour)
-SetGraphicsColour = VDUFunctionAddress(Function.SetGraphicsColour)
 ResetConsoleViewport = VDUFunctionAddress(Function.ResetConsoleViewport)
 SelectPalette = VDUFunctionAddress(Function.SelectPalette)
 
@@ -528,14 +523,65 @@ ClearGraphicsCommand = Graphics.Clear
 ; ========================================================================================
 TextColourCommand:
 	ld a,(VDUQ(0, 1))
-	jp SetConsoleColour
+	ld c,a
+	and $0F
+	bit 7,c
+	ld c,a
+	
+	ld a,(Console.Colour)
+	jr nz,TextColour.Background
+
+TextColour.Foreground:
+	and $F0
+	or c
+	ld (Console.Colour),a
+	ret
+
+TextColour.Background:
+	and $0F
+	ld b,a
+	ld a,c
+	add a,a
+	add a,a
+	add a,a
+	add a,a
+	or b
+	ld (Console.Colour),a
+	ret
 	
 ; ========================================================================================
 ; VDU 18,<mode>,<colour>                                               SET GRAPHICS COLOUR
 ; ========================================================================================
 GraphicsColourCommand:
+	ld a,(VDUQ(0, 2))
+	ld (Graphics.ColourMode),a
+	
 	ld a,(VDUQ(1, 2))
-	jp SetGraphicsColour
+	ld c,a
+	and $0F
+	bit 7,c
+	ld c,a
+	
+	ld a,(Graphics.Colour)
+	jr nz,GraphicsColour.Background
+
+GraphicsColour.Foreground:
+	and $F0
+	or c
+	ld (Graphics.Colour),a
+	ret
+
+GraphicsColour.Background:
+	and $0F
+	ld b,a
+	ld a,c
+	add a,a
+	add a,a
+	add a,a
+	add a,a
+	or b
+	ld (Graphics.Colour),a
+	ret
 
 ; ========================================================================================
 ; VDU 19,<logical>,<physical>,<r>,<g>,<b>                                   SELECT PALETTE
@@ -552,15 +598,14 @@ SelectPaletteCommand:
 ; ========================================================================================
 ResetColoursCommand:
 	
+	; Reset plotting mode.
+	xor a
+	ld (Graphics.PlotMode),a
+	
 	; Reset to default colours.
-	ld a,7
-	call SetConsoleColour
-	ld a,128
-	call SetConsoleColour
-	ld a,7
-	call SetGraphicsColour
-	ld a,128
-	call SetGraphicsColour
+	ld a,$0F
+	ld (Console.Colour),a
+	ld (Graphics.Colour),a
 	
 	; Reset to default palette.
 	ld bc,16*256

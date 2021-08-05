@@ -24,7 +24,6 @@ Functions:
 	.db Function.Scroll \ .dw Scroll
 	.db Function.BeginPlot \ .dw BeginPlot
 	.db Function.SetPixel \ .dw SetPixel
-	.db Function.SetGraphicsColour \ .dw SetGraphicsColour
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.SelectPalette \ .dw SelectPalette
 	.db Function.End
@@ -42,11 +41,9 @@ LoadChar:
 LoadCharRow:
 	ld a,(hl)
 	inc hl
-	ld b,3
+	ld b,4
 -:	out (Video.Data),a
 	djnz -
-	xor a
-	out (Video.Data),a
 	dec c
 	jr nz,LoadCharRow
 	dec d
@@ -74,9 +71,8 @@ LoadCharRow:
 	ld a,$D0
 	out (Video.Data),a
 	
-	; Callback jumps.
+	; Callback jump.
 	ld a,$C3
-	ld (ManipulatePixelColour),a
 	ld (ManipulatePixelBitmask),a
 
 	ret
@@ -182,31 +178,25 @@ Scroll:
 	ret
 
 BeginPlot:
-	dec a
-	jr z,SetForegroundPixel
-	dec a
-	jr z,InvertPixel
-
-SetBackgroundPixel:
-	ld hl,GetPixelBackgroundColour
-	ld (ManipulatePixelColour+1),hl
-	ld hl,ManipulatePixelBitmaskPlot
-	ld (ManipulatePixelBitmask+1),hl
+	ld h,0
+	ld l,a
+	add hl,hl
+	ld de,PlotOperators
+	add hl,de
+	ld de,ManipulatePixelBitmask+1
+	ldi
+	ldi
 	ret
 
-InvertPixel:
-	ld hl,Stub
-	ld (ManipulatePixelColour+1),hl
-	ld hl,ManipulatePixelBitmaskInvert
-	ld (ManipulatePixelBitmask+1),hl
-	ret
-
-SetForegroundPixel:
-	ld hl,GetPixelForegroundColour
-	ld (ManipulatePixelColour+1),hl
-	ld hl,ManipulatePixelBitmaskPlot
-	ld (ManipulatePixelBitmask+1),hl
-	ret
+PlotOperators:
+	.dw ManipulatePixelBitmaskPlot
+	.dw ManipulatePixelBitmaskOR
+	.dw ManipulatePixelBitmaskAND
+	.dw ManipulatePixelBitmaskEOR
+	.dw ManipulatePixelBitmaskNOT
+	.dw Stub
+	.dw ManipulatePixelBitmaskANDNOT
+	.dw ManipulatePixelBitmaskORNOT
 
 SetPixel:
 	; IN (D,E) = (X,Y)
@@ -371,7 +361,9 @@ GotGraphicsTile:
 	; At this point, we'll  use TempTile to store the generated tile.
 	ld hl,TempTile
 	
-	call ManipulatePixelColour
+	ld a,(Graphics.PlotColour)
+	ld c,a
+	ld b,4
 	call ManipulatePixelBitmask
 
 GeneratedTileRow:
@@ -389,22 +381,7 @@ GeneratedTileRow:
 	ei
 	ret
 
-GetPixelForegroundColour:
-	ld a,(Graphics.Colour)
-	rrca
-	rrca
-	rrca
-	rrca
-	ld c,a
-	ret
-
-GetPixelBackgroundColour:
-	ld a,(Graphics.Colour)
-	ld c,a
-	ret
-
-ManipulatePixelBitmaskPlot:
-	ld b,4
+ManipulatePixelBitmaskPlot: ; GCOL 0,<c>
 -:	in a,(Video.Data) ; 11
 	srl c             ; 8
 	jr nc,ClearBit    ; 12/7
@@ -412,17 +389,64 @@ SetBit:
 	or d              ; 4
 	ld (hl),a         ; 7
 	inc hl            ; 6
-	djnz -            ; 12/7
+	djnz -            ; 12/7 <- 55
 	ret
 ClearBit:
 	and e             ; 4
 	ld (hl),a         ; 7
 	inc hl            ; 6
-	djnz -            ; 12/7
+	djnz -            ; 12/7 <- 60
 	ret
-	
-ManipulatePixelBitmaskInvert:
-	ld b,4
+
+ManipulatePixelBitmaskOR: ; GCOL 1,<c>
+-:	in a,(Video.Data) ; 11
+	srl c             ; 8
+	jr nc,BitOR0      ; 12/7
+BitOR1:
+	or d              ; 4
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12/7 <- 55
+	ret
+BitOR0:
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12/7 <- 56
+	ret
+
+ManipulatePixelBitmaskAND: ; GCOL 2,<c>
+-:	in a,(Video.Data) ; 11
+	srl c             ; 8
+	jr c,BitAND1     ; 12/7
+BitAND0:
+	and e             ; 4
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12/7 <- 55
+	ret
+BitAND1:
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12/7 <- 56
+	ret
+
+ManipulatePixelBitmaskEOR: ; GCOL 3,<c>
+-:	in a,(Video.Data) ; 11
+	srl c             ; 8
+	jr nc,BitEOR0     ; 12/7
+BitEOR1:
+	xor d             ; 4
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12/7 <- 55
+	ret
+BitEOR0:
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	djnz -            ; 12/7 <- 56
+	ret
+
+ManipulatePixelBitmaskNOT: ; GCOL 4,<c>
 -:	in a,(Video.Data) ; 11
 	xor d             ; 4
 	ld (hl),a         ; 7
@@ -430,43 +454,17 @@ ManipulatePixelBitmaskInvert:
 	djnz -            ; 12 <- 40
 	ret
 
-SetGraphicsColour:
-	ld hl,Graphics.Colour
-	jr SetColour
+ManipulatePixelBitmaskANDNOT: ; GCOL 6,<c>
+	ld a,c
+	cpl
+	ld c,a
+	jr ManipulatePixelBitmaskAND
 
-SetConsoleColour:
-	ld hl,Console.Colour
-
-SetColour:
-	or a
-	ld e,a
-	ld a,(hl)
-	ld d,a
-	jp p,SetForegroundColour
-	
-SetBackgroundColour:
-	ld a,d
-	and $F0
-	ld d,a
-	ld a,e
-	and $0F
-	or d
-	ld (hl),a
-	ret
-
-SetForegroundColour:
-	ld a,d
-	and $0F
-	ld d,a
-	ld a,e
-	rrca
-	rrca
-	rrca
-	rrca
-	and $F0
-	or d
-	ld (hl),a
-	ret
+ManipulatePixelBitmaskORNOT: ; GCOL 7,<c>
+	ld a,c
+	cpl
+	ld c,a
+	jr ManipulatePixelBitmaskOR
 
 SelectPalette:
 	; Get ready at the logical palette entry.
