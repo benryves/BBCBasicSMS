@@ -41,6 +41,11 @@ FrameCounter = allocVar(1)
 Interrupt:
 	push af
 	
+	; Check the reset button.
+	in a,($DD)
+	bit 4,a
+	jp z,0
+	
 	in a,($BF)
 	bit 7,a
 	call nz,FrameInterrupt

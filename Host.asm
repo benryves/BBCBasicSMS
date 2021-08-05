@@ -165,7 +165,6 @@ ShowKeyCursor:
 	ei
 	halt
 	
-	call TrapConsoleButtons
 	call VDU.Console.FlushPendingScroll
 	
 	pop af
@@ -175,6 +174,12 @@ ShowKeyCursor:
 +:	call VDU.PutMap
 
 NoFlashCursor:
+
+	; Is it the pause key?
+	ld a,(Flags)
+	bit Pause,a
+	jr nz,KeyLoopEscape
+		
 	call Keyboard.GetKey
 	
 	pop bc
@@ -194,6 +199,11 @@ NoFlashCursor:
 KeyLoopEscape:
 	call EndKeyLoop
 	pop af
+	
+	ld a,(Flags)
+	res Pause,a
+	ld (Flags),a
+	
 	ld a,17 ; Escape
 	call Basic.BBCBASIC_EXTERR
 	.db "Escape", 0
@@ -807,9 +817,15 @@ LTRAP:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 TRAP:
-	call TrapConsoleButtons
+	
 	ei
 	
+	; Is pause pressed?
+	ld a,(Flags)
+	bit Pause,a
+	jr nz,TRAP.Escape
+	
+	; Shall we poll the keyboard?
 	ld a,(TrapKeyboardTimer)
 	or a
 	ret nz
@@ -827,29 +843,16 @@ TRAP:
 	jp p,+  ; It's a printable key
 	
 	cp Keyboard.KeyCode.Escape
-	jr nz,+
-	
-	ld a,17 ; Escape
-	call Basic.BBCBASIC_EXTERR
-	.db "Escape", 0
-	ret
+	jr z,TRAP.Escape
 	
 +:	pop hl
 	pop de
 	pop bc
 	ret
 
-TrapConsoleButtons:
-	; Is reset pressed?
-	in a,($DD)
-	bit 4,a
-	jp z,$0000
+TRAP.Escape:
 	
-	; Is pause pressed?
 	ld a,(Flags)
-	bit Pause,a
-	ret z
-	
 	res Pause,a
 	ld (Flags),a
 	
