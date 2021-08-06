@@ -116,12 +116,27 @@ ConvertScancode:
 	ld hl,(LayoutFile.ExtendedTableAddress)
 	ld bc,(LayoutFile.ExtendedTableSize)
 +	
+	push bc
 	cpir
+	pop bc
 	ret nz
-+
-	or a
++	
+	push hl
+	push hl
+	ld hl,(LayoutFile.StandardTableSize)
+	ld b,h \ ld c,l
+	ld hl,(LayoutFile.ExtendedTableSize)
+	add hl,bc
+	ld b,h \ ld c,l
+	pop hl
+	scf
+	sbc hl,bc
+	ld a,(hl)
+	pop hl
+	push af
+	
+	scf
 	sbc hl,de
-	dec hl
 	add hl,hl
 	ld de,(LayoutFile.KeyOffsetTable)
 	add hl,de
@@ -141,7 +156,7 @@ ConvertScancode:
 	
 	ld a,(OriginalScancode)
 	bit 0,a
-	ret nz
+	jp nz,ExitNoKey
 
 	ld a,(Status)
 	xor (hl)
@@ -255,11 +270,13 @@ NoStatusModifiers:
 	ld e,a
 	push de
 	pop af
+	pop de
 	ret
 
 ExitNoKey:
 	xor a
 	dec a
+	pop de
 	ret
 
 ; ---------------------------------------------------------
@@ -275,13 +292,11 @@ ExitNoKey:
 	
 GetKey:
 	push hl
-	push de
 	push bc
 	call GetScancode
 	jr nz,+
 	call ConvertScancode
 +:	pop bc
-	pop de
 	pop hl
 	ret
 

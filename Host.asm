@@ -21,6 +21,9 @@ TrapKeyboardTimer = allocVar(1)
 OSLINE.Override = allocVar(2)
 OSWRCH.Override = allocVar(2)
 
+HeldKeyCount = 8
+HeldKeys = allocVar(HeldKeyCount)
+
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
 ; 
@@ -97,6 +100,109 @@ OSRDCH.GotKey:
 	ret
 
 ; ---------------------------------------------------------
+; GetDeviceKey -> Gets a key from the keyboard and stores
+; the device code.
+; ---------------------------------------------------------
+; This is a wrapper around Keyboard.GetKey that stores the
+; state of any pressed/released keys.
+; ---------------------------------------------------------
+; Outputs:  z = if key pressed or released, nz if no key.
+;           c = if key not pressed, nc if key pressed.
+;           p = if printable key, m if extended key.
+; Destroys: af.
+; ---------------------------------------------------------
+GetDeviceKey:
+	push de
+	call Keyboard.GetKey
+	ei
+	jr nz,+
+	
+	push af
+	call nc,HoldDeviceKey
+	call c,ReleaseDeviceKey
+	pop af
+	
++:	pop de
+	ret
+
+; ---------------------------------------------------------
+; HoldDeviceKey -> Hold a key via its device code.
+; ---------------------------------------------------------
+; Inputs:   d = device code.
+; Outputs:  None.
+; Destroys: None.
+; ---------------------------------------------------------
+HoldDeviceKey:
+	push af
+	push hl
+	push de
+	push bc
+	
+	ld hl,HeldKeys
+	ld b,HeldKeyCount
+	
+-:	ld a,(hl)
+	cp d
+	jr z,++ ; Already holding
+	or a
+	jr z,+ ; A free slot!
+	inc hl
+	djnz -
+	
+	; No free slot.
+	; Shift the entire buffer left.
+	ld a,d
+	
+	ld hl,HeldKeys+1
+	ld de,HeldKeys+0
+	ld bc,HeldKeyCount-1
+	ldir
+	ld (de),a
+	jr ++
+
++:	ld (hl),d
+++:	pop bc
+	pop de
+	pop hl
+	pop af
+	ret
+
+; ---------------------------------------------------------
+; ReleaseDeviceKey -> Releases a key via its device code.
+; ---------------------------------------------------------
+; Inputs:   d = device code.
+; Outputs:  None.
+; Destroys: None.
+; ---------------------------------------------------------
+ReleaseDeviceKey:
+	push af
+	push hl
+	push de
+	push bc
+	
+	ld a,d
+	ld hl,HeldKeys
+	ld bc,HeldKeyCount
+	cpir
+	jr nz,++ ; It's not currently held.
+	
+	ld a,b
+	or c
+	jr z,+
+	ld d,h
+	ld e,l
+	dec de
+	ldir
++:	ex de,hl
+	ld (hl),0
+++:
+	pop bc
+	pop de
+	pop hl
+	pop af
+	ret
+	
+; ---------------------------------------------------------
 ; GetKey -> Gets a key from the keyboard.
 ; ---------------------------------------------------------
 ; This triggers an Escape condition if Escape is pressed
@@ -106,20 +212,17 @@ OSRDCH.GotKey:
 ; Outputs:  z = if key pressed or released, nz if no key.
 ;           c = if key not pressed, nc if key pressed.
 ;           p = if printable key, m if extended key.
-; Destroys: af, hl, de, bc.
+; Destroys: af, de
 ; ---------------------------------------------------------
 GetKey:
-	push bc
 
 	; Is it the pause key?
 	ld a,(Flags)
 	bit Pause,a
 	jr nz,KeyLoopEscape
-		
-	call Keyboard.GetKey
 	
-	pop bc
-	ei
+	call GetDeviceKey
+	
 	jr nz,NoKey ; no key at all
 	jr c,NoKey  ; key released
 	jp p,GotKey ; printable key
@@ -192,6 +295,42 @@ KeyLoopEscape:
 OSKEY:
 	push bc
 	push de
+	
+	bit 7,h
+	jr z,OSKEY.NotNegative
+	
+	inc h
+	jr nz,OSKEY.Return0
+	
+	ld a,l
+	or a
+	ld a,'?'
+	jr z,OSKEY.ReturnValue
+	
+	ld a,l
+	neg
+	ld hl,HeldKeys
+	ld bc,HeldKeyCount
+	cpir
+	jr nz,OSKEY.Return0
+
+OSKEY.ReturnTrue:
+	xor a
+	scf
+	ccf
+	pop de
+	pop bc
+	ret
+OSKEY.Return0:
+	xor a
+OSKEY.ReturnValue:
+	scf
+	pop de
+	pop bc
+	ret
+
+
+OSKEY.NotNegative:
 	
 	; Calculate the end time-1 (easier to check for <0 instead of <=0 later)
 	ld de,(TIME)
@@ -795,22 +934,14 @@ TRAP:
 	ld a,20
 	ld (TrapKeyboardTimer),a
 	
-	push bc
-	push de
-	push hl
+	call GetDeviceKey
 	
-	call Keyboard.GetKey
-	
-	jr nz,+ ; No key
-	jr c,+  ; It's being released
-	jp p,+  ; It's a printable key
+	ret nz ; No key
+	ret c  ; It's being released
+	ret p  ; It's a printable key
 	
 	cp Keyboard.KeyCode.Escape
 	jr z,TRAP.Escape
-	
-+:	pop hl
-	pop de
-	pop bc
 	ret
 
 TRAP.Escape:
