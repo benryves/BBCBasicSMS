@@ -25,8 +25,10 @@ Function.SetUserDefinedCharacter = 8
 Function.ResetConsoleViewport = 9
 Function.SelectPalette = 10
 Function.SelectDefaultPalette = 11
+Function.PreserveUnderCursor = 12
+Function.RestoreUnderCursor = 13
 
-Functions.Count = 11
+Functions.Count = 13
 FunctionVectors = allocVar(Functions.Count * 3)
 
 .function VDUFunctionAddress(function)
@@ -66,6 +68,8 @@ SetUserDefinedCharacter = VDUFunctionAddress(Function.SetUserDefinedCharacter)
 ResetConsoleViewport = VDUFunctionAddress(Function.ResetConsoleViewport)
 SelectPalette = VDUFunctionAddress(Function.SelectPalette)
 SelectDefaultPalette = VDUFunctionAddress(Function.SelectDefaultPalette)
+PreserveUnderCursor = VDUFunctionAddress(Function.PreserveUnderCursor)
+RestoreUnderCursor = VDUFunctionAddress(Function.RestoreUnderCursor)
 
 LoadModeFunctions:
 	

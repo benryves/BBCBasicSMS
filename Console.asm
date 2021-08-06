@@ -22,6 +22,11 @@ Status = allocVar(1)
 PendingScroll = 0
 PageMode = 1
 CursorMoved = 2
+CursorBlinking = 3
+
+CursorBlinkTimer = allocVar(1)
+
+AreaUnderCursor = allocVar(16)
 
 Reset:
 	
@@ -252,5 +257,96 @@ ClearBottomRow:
 
 +:	ei
 	ret
+
+; ---------------------------------------------------------
+; BeginBlinkingCursor -> Prepare to draw blinking cursor.
+; ---------------------------------------------------------
+; Destroys: af.
+; ---------------------------------------------------------
+BeginBlinkingCursor:
+	; Is the cursor already blinking?
+	ld a,(Status)
+	bit CursorBlinking,a
+	ret nz
+	set CursorBlinking,a
+	ld (Status),a
 	
+	; We haven't already started.
+	push hl
+	push de
+	push bc
+	call VDU.PreserveUnderCursor
+	pop bc
+	pop de
+	pop hl
+	
+	ld a,(Host.TIME)
+	ld (CursorBlinkTimer),a
+	ret
+
+; ---------------------------------------------------------
+; EndBlinkingCursor -> Ends drawing the blinking cursor.
+; ---------------------------------------------------------
+; Destroys: af.
+; ---------------------------------------------------------
+EndBlinkingCursor:
+	; Is the cursor currently blinking?
+	ld a,(Status)
+	bit CursorBlinking,a
+	ret z
+	res CursorBlinking,a
+	ld (Status),a
+
+	; We had been drawing a blinking cursor.
+	push hl
+	push de
+	push bc
+	call VDU.RestoreUnderCursor
+	pop bc
+	pop de
+	pop hl
+	ret
+
+; ---------------------------------------------------------
+; DrawBlinkingCursor -> Draws the blinking cursor.
+; ---------------------------------------------------------
+; Destroys: af.
+; ---------------------------------------------------------
+DrawBlinkingCursor:
+	; Is the cursor set to blink?
+	ld a,(Status)
+	bit CursorBlinking,a
+	call z,BeginBlinkingCursor
+	
+	; Are we showing the cursor or the character underneath?
+	push bc
+	ld a,(CursorBlinkTimer)
+	ld b,a
+	ld a,(Host.TIME)
+	sub b
+	and %00100000
+	pop bc
+	
+	jr z,DrawBlinkingCursorOn
+
+DrawBlinkingCursorOff:
+	push hl
+	push de
+	push bc
+	call VDU.RestoreUnderCursor
+	pop bc
+	pop de
+	pop hl
+	ret
+
+DrawBlinkingCursorOn:	
+	; What is the cursor?
+	ld a,(Host.Flags)
+	bit Host.Overwrite,a
+	ld a,'_' ; Insert mode cursor
+	jr z,+
+	ld a,127 ; Overwrite mode cursor 
++:
+	jp PutMap
+
 .endmodule

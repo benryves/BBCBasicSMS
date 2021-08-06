@@ -17,7 +17,6 @@ Pause = 0
 Overwrite = 1
 
 TrapKeyboardTimer = allocVar(1)
-CursorFlashTimer = allocVar(1)
 
 OSLINE.Override = allocVar(2)
 OSWRCH.Override = allocVar(2)
@@ -79,110 +78,38 @@ OSINIT:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSRDCH:
-	push hl
-	ld hl,EmptyChar
--:	call ReadChar
-	jp m,-
-	pop hl
-	ret
+	call VDU.Console.BeginBlinkingCursor
 
-EmptyChar:
-	.db ' '
-
-ReadChar:
-	push bc
-	push hl
+-:	call GetKey
 	
-	call InitKeyLoop
+	jp m,+              ; Ignore extended keys.
+	jr nc,OSRDCH.GotKey ; Accept pressed keys.
 
-ReadCharLoop:
-
--:	call RunKeyLoop
-	jr c,-
-	jp p,ReadCharPrintable
-	push af
-	
-	cp Keyboard.KeyCode.Insert
-	jr nz,+
-	ld a,(Flags)
-	xor 1<<Overwrite
-	ld (Flags),a
-	
++:	push af
+	call VDU.Console.DrawBlinkingCursor
 	pop af
 	jr -
 
-+:	pop af
-
-ReadCharPrintable:
-	call EndKeyLoop
-	
-	pop hl
-	pop bc
-	ei
-	ret
-
-InitKeyLoop:
-	ld a,(VDU.Console.Status)
-	bit VDU.Console.CursorMoved,a
-	jr z,+
-	res VDU.Console.CursorMoved,a
-	ld (VDU.Console.Status),a
-	ld a,(TIME)
-	ld (CursorFlashTimer),a
-	ld c,1
-	ret
-	
-+:	ld c,1
-	ret
-
-RunKeyLoop:
-	push bc
-	
-	; If C has been modified to 0, it indicates we want to skip the cursor on the initial loop.
-	ld a,c
-	or a
-	jr nz,+
-	pop bc
-	ld c,255
-	push bc
-	jr NoFlashCursor
-+:
-	
-	; Is the cursor flashing?
-	ld a,(CursorFlashTimer)
-	ld b,a
-	ld a,(TIME)
-	sub b
-	and %00100000
-	jr nz,CursorNotVisible
-	
-	; What is the cursor?
-	ld a,(Flags)
-	bit Overwrite,a
-	ld a,'_' ; Insert mode cursor
-	jr z,ShowKeyCursor
-	ld a,127 ; Overwrite mode cursor 
-	jr ShowKeyCursor
-
-CursorNotVisible:
-	ld a,(hl) ; Current character
-ShowKeyCursor:
-	cp c
-	jr z,NoFlashCursor
-	pop bc
-	ld c,a
-	push bc
+OSRDCH.GotKey:
 	push af
-	
-	call VDU.Console.FlushPendingScroll
-	
+	call VDU.Console.EndBlinkingCursor	
 	pop af
-	cp '\r'
-	jr nz,+
-	ld a,' '
-+:	call VDU.PutMap
+	ret
 
-NoFlashCursor:
+; ---------------------------------------------------------
+; GetKey -> Gets a key from the keyboard.
+; ---------------------------------------------------------
+; This triggers an Escape condition if Escape is pressed
+; and toggles the Insert/Overwrite status if Insert is
+; pressed.
+; ---------------------------------------------------------
+; Outputs:  z = if key pressed or released, nz if no key.
+;           c = if key not pressed, nc if key pressed.
+;           p = if printable key, m if extended key.
+; Destroys: af, hl, de, bc.
+; ---------------------------------------------------------
+GetKey:
+	push bc
 
 	; Is it the pause key?
 	ld a,(Flags)
@@ -193,21 +120,42 @@ NoFlashCursor:
 	
 	pop bc
 	ei
-	jr nz,NoKey   ; no key at all
-	jr c,NoKey    ; key released
-	jp p,GotKey   ; printable key
+	jr nz,NoKey ; no key at all
+	jr c,NoKey  ; key released
+	jp p,GotKey ; printable key
 	
 	push af
+	
+	; Is it Escape?
 	cp Keyboard.KeyCode.Escape
 	jr z,KeyLoopEscape
 	
+	; Is it Insert?
+	cp Keyboard.KeyCode.Insert
+	jr nz,KeyLoopNotInsert
+	
+	; Toggle insert/overwrite, then pretend no key happened.
+	ld a,(Flags)
+	xor 1<<Overwrite
+	ld (Flags),a
 	pop af
+	
+	jr NoKey
+
+KeyLoopNotInsert:	
+	pop af
+
+GotKey:
 	scf
 	ccf
 	ret
 
+NoKey:
+	scf
+	ret
+
 KeyLoopEscape:
-	call EndKeyLoop
+	call VDU.Console.EndBlinkingCursor
 	pop af
 	
 	ld a,(Flags)
@@ -218,31 +166,7 @@ KeyLoopEscape:
 	call Basic.BBCBASIC_EXTERR
 	.db "Escape", 0
 
-NoKey:
-	scf
-	ret
 
-GotKey:
-	scf
-	ccf
-	ret
-
-EndKeyLoop:
-	push af
-	ld a,c
-	or a
-	jr z,++
-	inc a
-	jr z,++
-	ld a,(hl)
-	cp '\r'
-	jr nz,+
-	ld a,' '
-+:	call VDU.PutMap
-++:	pop af
-	ret
-
-	
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
 ; 
@@ -266,6 +190,8 @@ EndKeyLoop:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSKEY:
+	jp Sorry
+.if 0
 	push bc
 	push de
 	
@@ -289,10 +215,7 @@ OSKEY:
 	cp Keyboard.KeyCode.Insert
 	jr nz,+
 	
-	; Toggle insert/overwrite.
-	ld a,(Flags)
-	xor 1<<Overwrite
-	ld (Flags),a
+	
 	
 	; Has the timer expired?
 +:	push hl
@@ -321,6 +244,7 @@ GotTimedKey:
 	pop bc
 	ei
 	ret
+.endif
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -353,8 +277,8 @@ OSLINE:
 	push bc
 	ret
 
-+:	call InitKeyLoop
-	
++:
+	call VDU.Console.BeginBlinkingCursor	
 	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
 	ld d,0 ; D = index into current string.
 
@@ -367,7 +291,11 @@ OSLINE.Loop:
 	jr nz,+
 	ld (hl),'\r'
 +:
-	call ReadChar
+	
+-:	call VDU.Console.DrawBlinkingCursor
+	call GetKey
+	jr c,-
+	
 	jp m,OSLINE.ExtendedKey
 	
 	; Control keys.
@@ -473,8 +401,18 @@ OSLINE.RepaintToEnd:
 	; Are there any characters between the current one and the end of the line?
 	ld a,b
 	sub d
-	jp z,OSLINE.Loop
+	jr nz,OSLINE.RepairToEnd.HasCharacters
 	
+	ld a,e
+	cp '\r'
+	jr nz,+
+	ld a,' '
++:	or a
+	call nz,VDU.PutMap
+	jp OSLINE.Loop
+
+OSLINE.RepairToEnd.HasCharacters:
+
 	; We need to repaint...
 	push bc
 	push hl
@@ -508,8 +446,7 @@ OSLINE.Return:
 	; Move to the end.
 	call OSLINE.End
 	
-	; Finish up and return.
-	call EndKeyLoop
+	call VDU.Console.EndBlinkingCursor
 	
 	ld a,'\r'
 	call VDU.PutChar
@@ -541,6 +478,7 @@ OSLINE.Delete:
 	cp b
 	jp z,OSLINE.Loop
 	
+	call VDU.Console.EndBlinkingCursor
 	call VDU.Console.CursorRight
 	inc hl
 	inc d
@@ -552,6 +490,8 @@ OSLINE.Backspace:
 	ld a,d
 	or a
 	jp z,OSLINE.Loop
+	
+	call VDU.Console.EndBlinkingCursor
 	
 	; Move all characters from the current cursor position+1 to the end of the string left one.
 	push hl
@@ -593,10 +533,13 @@ OSLINE.Home:
 	or a
 	jr z,+
 
+	call VDU.Console.EndBlinkingCursor
+
 -:	call VDU.Console.CursorLeft
 	dec hl
 	dec d
 	jr nz,-
+	
 +:	pop af
 	ret
 	
@@ -607,12 +550,15 @@ OSLINE.End:
 	cp b
 	jr z,+
 
+	call VDU.Console.EndBlinkingCursor
+
 -:	call VDU.Console.CursorRight
 	inc hl
 	inc d
 	ld a,b
 	cp d
 	jr nz,-
+	
 +:	pop af
 	ret
 
@@ -624,9 +570,11 @@ OSLINE.Left:
 	or a
 	jr z,+
 	
+	call VDU.Console.EndBlinkingCursor
 	call VDU.Console.CursorLeft
 	dec hl
 	dec d
+	
 	
 +:	pop af
 	ret
@@ -639,9 +587,11 @@ OSLINE.Right:
 	cp b
 	jr z,+
 	
+	call VDU.Console.EndBlinkingCursor
 	call VDU.Console.CursorRight
 	inc hl
 	inc d
+	
 	
 +:	pop af
 	ret
@@ -652,6 +602,10 @@ OSLINE.Clear:
 	ld a,b
 	or a
 	jp z,OSLINE.Loop
+	
+	push af
+	call VDU.Console.EndBlinkingCursor
+	pop af
 	
 	; Move to the end of the line.
 	sub d
@@ -702,7 +656,7 @@ OSLINE.Clear:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSLINE.Prefilled:
-	call InitKeyLoop
+	call VDU.Console.BeginBlinkingCursor
 	ld bc,255
 	ld d,0
 -:	ld a,(hl)
