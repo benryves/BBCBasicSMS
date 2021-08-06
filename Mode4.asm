@@ -26,6 +26,8 @@ Functions:
 	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.SelectPalette \ .dw SelectPalette
+	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
+	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
 	.db Function.End
 
 Initialise:
@@ -77,33 +79,40 @@ LoadCharRow:
 
 	ret
 
+
+AMul64:
+	ld l,a
+	ld h,0
+HLMul64:
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	ret
+
+GetNameTableAddressForCursor:
+	ld a,(Console.CurRow)
+	call AMul64
+	ld a,(Console.CurCol)
+	add a,a
+	ld e,a
+	ld d,0
+	add hl,de
+.if NameTable != 0
+	ld de,NameTable
+	add hl,de
+.endif
+	ret
+
 PutMap:
 	push hl
 	push de
 	push bc
 	push af
 
-	ld a,(Console.CurRow)
-	ld l,a
-	ld h,0
-
-	; *64
-	ld b,6
--:	add hl,hl
-	djnz -
-	
-	ld a,(Console.CurCol)
-	add a,a
-	
-	ld e,a
-	ld d,0
-	add hl,de
-	
-.if NameTable != 0
-	ld de,NameTable
-	add hl,de
-.endif
-	
+	call GetNameTableAddressForCursor
 	call Video.SetWriteAddress
 	ei
 	
@@ -129,14 +138,7 @@ Scroll:
 	
 	; Get the pointer to the top left corner.
 	ld a,(Console.MinRow)
-	ld l,a
-	ld h,0
-
-	; *64
-	ld b,6
--:	add hl,hl
-	djnz -
-	
+	call AMul64
 	ld a,(Console.MinCol)
 	add a,a
 	
@@ -546,5 +548,31 @@ SelectSixBitRGB:
 	ld a,c
 	ret
 
+
+PreserveUnderCursor:
+	call GetNameTableAddressForCursor
+	call Video.SetReadAddress	
+	
+	in a,(Video.Data)                    ; 11
+	ld (VDU.Console.AreaUnderCursor+0),a ; 13
+	inc hl \ dec hl                      ; 12 <- 36
+	in a,(Video.Data)
+	ld (VDU.Console.AreaUnderCursor+1),a
+	
+	ei
+	ret
+
+RestoreUnderCursor:
+	call GetNameTableAddressForCursor
+	call Video.SetWriteAddress
+	
+	ld a,(VDU.Console.AreaUnderCursor+0)  ; 13
+	out (Video.Data),a                    ; 11
+	inc hl \ dec hl                       ; 12 <- 36
+	ld a,(VDU.Console.AreaUnderCursor+1)
+	out (Video.Data),a
+	
+	ei
+	ret
 
 .endmodule

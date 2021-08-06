@@ -155,6 +155,7 @@ PreserveUnderCursor:
 	call Video.SetReadAddress
 	in a,(Video.Data)
 	ld (VDU.Console.AreaUnderCursor),a
+	ei
 	ret
 
 RestoreUnderCursor:
@@ -162,6 +163,7 @@ RestoreUnderCursor:
 	call Video.SetWriteAddress
 	ld a,(VDU.Console.AreaUnderCursor)
 	out (Video.Data),a
+	ei
 	ret
 
 .endmodule

@@ -333,6 +333,10 @@ OSLINE.Loop:
 	inc hl
 	inc d
 	
+	push af
+	call VDU.Console.EndBlinkingCursor
+	pop af
+	
 	; Print the character.
 	call VDU.PutChar
 	jr OSLINE.Loop
@@ -344,6 +348,10 @@ OSLINE.InsertCharacter
 	jr z,OSLINE.Loop
 
 OSLINE.EnoughSpace:	
+	
+	push af
+	call VDU.Console.EndBlinkingCursor
+	pop af
 	
 	; Move all characters after the current one right.
 	push bc
