@@ -16,6 +16,8 @@ Functions:
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.SelectPalette \ .dw SelectPalette
 	.db Function.SelectDefaultPalette \ .dw SelectDefaultPalette
+	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
+	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
 	.db Function.End
 
 Initialise:
@@ -76,29 +78,7 @@ PutMap:
 	ld e,a
 	ld a,(Console.CurRow)
 	
-	call GetNameTableValueForTile
-	
-	; Now we need to find that tile inside the pattern generator.
-	; Address = (nametable entry & 511) * 32
-	
-	add hl,hl
-	add hl,hl
-	add hl,hl
-	add hl,hl
-	add hl,hl
-	
-	; Carry flag = colour palette.
-	; If we're using the second colour palette, shift the pointer by two bytes.
-	jr nc,+
-	inc hl
-	inc hl
-+:
-
-	; Offset by the pattern generator address.
-.if PatternGenerator != 0
-	ld de,PatternGenerator
-	add hl,de
-.endif
+	call GetPatternGeneratorAddressForTile
 
 	; Restore the character number.
 	pop af
@@ -209,6 +189,53 @@ GetNameTableValueForTile:
 	in a,(Video.Data) ; MSB
 	ld h,a
 	ret
+
+; ---------------------------------------------------------
+; GetPatternGeneratorAddressForCursor -> gets the address
+; of the pattern generator data for the cursor.
+; ---------------------------------------------------------
+; Inputs:   CurCol, CorRow.
+; Outputs:  hl = pattern generator address.
+; Destroys: af, de, b.
+; ---------------------------------------------------------	
+GetPatternGeneratorAddressForCursor:
+	ld a,(VDU.Console.CurCol)
+	ld e,a
+	ld a,(VDU.Console.CurRow)
+
+; ---------------------------------------------------------
+; GetPatternGeneratorAddressForTile -> gets the address of
+; the pattern generator data for a tile.
+; ---------------------------------------------------------
+; Inputs:   a = tile row.
+;           e = tile column.
+; Outputs:  hl = pattern generator address.
+; Destroys: af, de, b.
+; ---------------------------------------------------------
+GetPatternGeneratorAddressForTile:
+	call GetNameTableValueForTile
+	
+	; Address = (nametable entry & 511) * 32
+	
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	
+	; Carry flag = colour palette.
+	; If we're using the second colour palette, shift the pointer by two bytes.
+	jr nc,+
+	inc hl
+	inc hl
++:
+
+	; Offset by the pattern generator address.
+.if PatternGenerator != 0
+	ld de,PatternGenerator
+	add hl,de
+.endif
+	ret
 	
 Scroll:
 	
@@ -218,13 +245,7 @@ Scroll:
 	
 	; Get the pointer to the top left corner.
 	ld a,(Console.MinRow)
-	ld l,a
-	ld h,0
-
-	; *64
-	ld b,6
--:	add hl,hl
-	djnz -
+	call Mode4.AMul64
 	
 	ld a,(Console.MinCol)
 	add a,a
@@ -444,29 +465,7 @@ SetAlignedHorizontalLineSegment:
 	ld e,d
 	
 	; (E,A)
-	call GetNameTableValueForTile
-	
-	; Now we need to find that tile inside the pattern generator.
-	; Address = (nametable entry & 511) * 32
-	
-	add hl,hl
-	add hl,hl
-	add hl,hl
-	add hl,hl
-	add hl,hl
-	
-	; Carry flag = colour palette.
-	; If we're using the second colour palette, shift the pointer by two bytes.
-	jr nc,+
-	inc hl
-	inc hl
-+:
-
-	; Offset by the pattern generator address.
-.if PatternGenerator != 0
-	ld de,PatternGenerator
-	add hl,de
-.endif
+	call GetPatternGeneratorAddressForTile
 	
 	pop de
 	
@@ -509,6 +508,55 @@ SetAlignedHorizontalLineSegment:
 	out (Video.Data),a  ; 11
 	inc hl              ; 6
 	djnz -              ; 12 <- 36
+	
+	ei
+	ret
+
+PreserveUnderCursor:
+	call GetPatternGeneratorAddressForCursor
+	call Video.SetReadAddress	
+	
+	ld hl,VDU.Console.AreaUnderCursor
+	ld de,0 ; Can't write to ROM!
+	ld b,16
+	
+-:	in a,(Video.Data) ; 11
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	inc de            ; 6
+	dec de            ; 6
+	in a,(Video.Data) ; 11 <- 36
+	ld (hl),a         ; 7
+	inc hl            ; 6
+	ex de,hl          ; 4
+	djnz -            ; 13/8
+	
+	ei
+	ret
+
+RestoreUnderCursor:
+	call GetPatternGeneratorAddressForCursor
+	call Video.SetWriteAddress
+	
+	ld hl,VDU.Console.AreaUnderCursor
+	ld b,8
+	
+-:	ld a,(hl)          ; 7
+	out (Video.Data),a ; 11
+	inc hl             ; 6
+	ld de,0            ; 10
+	ld a,(hl)          ; 7
+	out (Video.Data),a ; 11 <- 34
+	inc hl             ; 6
+	inc hl             ; 6
+	dec hl             ; 6
+	nop                ; 4
+	in a,(Video.Data)  ; 11 <- 33
+	push hl            ; 11
+	pop hl             ; 11
+	in a,(Video.Data)  ; 11 <- 33
+	nop                ; 4
+	djnz -             ; 13/8
 	
 	ei
 	ret
