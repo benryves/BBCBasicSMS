@@ -190,8 +190,6 @@ KeyLoopEscape:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSKEY:
-	jp Sorry
-.if 0
 	push bc
 	push de
 	
@@ -199,24 +197,15 @@ OSKEY:
 	ld de,(TIME)
 	dec de
 	add hl,de
-	
-	call InitKeyLoop
 
-	ld c,0 ; Skip the flashing cursor on the first loop.
+OSKEY.Loop:
 	
--:	push hl
-	ld hl,EmptyChar
-	call RunKeyLoop
-	pop hl
-	jr nz,+ ; No keys at all.
-	jr c,+  ; Released key.
-	jp p,GotTimedKey  ; It's a printable key.
-	
-	cp Keyboard.KeyCode.Insert
-	jr nz,+
-	
-	
-	
+	call GetKey
+	jr c,OSKEY.NoKey
+	jp m,OSKey.NoKey
+	jr OSKEY.GotKey
+
+OSKEY.NoKey:
 	; Has the timer expired?
 +:	push hl
 	ld de,(TIME)
@@ -227,24 +216,26 @@ OSKEY:
 	
 	; Check if timer has gone negative.
 	bit 7,d
-	jr z,-
+	jr nz,OSKEY.TimedOut
+	
+	; No, so draw the flashing cursor.
+	call VDU.Console.DrawBlinkingCursor
+	jr OSKEY.Loop
 
-KeyTimedOut:
+OSKEY.TimedOut:
 	scf ; Timed out, so pretend we dont have a key.
 	
-GotTimedKey:
+OSKEY.GotKey:
 	ccf
 	
-	push hl
-	ld hl,EmptyChar
-	call EndKeyLoop
-	pop hl
+	push af
+	call VDU.Console.EndBlinkingCursor
+	pop af
 	
 	pop de
 	pop bc
 	ei
 	ret
-.endif
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
