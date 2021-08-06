@@ -50,16 +50,16 @@ LoadCharRow:
 	jr nz,LoadChar
 	
 	; Load the palette
-	xor a
-	call Video.GotoPalette
-	ld c,2
+	ld de,2
 --:	ld hl,VDU.Palettes.SegaMasterSystem
 	ld b,16
--:	ld a,(hl)
+-:	ld a,d
+	ld c,(hl)
+	call Video.SetPalette
 	inc hl
-	out (Video.Data),a
+	inc d
 	djnz -
-	dec c
+	dec e
 	jr nz,--
 	
 	ld hl,MinGraphicsTile
@@ -477,16 +477,18 @@ ManipulatePixelBitmaskORNOT: ; GCOL 7,<c>
 ; ---------------------------------------------------------
 SelectPalette:
 	; Get ready at the logical palette entry.
-	push af
-	ld a,c
-	and $0F
-	call Video.GotoPalette
-	pop af
-
+	push bc
 	call ParsePaletteCommand
-	
-	out (Video.Data),a
-	ei
+	pop bc
+	ld b,c
+	ld c,a
+	ld a,b
+	and $F
+	ld b,a
+	call Video.SetPalette
+	ld a,b
+	add a,16
+	call Video.SetPalette
 	ret
 
 ; ---------------------------------------------------------

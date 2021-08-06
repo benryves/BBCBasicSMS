@@ -8,6 +8,7 @@ Functions:
 	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
+	.db Function.SelectPalette \ .dw Mode4.SelectPalette
 	.db Function.End
 
 PatternGenerator = $0000 ; 6KB
@@ -76,14 +77,10 @@ Initialise:
 	ld hl,ColourTable
 	call Video.SetWriteAddress
 	
-	; Make text background colour transparent.
-	ld a,(VDU.Console.Colour)
-	and %11110000
-	ld (VDU.Console.Colour),a
-	
 	; 6KB of colour data
 	ld bc,kb(6)/256
 	
+	xor a
 -:	out (Video.Data),a
 	djnz -
 	dec c
@@ -190,6 +187,8 @@ WriteFontData:
 	call Video.SetWriteAddress
 	
 	ld a,(VDU.Console.Colour)
+	call VDU.Palettes.ConvertColourPairToTMS9918
+	
 	ld b,8	
 -:	out (Video.Data),a  ; 11
 	nop                 ; 4
@@ -269,6 +268,8 @@ Scroll:
 	ret
 
 BeginPlot:
+	ld a,(Graphics.PlotShape)
+	and 3
 	dec a
 	jr z,SetForegroundPixel
 	dec a
@@ -393,7 +394,11 @@ ManipulatePixelColour.SetForeground:
 	and %00001111
 	ld c,a
 	ld a,(VDU.Graphics.Colour)
-	and %11110000
+	call VDU.Palettes.ConvertPaletteIndexToTMS9918A
+	rlca
+	rlca
+	rlca
+	rlca
 	or c
 	ret
 
@@ -401,7 +406,11 @@ ManipulatePixelColour.SetBackground:
 	and %11110000
 	ld c,a
 	ld a,(VDU.Graphics.Colour)
-	and %00001111
+	rrca
+	rrca
+	rrca
+	rrca
+	call VDU.Palettes.ConvertPaletteIndexToTMS9918A
 	or c
 	ret
 

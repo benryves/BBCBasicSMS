@@ -9,6 +9,9 @@ Control = $BF
 ; Local copy of registers
 Registers = allocVar(11)
 
+; Local copy of palette (first 16 colours only!)
+Palette = allocVar(16)
+
 Reset: ; Preload the VDP registers with sensible data.
 	di
 	
@@ -125,6 +128,42 @@ GotoPalette: ; Set the CRAM pointer to colour a.
 	out (Control),a
 	ld a,$C0
 	out (Control),a
+	ret
+
+; Sets the palette index A to value C.
+SetPalette:
+	push hl
+	push af
+	call GotoPalette
+	pop af
+	cp 16
+	jr nc,SetHigherPaletteEntry
+	ld l,a
+	ld h,0
+	push de
+	ld de,Palette
+	add hl,de
+	ld (hl),c
+	pop de
+SetHigherPaletteEntry:
+	pop hl
+	ld a,c
+	out (Video.Data),a
+	ei
+	ret
+
+; Gets the palette value from index A.
+GetPalette:
+	and $F
+	push hl
+	push de
+	ld l,a
+	ld h,0
+	ld de,Palette
+	add hl,de
+	ld a,(hl)
+	pop de
+	pop hl
 	ret
 	
 ClearAll:

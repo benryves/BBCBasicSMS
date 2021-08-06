@@ -24,8 +24,9 @@ Function.SetAlignedHorizontalLineSegment = 7
 Function.SetUserDefinedCharacter = 8
 Function.ResetConsoleViewport = 9
 Function.SelectPalette = 10
+Function.SelectDefaultPalette = 11
 
-Functions.Count = 10
+Functions.Count = 11
 FunctionVectors = allocVar(Functions.Count * 3)
 
 .function VDUFunctionAddress(function)
@@ -64,6 +65,7 @@ SetAlignedHorizontalLineSegment = VDUFunctionAddress(Function.SetAlignedHorizont
 SetUserDefinedCharacter = VDUFunctionAddress(Function.SetUserDefinedCharacter)
 ResetConsoleViewport = VDUFunctionAddress(Function.ResetConsoleViewport)
 SelectPalette = VDUFunctionAddress(Function.SelectPalette)
+SelectDefaultPalette = VDUFunctionAddress(Function.SelectDefaultPalette)
 
 LoadModeFunctions:
 	
@@ -129,6 +131,7 @@ LoadedAllFunctions:
 DefaultFunctions:
 	.db Function.Clear \ .dw DefaultClear
 	.db Function.ResetConsoleViewport \ .dw DefaultResetConsoleViewport
+	.db Function.SelectDefaultPalette \ .dw DefaultSelectDefaultPalette
 	.db Function.End
 
 ; Font data
@@ -145,76 +148,90 @@ DefaultFunctions:
 ; Palette data
 .module Palettes
 	
-	; BBC BASIC "physical" palette is:
-	;  0 = Black
-	;  1 = Red
-	;  2 = Green
-	;  3 = Yellow
-	;  4 = Blue
-	;  5 = Magenta
-	;  6 = Cyan
-	;  7 = White
-	;  8 = Grey
-	;  9 = Bright red
-	; 10 = Bright green
-	; 11 = Bright yellow
-	; 12 = Bright blue
-	; 13 = Bright magenta
-	; 14 = Bright cyan
-	; 15 = Bright white
+; BBC BASIC "physical" palette is:
+;  0 = Black
+;  1 = Red
+;  2 = Green
+;  3 = Yellow
+;  4 = Blue
+;  5 = Magenta
+;  6 = Cyan
+;  7 = White
+;  8 = Grey
+;  9 = Bright red
+; 10 = Bright green
+; 11 = Bright yellow
+; 12 = Bright blue
+; 13 = Bright magenta
+; 14 = Bright cyan
+; 15 = Bright white
 
-	TMS9918A:
-	; TMS9918A has:
-	;  0 = Transparent
-	;  1 = Black
-	;  2 = Medium Green
-	;  3 = Light Green
-	;  4 = Dark Blue
-	;  5 = Medium Blue
-	;  6 = Maroon
-	;  7 = Cyan
-	;  8 = Dark red
-	;  9 = Bright red
-	; 10 = Dark yellow
-	; 11 = Yellow
-	; 12 = Dark green
-	; 13 = Magenta
-	; 14 = Grey
-	; 15 = White
-	.db  1 ;  0 = Black
-	.db  8 ;  1 = Red
-	.db  2 ;  2 = Green
-	.db 11 ;  3 = Yellow
-	.db  5 ;  4 = Blue
-	.db 13 ;  5 = Magenta
-	.db  7 ;  6 = Cyan
-	.db 15 ;  7 = White
-	.db 14 ;  8 = Grey
-	.db  9 ;  9 = Bright red
-	.db  3 ; 10 = Bright green
-	.db 11 ; 11 = Bright yellow
-	.db  5 ; 12 = Bright blue
-	.db 13 ; 13 = Bright magenta
-	.db  7 ; 14 = Bright cyan
-	.db 15 ; 15 = Bright white
+SegaMasterSystem:
+.db %000000 ;  0 = Black
+.db %000010 ;  1 = Red
+.db %001000 ;  2 = Green
+.db %001010 ;  3 = Yellow
+.db %100000 ;  4 = Blue
+.db %100010 ;  5 = Magenta
+.db %101000 ;  6 = Cyan
+.db %101010 ;  7 = White
+.db %010101 ;  8 = Grey
+.db %000011 ;  9 = Bright red
+.db %001100 ; 10 = Bright green
+.db %001111 ; 11 = Bright yellow
+.db %110000 ; 12 = Bright blue
+.db %110011 ; 13 = Bright magenta
+.db %111100 ; 14 = Bright cyan
+.db %111111 ; 15 = Bright white
+
+; Maps the 64 %00bbggrr Master System colours to the nearest-matching TMS9918A palette index.
+SegaMasterSystemToTMS9918A:
+.db $1 ,$6 ,$8 ,$9 ,$C ,$A ,$A ,$9 ,$2 ,$2 ,$B ,$B ,$3 ,$3 ,$B ,$B
+.db $4 ,$6 ,$8 ,$9 ,$C ,$E ,$E ,$9 ,$2 ,$E ,$E ,$B ,$3 ,$3 ,$B ,$B
+.db $5 ,$5 ,$D ,$D ,$E ,$E ,$E ,$D ,$7 ,$E ,$F ,$F ,$7 ,$7 ,$F ,$F
+.db $5 ,$5 ,$D ,$D ,$5 ,$5 ,$D ,$D ,$7 ,$7 ,$F ,$F ,$7 ,$7 ,$F ,$F
+
+
+; Converts a $<background><foreground> logical palette pair into a TMS9918A $<foreground><background> pair.
+ConvertColourPairToTMS9918:
+	push bc
+	push af
+	and $0F
+	call ConvertPaletteIndexToTMS9918A
+	rlca
+	rlca
+	rlca
+	rlca
+	ld c,a
+	pop af
+	rrca
+	rrca
+	rrca
+	rrca
+	call ConvertPaletteIndexToTMS9918A
+	or c
+	pop bc
+	ret
+
+; Converts a logical palette number to the closest TMS9918A match.
+ConvertPaletteIndexToTMS9918A:
+	call Video.GetPalette
+	; Fall-through
 	
-	SegaMasterSystem:
-	.db %000000 ;  0 = Black
-	.db %000010 ;  1 = Red
-	.db %001000 ;  2 = Green
-	.db %001010 ;  3 = Yellow
-	.db %100000 ;  4 = Blue
-	.db %100010 ;  5 = Magenta
-	.db %101000 ;  6 = Cyan
-	.db %101010 ;  7 = White
-	.db %010101 ;  8 = Grey
-	.db %000011 ;  9 = Bright red
-	.db %001100 ; 10 = Bright green
-	.db %001111 ; 11 = Bright yellow
-	.db %110000 ; 12 = Bright blue
-	.db %110011 ; 13 = Bright magenta
-	.db %111100 ; 14 = Bright cyan
-	.db %111111 ; 15 = Bright white
+; Converts a single physical %00bbggrr Master System colour to the closest TMS9918A match.
+ConvertSegaMasterSystemToTMS9918A:
+	push hl
+	push de
+	and %00111111
+	ld l,a
+	ld h,0
+	ld de,SegaMasterSystemToTMS9918A
+	add hl,de
+	ld a,(hl)
+	pop de
+	pop hl
+	ret
+
 
 .endmodule
 
@@ -608,6 +625,10 @@ ResetColoursCommand:
 	ld (Console.Colour),a
 	ld (Graphics.Colour),a
 	
+	call SelectDefaultPalette
+	ret
+
+DefaultSelectDefaultPalette:
 	; Reset to default palette.
 	ld bc,16*256
 -:	ld a,c
@@ -620,6 +641,7 @@ ResetColoursCommand:
 	push bc
 	call SelectPaletteCommand
 	pop bc
+	inc c
 	djnz -
 	ret
 

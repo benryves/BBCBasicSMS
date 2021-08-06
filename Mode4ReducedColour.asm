@@ -15,6 +15,7 @@ Functions:
 	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.SelectPalette \ .dw SelectPalette
+	.db Function.SelectDefaultPalette \ .dw SelectDefaultPalette
 	.db Function.End
 
 Initialise:
@@ -29,27 +30,6 @@ Initialise:
 	
 	ld hl,MinGraphicsTile | $0800
 	call WriteNameTable
-	
-	; Initialise the two palettes.
-	
-	; Top half of screen:    0123012301230123
-	; Bottom half of screen: 0000111122223333
-	
-	ld c,%00000000
-	ld a,0
-	call WritePaletteEntry
-	
-	ld c,%00000011
-	ld a,1
-	call WritePaletteEntry
-	
-	ld c,%00001111
-	ld a,2
-	call WritePaletteEntry
-	
-	ld c,%00111111
-	ld a,3
-	call WritePaletteEntry
 	
 	; Disable sprites
 	ld hl,SpriteTable
@@ -360,9 +340,7 @@ WritePaletteEntry:
 	
 	ld b,4
 -:	ld a,h
-	call Video.GotoPalette
-	ld a,c
-	out (Video.Data),a
+	call Video.SetPalette
 	inc h
 	inc h
 	inc h
@@ -374,6 +352,8 @@ WritePaletteEntry:
 	rlca
 	add a,16
 	
+	; We can set the rest of the palette directly,
+	; as it's colours 16..31 which won't end up in the RAM copy.
 	call Video.GotoPalette
 	
 	ld a,c
@@ -385,6 +365,33 @@ WritePaletteEntry:
 	
 	ei
 	ret
+	
+
+; ---------------------------------------------------------
+; SelectDefaultPalette -> Selects the default palette.
+; ---------------------------------------------------------
+; Destroys: af, hl, bc.
+; ---------------------------------------------------------
+SelectDefaultPalette:
+	ld hl,DefaultPalette
+	ld bc,4<<8
+-:	push bc
+	push hl
+	ld a,c
+	ld c,(hl)
+	call WritePaletteEntry
+	pop hl
+	pop bc
+	inc c
+	inc hl
+	djnz -
+	ret
+
+DefaultPalette:
+.db %00000000
+.db %00000011
+.db %00001111
+.db %00111111
 
 ; ---------------------------------------------------------
 ; SetPixel -> Sets a pixel according to the current plot
