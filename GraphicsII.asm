@@ -9,6 +9,8 @@ Functions:
 	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.SelectPalette \ .dw Mode4.SelectPalette
+	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
+	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
 	.db Function.End
 
 PatternGenerator = $0000 ; 6KB
@@ -94,14 +96,30 @@ Initialise:
 	ld (ManipulatePixelBitmask+1),a
 	ret
 
-PutMap:
-	push hl
-	push de
-	push bc
-	push af
-
-	; Row *32, *8 = * 256
+; ---------------------------------------------------------
+; GetVRAMOffsetForCursor -> gets the offset into VRAM for
+; a particular cursor position.
+; ---------------------------------------------------------
+; Inputs:   CurCol, CurRow
+; Outputs:  hl = offset to VRAM data for tile at (e,a).
+; Destroys: af, de, b.
+; ---------------------------------------------------------
+GetVRAMOffsetForCursor:
+	ld a,(Console.CurCol)
+	ld e,a
 	ld a,(Console.CurRow)
+
+; ---------------------------------------------------------
+; GetVRAMOffsetForCursor -> gets the offset into VRAM for
+; a particular cursor position.
+; ---------------------------------------------------------
+; Inputs:   a = tile row.
+;           e = tile column.
+; Outputs:  hl = offset to VRAM data for tile at (e,a).
+; Destroys: af, b.
+; ---------------------------------------------------------
+GetVRAMOffsetForTile:
+	; Row *32, *8 = * 256
 	ld l,a	
 	and %11111000
 	ld h,a
@@ -115,14 +133,23 @@ PutMap:
 	ld l,0
 
 	; Column *8
-	ld a,(Console.CurCol)
+	ld a,e
 	add a,a
 	add a,a
 	add a,a
-	
 	ld e,a
+	
 	ld d,0
 	add hl,de
+	ret
+
+PutMap:
+	push hl
+	push de
+	push bc
+	push af
+
+	call GetVRAMOffsetForCursor
 	
 	pop af  ; Get the character number again
 	push hl ; Save the address offset for later...
@@ -207,17 +234,10 @@ Scroll:
 	push hl
 	
 	; Get the pointer to the top left corner in the pattern table.
-	ld a,(Console.MinRow)
-	ld h,a
-	ld l,0
-	
 	ld a,(Console.MinCol)
-	add a,a
-	add a,a
-	add a,a
 	ld e,a
-	ld d,0
-	add hl,de
+	ld a,(Console.MinRow)
+	call GetVRAMOffsetForTile
 	
 	push hl
 
@@ -453,5 +473,79 @@ SetUserDefinedCharacter:
 	
 	ei
 	ret
+
+PreserveUnderCursor:
+	xor a
+	jr ManageCursor
+
+RestoreUnderCursor:
+	ld a,-1
 	
+ManageCursor:
+	ld b,a
+	
+	call GetVRAMOffsetForCursor
+	push hl
+	
+	.if ColourTable != 0
+	ld de,ColourTable
+	add hl,de
+	.endif
+	
+	pop de  ; DE = offset into VRAM
+	push hl
+	
+	.if PatternGenerator == 0
+	push de
+	.else
+	ld hl,PatternGenerator
+	add hl,de
+	push hl
+	.endif
+	
+	ld c,2
+	
+	ld a,b
+	or a
+	jr nz,ManageCursorWrite
+
+ManageCursorRead:	
+	
+--:	pop hl
+	call Video.SetReadAddress
+	ld de,VDU.Console.AreaUnderCursor+0
+	bit 0,c
+	jr z,+
+	ld de,VDU.Console.AreaUnderCursor+8
++:	ld b,8
+-:	in a,(Video.Data) ; 11
+	ld (de),a         ; 7
+	inc de            ; 6
+	djnz -            ; 13/8 <- 37
+	dec c
+	jr nz,--
+	
+	ei
+	ret
+
+ManageCursorWrite:
+
+--:	pop hl
+	call Video.SetWriteAddress
+	ld de,VDU.Console.AreaUnderCursor+0
+	bit 0,c
+	jr z,+
+	ld de,VDU.Console.AreaUnderCursor+8
++:	ld b,8
+-:	ld a,(de)          ;  7
+	out (Video.Data),a ; 11
+	inc de             ; 6
+	djnz -             ; 13/8 <- 37
+	dec c
+	jr nz,--
+	
+
+	ei
+	ret
+
 .endmodule
