@@ -17,6 +17,7 @@ Pause = 0
 Overwrite = 1
 
 TrapKeyboardTimer = allocVar(1)
+CursorFlashTimer = allocVar(1)
 
 OSLINE.Override = allocVar(2)
 OSWRCH.Override = allocVar(2)
@@ -94,10 +95,11 @@ ReadChar:
 	
 	call InitKeyLoop
 
+ReadCharLoop:
+
 -:	call RunKeyLoop
 	jr c,-
 	jp p,ReadCharPrintable
-	
 	push af
 	
 	cp Keyboard.KeyCode.Insert
@@ -120,9 +122,17 @@ ReadCharPrintable:
 	ret
 
 InitKeyLoop:
+	ld a,(VDU.Console.Status)
+	bit VDU.Console.CursorMoved,a
+	jr z,+
+	res VDU.Console.CursorMoved,a
+	ld (VDU.Console.Status),a
 	ld a,(TIME)
-	ld b,a
+	ld (CursorFlashTimer),a
 	ld c,1
+	ret
+	
++:	ld c,1
 	ret
 
 RunKeyLoop:
@@ -139,6 +149,8 @@ RunKeyLoop:
 +:
 	
 	; Is the cursor flashing?
+	ld a,(CursorFlashTimer)
+	ld b,a
 	ld a,(TIME)
 	sub b
 	and %00100000
@@ -161,9 +173,6 @@ ShowKeyCursor:
 	ld c,a
 	push bc
 	push af
-	
-	ei
-	halt
 	
 	call VDU.Console.FlushPendingScroll
 	
@@ -191,6 +200,7 @@ NoFlashCursor:
 	push af
 	cp Keyboard.KeyCode.Escape
 	jr z,KeyLoopEscape
+	
 	pop af
 	scf
 	ccf
@@ -299,7 +309,7 @@ OSKEY:
 KeyTimedOut:
 	scf ; Timed out, so pretend we dont have a key.
 	
-GotTImedKey:
+GotTimedKey:
 	ccf
 	
 	push hl
@@ -520,7 +530,7 @@ OSLINE.ExtendedKey:
 	
 	cp Keyboard.KeyCode.Right
 	call z,OSLINE.Right
-		
+	
 	jp OSLINE.Loop
 
 OSLINE.Delete:

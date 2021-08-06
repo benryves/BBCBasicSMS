@@ -21,6 +21,7 @@ Colour = allocVar(1)
 Status = allocVar(1)
 PendingScroll = 0
 PageMode = 1
+CursorMoved = 2
 
 Reset:
 	
@@ -59,7 +60,7 @@ CursorRight:
 	jr NewLine
 	
 +:	ld (CurCol),a
-	ret
+	jr MarkCursorMoved
 	
 
 NewLine:
@@ -84,7 +85,8 @@ CursorDown:
 	
 	ld a,(MaxRow)
 +:	ld (CurRow),a
-	ret
+	
+	jr MarkCursorMoved
 
 CursorLeft:
 	ld a,(CurCol)
@@ -98,7 +100,7 @@ CursorLeft:
 +:	push af
 	ld (CurCol),a
 	pop af
-	ret nc
+	jr nc,MarkCursorMoved
 +:
 
 CursorUp:
@@ -113,12 +115,18 @@ CursorUp:
 +:	push af
 	ld (CurRow),a
 	pop af
-	ret
+	jr MarkCursorMoved
 
 Clear:
 	ret
 
 Tab:
+	ret
+
+MarkCursorMoved:
+	ld a,(Status)
+	set CursorMoved,a
+	ld (Status),a
 	ret
 
 FlushPendingScroll:
