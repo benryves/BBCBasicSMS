@@ -7,6 +7,8 @@ Functions:
 	.db Function.ResetConsoleViewport \ .dw ResetConsoleViewport
 	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
 	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
+	.db Function.SelectPalette \ .dw SelectPalette
+	.db Function.SelectDefaultPalette \ .dw SelectDefaultPalette
 	.db Function.End
 
 NameTable = $3800
@@ -44,11 +46,26 @@ Initialise:
 	call Video.SetWriteAddress
 	
 	ld hl,VDU.Fonts.Font6x8
+	push hl
 	ld bc,Video.Data ; B = 0, C = Video.Data
 	
 	otir
 	otir
 	otir
+	
+	; And now, the inverted version!
+	
+	pop hl
+	ld c,3
+	
+-:	ld a,(hl)
+	xor %11111100
+	out (Video.Data),a
+	inc hl
+	djnz -
+	dec c
+	jr nz,-
+	
 	
 	ret
 
@@ -98,6 +115,32 @@ PutMap:
 	call Video.SetWriteAddress
 	pop af
 	add a,FontCharOffset
+	cp 96
+	jr c,+
+	xor a
++:	ld b,a
+
+	ld a,(VDU.Console.Colour)
+	ld c,a
+	rlca
+	rlca
+	rlca
+	rlca
+	xor c
+	srl a
+	ld a,0
+	
+	; Same foreground and background colour = draw as block.
+	jr c,+
+	ld b,127
++:	
+
+	; Is the foreground colour black?
+	srl c
+	jr c,+
+	ld a,96
++:	
+	add a,b
 	out (Video.Data),a
 	pop bc
 	pop de
@@ -165,5 +208,46 @@ RestoreUnderCursor:
 	out (Video.Data),a
 	ei
 	ret
+
+; ---------------------------------------------------------
+; SelectDefaultPalette -> Selects the default palette.
+; ---------------------------------------------------------
+; Destroys: af, hl, bc.
+; ---------------------------------------------------------
+SelectDefaultPalette:
+	xor a
+	ld b,a
+	ld c,a
+	call SelectPalette
+	ld a,15
+	ld b,a
+	ld c,a
+	; Fall-through
+
+; ---------------------------------------------------------
+; SelectPalette -> Selects the palette.
+; ---------------------------------------------------------
+; Inputs:   a = "physical" colour (from BBC BASIC palette).
+;           b = "physical" colour.
+;           c = logical colour.
+;           hl = pointer to RGB colour (if applicable).
+; Destroys: af, hl, bc.
+; ---------------------------------------------------------
+SelectPalette:
+	; Pretend we're setting the palette normally in our 2-colour palette.
+	ld a,c
+	and 1
+	ld c,a
+	ld a,b
+	call Mode4.SelectPalette
+	
+	; Convert the console colour to a TMS9918 pair.
+	ld a,(VDU.Console.Colour)
+	and $11
+	call VDU.Palettes.ConvertColourPairToTMS9918
+	
+	; Set the text colour.
+	ld b,$07
+	jp Video.SetRegister
 
 .endmodule
