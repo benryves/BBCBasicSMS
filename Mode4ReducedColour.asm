@@ -1,11 +1,16 @@
 .module Mode4ReducedColour
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
-NameTable        = $3800 ; 1792 bytes
+NameTable        = $3800 ; 1536 bytes
 SpriteTable      = $3F00 ; 256 bytes
 TopOfMemory      = $4000 ; 16KB
+
 MinGraphicsTile  = 0
 MaxGraphicsTile  = 384   ; +1
+
+UserDefinedChars = PatternGenerator + MaxGraphicsTile * 32
+EndOfUserDefinedChars = NameTable
+UserDefinedCharCount = (EndOfUserDefinedChars - UserDefinedChars) / 8
 
 Functions:
 	.db Function.Initialise \ .dw Initialise
@@ -18,6 +23,7 @@ Functions:
 	.db Function.SelectDefaultPalette \ .dw SelectDefaultPalette
 	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
 	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
+	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
 	.db Function.End
 
 Initialise:
@@ -86,6 +92,29 @@ PutMap:
 	; Store pattern generator pointer for later.
 	push hl
 	
+	; Is it a user-defined character?
+	cp $80
+	jr c,ROMFont
+	
+	; Yes, so read back the user-defined character.
+	call GetUserDefinedCharacterAddress
+		
+	call Video.SetReadAddress
+	ld hl,TempTile
+	push hl
+	ld b,8
+	
+-:	in a,(Video.Data)   ; 11
+	ld (hl),a           ; 7
+	inc hl              ; 6
+	djnz -              ; 13 = 37 clocks
+	
+	pop de
+	
+	jr WriteFontData
+
+ROMFont:
+	
 	; Load the font pointer.
 	add a,FontCharOffset
 	ld l,a
@@ -96,6 +125,8 @@ PutMap:
 	ld de,Fonts.Font8x8
 	add hl,de
 	ex de,hl
+	
+WriteFontData:
 	
 	; Restore pattern generator pointer.
 	pop hl
@@ -557,6 +588,43 @@ RestoreUnderCursor:
 	in a,(Video.Data)  ; 11 <- 33
 	nop                ; 4
 	djnz -             ; 13/8
+	
+	ei
+	ret
+
+; ---------------------------------------------------------
+; GetUserDefinedCharacterAddress -> Gets address in VRAM
+; ---------------------------------------------------------
+; Inputs:   a = character to get the address of.
+; Outputs:  nc if the character is out of range.
+;           hl = address of the character otherwise.
+; Destroys: af, de.
+; ---------------------------------------------------------
+GetUserDefinedCharacterAddress:
+	add a,a
+	ret nc ; As we're expecting to map from $80..$FF, must carry
+	ld l,a
+	ld h,0
+	add hl,hl
+	add hl,hl
+	ld de,UserDefinedChars
+	add hl,de
+	scf
+	ret
+
+SetUserDefinedCharacter:
+	push hl
+	call GetUserDefinedCharacterAddress
+	pop de
+	ret nc
+	
+	call Video.SetWriteAddress
+	
+	ld b,8
+-:	ld a,(de)           ; 7
+	out (Video.Data),a  ; 11
+	inc de              ; 6
+	djnz -              ; 13 = 37 clocks
 	
 	ei
 	ret

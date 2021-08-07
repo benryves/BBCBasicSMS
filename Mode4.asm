@@ -1,7 +1,7 @@
 .module Mode4
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
-NameTable        = $3800 ; 1792 bytes
+NameTable        = $3800 ; 1536 bytes
 SpriteTable      = $3F00 ; 256 bytes
 TopOfMemory      = $4000 ; 16KB
 
