@@ -537,8 +537,9 @@ List.NotEscapeCode:
 ; Inputs:   hl = pointer to file name NUL/CR terminated.
 ;           de = pointer to RAM to store the file in.
 ;           bc = maximum file size that can be loaded.
-; Outputs:  z on success, nz on failure.
-;           c is set if the error is "No room".
+; Outputs:  nz if there was a protocol/receive error.
+;           if no error, c set if transfer was cancelled.
+;           if error, c is set if the error is "No room".
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
 GetFile:
@@ -587,6 +588,25 @@ GetFile.PathSent:
 
 GetFile.ReceiveFileLoop:
 
+	ld a,(TempCapacity)
+	and %00000111
+	scf
+	call z,Trap
+	jr c,GetFile.CanCarry
+	
+	call Serial.GetSingleByte
+	scf
+	ccf
+	ret nz
+	ld a,1
+	call Serial.SendByteImmediately
+	xor a
+	scf
+	ret
+
+
+GetFile.CanCarry:
+
 	call GetDataByte
 	jr nz,GetFile.ProtocolError
 	
@@ -595,7 +615,7 @@ GetFile.ReceiveFileLoop:
 	cp 'Z' ; End of file.
 	jr nz,GetFile.ProtocolError
 	
-	xor a ; Set z.
+	xor a ; Set z, clear carry.
 	ret
 
 GetFile.NotEscapeCode:
@@ -704,6 +724,22 @@ SendFile.PathSent:
 -:	push hl
 	push bc
 	
+	push hl
+	ld a,c
+	and %00000111
+	scf
+	call z,Trap
+	pop hl
+	jr c,SendFile.CanCarry
+	
+	pop bc
+	pop hl
+	xor a
+	scf
+	ret
+
+SendFile.CanCarry:
+	
 	ld a,(hl)
 	call SendDataByte
 	
@@ -725,6 +761,10 @@ SendFile.PathSent:
 	
 	; Only one file, so end with a 'Z' escape code.
 	ld a,'Z'
-	jp SendEscapeCode
+	call SendEscapeCode
+	ret nz
+	
+	xor a
+	ret
 
 .endmodule

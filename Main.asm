@@ -112,6 +112,8 @@ FinishedFrameInterrupt:
 .include "CLI.asm"
 .include "Host.asm"
 
+PCLink2.Trap = Host.TrapFileTransfers
+
 Boot:
 	; Make sure SP points somewhere sensible.
 	ld sp,HIMEM

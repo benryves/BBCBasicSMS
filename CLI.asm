@@ -211,35 +211,21 @@ Terminal:
 	call CheckCommandEnd
 	ld hl,SerialTerminal
 	call VDU.PutString
+	
+	call VDU.Console.BeginBlinkingCursor
 
 Terminal.Loop:
-	ld a,127
-	call VDU.PutMap
-	
 	call Serial.GetByte
-	push af
-	
-	ld a,' '
-	call z,VDU.PutMap
-	
-	pop af
 	jr z,Terminal.GotByte
 	
 	ei
 	halt
-
-	in a,($DD)
-	bit 4,a
-	jr nz,Terminal.Loop
+	call Host.TrapFileTransfers
+	jr c,Terminal.Loop
 	
-	ld a,127
-	call VDU.PutMap
-	
--:	in a,($DD)
-	bit 4,a
+	call VDU.Console.EndBlinkingCursor
 	scf
-	ret nz
-	jr -
+	ret
 
 Terminal.GotByte:
 	
@@ -279,7 +265,7 @@ Catalogue.NoArgument:
 	call PCLink2.ListDevices
 	pop hl
 	pop ix
-	jr nz,Catalogue.Error
+	jp nz,Host.DeviceFault
 	scf
 	ret
 	
@@ -292,7 +278,7 @@ Catalogue.FoundArgument:
 	call PCLink2.ListDirectories
 	pop hl
 	pop ix
-	jr nz,Catalogue.error
+	jp nz,Host.DeviceFault
 	
 	; Then list files.
 	push ix
@@ -301,16 +287,11 @@ Catalogue.FoundArgument:
 	call PCLink2.ListFiles
 	pop hl
 	pop ix
-	jr nz,Catalogue.error
+	jp nz,Host.DeviceFault
 	
 	; We have success!
 	scf
 	ret
-
-Catalogue.Error:
-	ld a,202
-	call Basic.BBCBASIC_EXTERR
-	.db "Device fault", 0
 
 Catalogue.PrintStartOfDirectoryName:
 	call Catalogue.PrintStartOfItem

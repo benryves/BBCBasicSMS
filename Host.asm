@@ -114,8 +114,8 @@ OSRDCH.GotKey:
 GetDeviceKey:
 	push de
 	call Keyboard.GetKey
-	ei
 	jr nz,+
+	jr +
 	
 	push af
 	call nc,HoldDeviceKey
@@ -934,7 +934,10 @@ TRAP:
 	ld a,20
 	ld (TrapKeyboardTimer),a
 	
+	ei
+	halt
 	call GetDeviceKey
+	jp z,0
 	
 	ret nz ; No key
 	ret c  ; It's being released
@@ -953,6 +956,34 @@ TRAP.Escape:
 	ld a,17 ; Escape
 	call Basic.BBCBASIC_EXTERR
 	.db "Escape", 0
+
+TrapFileTransfers:
+	ei
+	
+	call VDU.Console.DrawBlinkingCursor
+	
+	; Is pause pressed?
+	ld a,(Flags)
+	bit Pause,a
+	jr nz,TrapFileTransfers.Trap
+	
+	; Shall we poll the keyboard?
+-:	call GetDeviceKey
+	
+	jr nz,TrapFileTransfers.CarryOn ; No key
+	jr c,-                          ; It's being released
+	jp p,-                          ; It's a printable key
+	
+	cp Keyboard.KeyCode.Escape
+	jr z,TrapFileTransfers.Trap
+	jr -
+
+TrapFileTransfers.CarryOn:
+	scf ; Carry on.
+	ret
+
+TrapFileTransfers.Trap:
+	or a ; Don't carry on.
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -1012,9 +1043,20 @@ RESET:
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-OSLOAD
+OSLOAD:
+	call VDU.Console.BeginBlinkingCursor
 	call PCLink2.GetFile
-	jp nz,Sorry
+	push af
+	call VDU.Console.EndBlinkingCursor
+	pop af
+	jr nz,OSLOAD.Error
+	jp c,TRAP.Escape
+	scf
+	ret
+	
+OSLOAD.Error:
+	; What sort of error?
+	jp nc,DeviceFault
 	ccf
 	ret
 
@@ -1038,9 +1080,14 @@ OSLOAD
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-OSSAVE
+OSSAVE:
+	call VDU.Console.BeginBlinkingCursor
 	call PCLink2.SendFile
-	jp nz,Sorry
+	push af
+	call VDU.Console.EndBlinkingCursor
+	pop af
+	jp nz,DeviceFault
+	jp c,TRAP.Escape
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -2038,6 +2085,11 @@ SORRY:
 	xor a
 	call Basic.BBCBASIC_EXTERR
 	.db "Sorry",0
+
+DeviceFault:
+	ld a,202
+	call Basic.BBCBASIC_EXTERR
+	.db "Device fault", 0
 
 ReportError
 	ld a,(hl)
