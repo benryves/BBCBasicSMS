@@ -919,7 +919,6 @@ LTRAP:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 TRAP:
-	
 	ei
 	
 	; Is pause pressed?
@@ -936,8 +935,7 @@ TRAP:
 	
 	ei
 	halt
-	call GetDeviceKey
-	jp z,0
+-:	call GetDeviceKey
 	
 	ret nz ; No key
 	ret c  ; It's being released
@@ -945,7 +943,7 @@ TRAP:
 	
 	cp Keyboard.KeyCode.Escape
 	jr z,TRAP.Escape
-	ret
+	jr -
 
 TRAP.Escape:
 	
