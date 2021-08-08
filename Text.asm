@@ -106,6 +106,7 @@ GetNameTableAddressForCursor:
 	ret
 
 PutMap:
+	and $7F
 	push hl
 	push de
 	push bc

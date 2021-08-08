@@ -766,13 +766,15 @@ PutMap:
 	push ix
 	push hl
 	push de
-	push bc	
-	push af
-	push af
+	push bc
 	
 	cp 127
 	jr z,PutMap.Delete
-
+	
+	and $7F
+	push af
+	push af
+	
 	ld a,1
 	ld (PlotShape),a
 
@@ -784,6 +786,9 @@ PutMap:
 	jr PutMap.BeginPlot
 
 PutMap.Delete:
+
+	push af
+	push af
 
 	ld a,3
 	ld (PlotShape),a
@@ -872,15 +877,55 @@ PutMap.NoClipLeft:
 
 PutMap.NoClipRight:
 
+	; To clip the sprite vertically, we'll change its height.
+	ld b,8
+
+	; Do we need to mask off the top or bottom edges where they run into the viewport?
+
+	ld hl,(TransformedPoint0Y)
+	ld de,(MinY)
+	ld d,0
+	call SignedCPHLDE
+	jr nc,PutMap.NoClipTop
+	
+	; We need to clip the TOP edge.
+	ld a,e
+	ld (TransformedPoint0Y),a
+	push de
+	sub l
+	pop hl
+	
+	ld e,a
+	ld d,0
+	add ix,de
+
+	neg	
+	add a,b
+	ld b,a
+
+PutMap.NoClipTop:
+
+	ld de,7
+	add hl,de
+	ld de,(MaxY)
+	ld d,0
+	call SignedCPHLDE
+	jr c,PutMap.NoClipBottom
+	
+	; We need to clip the BOTTOM edge.	
+	ld a,e
+	sub l
+	add a,b
+	ld b,a
+
+PutMap.NoClipBottom:
+
 	ld a,(TransformedPoint0X)
 	ld d,a
 	ld a,(TransformedPoint0Y)
 	ld e,a
-	ld b,8
 	call PlotTransformedSprite
-
-+:
-
+	
 	pop af
 	pop bc
 	pop de

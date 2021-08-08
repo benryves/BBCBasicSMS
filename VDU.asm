@@ -276,6 +276,14 @@ SetMode:
 	; Mode-specific initialisation.
 	call SetModeInitialize
 	
+	; Reset colours to their defaults.
+	call ResetColoursCommand
+	
+	; Set character 255 to the block graphic.
+	ld a,255
+	ld hl,Fonts.Font8x8+(127+FontCharOffset)*8
+	call SetUserDefinedCharacter
+	
 	; Reset console and graphics now the mode is loaded.
 	call Console.Reset
 	call Graphics.Reset
@@ -285,9 +293,6 @@ SetMode:
 	ld (CommandQueue),a
 	ld (CommandQueue.Waiting),a
 	ld (Flags),a
-	
-	; Reset colours to their defaults.
-	call ResetColoursCommand
 	
 	; Screen on, enable frame interrupts.
 	call Video.DisplayOn
@@ -460,7 +465,7 @@ NotCommand:
 
 	cp 127 ; DELETE
 	jp z,Delete
-
+	
 PutLiteralChar:
 	call PutMap
 	jp CursorRight
