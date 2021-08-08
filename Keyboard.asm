@@ -154,10 +154,15 @@ ConvertScancode:
 	bit 6,a
 	jr z,NotToggle
 	
+	; This is a toggling modifier, e.g. Caps Lock.
 	ld a,(OriginalScancode)
 	bit 0,a
-	jp nz,ExitNoKey
+	jr z,TogglePushed
+	
+	inc hl
+	jr IsNotModifier
 
+TogglePushed
 	ld a,(Status)
 	xor (hl)
 	ld (Status),a
