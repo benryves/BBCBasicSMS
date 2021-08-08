@@ -46,11 +46,12 @@ FunctionVectors = allocVar(Functions.Count * 3)
 	ManipulatePixelColour = allocVar(3)
 
 	.include "Text.asm"
+	.include "TextDoubleHeight.asm"
 	.include "GraphicsII.asm"
 	.include "Mode4.asm"
 	.include "Mode4ReducedColour.asm"
 
-	Count = 7
+	Count = 8
 	
 	Functions:
 		.dw Text.Functions
@@ -60,7 +61,7 @@ FunctionVectors = allocVar(Functions.Count * 3)
 		.dw Mode4ReducedColour.Functions
 		.dw Mode4ReducedColour.Functions
 		.dw Text.Functions
-		.dw Text.Functions
+		.dw TextDoubleHeight.Functions
 
 
 .endmodule
@@ -253,7 +254,7 @@ CommandQueue = allocVar(CommandQueue.Capacity)
 CommandQueue.Waiting = allocVar(1)
 
 Reset:
-	xor a
+	ld a,7
 SetMode:
 	di
 	push af
