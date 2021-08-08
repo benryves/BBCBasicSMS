@@ -23,7 +23,6 @@ Functions:
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
 	.db Function.BeginPlot \ .dw BeginPlot
-	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.SelectPalette \ .dw SelectPalette
 	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
@@ -200,21 +199,6 @@ PlotOperators:
 	.dw Stub
 	.dw ManipulatePixelBitmaskANDNOT
 	.dw ManipulatePixelBitmaskORNOT
-
-SetPixel:
-	; IN (D,E) = (X,Y)
-	
-	; Generate the masking values.
-	ld a,d
-	and %00000111
-	ld h,%10000000
-	jr z,+
-	ld b,a
--:	srl h
-	djnz -
-+:	ld a,h
-	cpl
-	ld l,a
 
 SetAlignedHorizontalLineSegment:
 	

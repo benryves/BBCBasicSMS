@@ -17,13 +17,13 @@ Functions:
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
 	.db Function.BeginPlot \ .dw Mode4.BeginPlot
-	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.SelectPalette \ .dw SelectPalette
 	.db Function.SelectDefaultPalette \ .dw SelectDefaultPalette
 	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
 	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
 	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
+	.db Function.GetUserDefinedCharacter \ .dw GetUserDefinedCharacter
 	.db Function.End
 
 Initialise:
@@ -96,20 +96,8 @@ PutMap:
 	cp $80
 	jr c,ROMFont
 	
-	; Yes, so read back the user-defined character.
-	call GetUserDefinedCharacterAddress
-		
-	call Video.SetReadAddress
-	ld hl,TempTile
-	push hl
-	ld b,8
-	
--:	in a,(Video.Data)   ; 11
-	ld (hl),a           ; 7
-	inc hl              ; 6
-	djnz -              ; 13 = 37 clocks
-	
-	pop de
+	call GetUserDefinedCharacter
+	ex de,hl
 	
 	jr WriteFontData
 
@@ -446,29 +434,6 @@ DefaultPalette:
 .db %00111111
 
 ; ---------------------------------------------------------
-; SetPixel -> Sets a pixel according to the current plot
-;             mode.
-; ---------------------------------------------------------
-; Inputs:   d = X coordinate.
-;           e = Y cooridnate.
-; Destroys: af, bc, de, hl.
-; ---------------------------------------------------------
-SetPixel:
-	; IN (D,E) = (X,Y)
-	
-	; Generate the masking values.
-	ld a,d
-	and %00000111
-	ld h,%10000000
-	jr z,+
-	ld b,a
--:	srl h
-	djnz -
-+:	ld a,h
-	cpl
-	ld l,a
-
-; ---------------------------------------------------------
 ; SetAlignedHorizontalLineSegment -> Sets a tile-aligned
 ;                                horizontal line segment.
 ; ---------------------------------------------------------
@@ -626,6 +591,26 @@ SetUserDefinedCharacter:
 	inc de              ; 6
 	djnz -              ; 13 = 37 clocks
 	
+	ei
+	ret
+
+
+GetUserDefinedCharacter:	
+	call GetUserDefinedCharacterAddress
+	ret nc
+		
+	call Video.SetReadAddress
+	ld hl,TempTile
+	push hl
+	ld b,8
+	
+-:	in a,(Video.Data)   ; 11
+	ld (hl),a           ; 7
+	inc hl              ; 6
+	djnz -              ; 13 = 37 clocks
+	
+	pop hl
+	scf
 	ei
 	ret
 

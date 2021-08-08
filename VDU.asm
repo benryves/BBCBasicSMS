@@ -22,9 +22,9 @@ Function.Clear = 2
 Function.PutMap = 3
 Function.Scroll = 4
 Function.BeginPlot = 5
-Function.SetPixel = 6
-Function.SetAlignedHorizontalLineSegment = 7
-Function.SetUserDefinedCharacter = 8
+Function.SetAlignedHorizontalLineSegment = 6
+Function.SetUserDefinedCharacter = 7
+Function.GetUserDefinedCharacter = 8
 Function.ResetConsoleViewport = 9
 Function.SelectPalette = 10
 Function.SelectDefaultPalette = 11
@@ -69,9 +69,9 @@ Clear = VDUFunctionAddress(Function.Clear)
 Console.PutMap = VDUFunctionAddress(Function.PutMap)
 Scroll = VDUFunctionAddress(Function.Scroll)
 BeginPlot = VDUFunctionAddress(Function.BeginPlot)
-SetPixel = VDUFunctionAddress(Function.SetPixel)
 SetAlignedHorizontalLineSegment = VDUFunctionAddress(Function.SetAlignedHorizontalLineSegment)
 SetUserDefinedCharacter = VDUFunctionAddress(Function.SetUserDefinedCharacter)
+GetUserDefinedCharacter = VDUFunctionAddress(Function.GetUserDefinedCharacter)
 ResetConsoleViewport = VDUFunctionAddress(Function.ResetConsoleViewport)
 SelectPalette = VDUFunctionAddress(Function.SelectPalette)
 SelectDefaultPalette = VDUFunctionAddress(Function.SelectDefaultPalette)
@@ -555,9 +555,9 @@ TextViaConsoleCommand:
 ; VDU 5                                                       DRAW TEXT AT GRAPHICS CURSOR
 ; ========================================================================================
 TextViaGraphicsCommand:
-	; Check to see if there's a SetPixel routine.
+	; Check to see if there's a SetAlignedHorizontalLineSegment routine.
 	; If not, assume we can't use VDU 5.
-	ld a,(SetPixel)
+	ld a,(SetAlignedHorizontalLineSegment)
 	cp $C9
 	ret z
 	ld a,(Flags)
@@ -1328,6 +1328,53 @@ DefaultResetConsoleViewport:
 	ld a,32
 	ld (Console.MaxWidth),a
 	
+	ret
+	
+; ---------------------------------------------------------
+; GetCharacterData -> Gets a pointer to pixel data for a
+; particular character.
+; ---------------------------------------------------------
+; Inputs:   a = the character to get data for.
+; Outputs:  hl = pointer to character data.
+; Destroys: f.
+; ---------------------------------------------------------
+GetCharacterData:
+	push de
+	push af
+	or a
+	call GetUserDefinedCharacter
+	jr c,GotCharacterData
+	
+	pop af
+	inc a
+	jr nz,+
+	ld a,128
++:	dec a
+
+	jp m,UndefinedCharacterData
+	cp 32
+	jr nc,DefinedCharacterData
+
+UndefinedCharacterData:
+	ld a,'.'
+
+DefinedCharacterData:
+	add a,FontCharOffset
+	
+	ld l,a
+	ld h,0
+	
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	ld de,VDU.Fonts.Font8x8
+	add hl,de
+	pop de
+	ret
+	
+GotCharacterData:
+	pop af
+	pop de
 	ret
 	
 ; ---------------------------------------------------------

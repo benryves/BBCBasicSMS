@@ -614,8 +614,30 @@ PlotPixel:
 	ret nc
 +:	ld e,a
 
-	jp SetPixel
+	; Fall-through:
+	
+; ---------------------------------------------------------
+; SetPixel -> Sets a pixel according to the current plot
+;             mode.
+; ---------------------------------------------------------
+; Inputs:   d = X coordinate.
+;           e = Y cooridnate.
+; Destroys: af, bc, de, hl.
+; ---------------------------------------------------------
+SetPixel:
+	; Generate the masking values.
+	ld a,d
+	and %00000111
+	ld h,%10000000
+	jr z,+
+	ld b,a
+-:	srl h
+	djnz -
++:	ld a,h
+	cpl
+	ld l,a
 
+	jp SetAlignedHorizontalLineSegment
 
 ; ---------------------------------------------------------
 ; PlotTransformedHorizontalSpan -> Plots a horizontal span
@@ -771,7 +793,6 @@ PutMap:
 	cp 127
 	jr z,PutMap.Delete
 	
-	and $7F
 	push af
 	push af
 	
@@ -809,16 +830,8 @@ PutMap.BeginPlot:
 	call TransformPoints
 	
 	pop af
-	add a,FontCharOffset
 	
-	ld l,a
-	ld h,0
-	
-	add hl,hl
-	add hl,hl
-	add hl,hl
-	ld de,VDU.Fonts.Font8x8
-	add hl,de
+	call VDU.GetCharacterData
 	
 	push hl
 	pop ix

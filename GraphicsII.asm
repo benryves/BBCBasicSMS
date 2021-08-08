@@ -5,8 +5,8 @@ Functions:
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
 	.db Function.BeginPlot \ .dw BeginPlot
-	.db Function.SetPixel \ .dw SetPixel
 	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
+	.db Function.GetUserDefinedCharacter \ .dw GetUserDefinedCharacter
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.SelectPalette \ .dw Mode4.SelectPalette
 	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
@@ -159,19 +159,8 @@ PutMap:
 	jr c,ROMFont
 	
 	; Yes, so read back the user-defined character.
-	call GetUserDefinedCharacterAddress
-		
-	call Video.SetReadAddress
-	ld hl,TempTile
-	push hl
-	ld b,8
-	
--:	in a,(Video.Data)   ; 11
-	ld (hl),a           ; 7
-	inc hl              ; 6
-	djnz -              ; 13 = 37 clocks
-	
-	pop de
+	call GetUserDefinedCharacter
+	ex de,hl
 	
 	jr WriteFontData
 
@@ -316,21 +305,6 @@ SetForegroundPixel:
 	ld (ManipulatePixelBitmask+0),a
 	ret
 
-SetPixel:
-	; IN (D,E) = (X,Y)
-	
-	; Generate the masking values.
-	ld a,d
-	and %00000111
-	ld h,%10000000
-	jr z,+
-	ld b,a
--:	srl h
-	djnz -
-+:	ld a,h
-	cpl
-	ld l,a
-
 SetAlignedHorizontalLineSegment:
 	
 	; IN: (D,E) = (X,Y)
@@ -471,6 +445,25 @@ SetUserDefinedCharacter:
 	inc de              ; 6
 	djnz -              ; 13 = 37 clocks
 	
+	ei
+	ret
+	
+GetUserDefinedCharacter:
+	call GetUserDefinedCharacterAddress
+	ret nc
+		
+	call Video.SetReadAddress
+	ld hl,TempTile
+	push hl
+	ld b,8
+	
+-:	in a,(Video.Data)   ; 11
+	ld (hl),a           ; 7
+	inc hl              ; 6
+	djnz -              ; 13 = 37 clocks
+	
+	pop hl
+	scf
 	ei
 	ret
 
