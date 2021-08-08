@@ -400,7 +400,7 @@ PlotCommands:
 .dw Stub              ; 160..167: Draw circular arc.
 .dw Stub              ; 168..175: Draw solid segment.
 .dw Stub              ; 176..183: Draw solid sector.
-.dw SpriteTest        ; 184..191: Block transfer operations.
+.dw Stub              ; 184..191: Block transfer operations.
 .dw PlotDrawEllipse   ; 192..199: Ellipse outline.
 .dw PlotFillEllipse   ; 200..207: Ellipse fill.
 
@@ -756,38 +756,8 @@ NoSetAlignedHorizontalLineSegment:
 	djnz -
 	ei
 	ret
-	
 
-SpriteTest:
 
-	ld a,'A'
-	call PutChar
-	ret
-
-	ld b,1
-	call TransformPoints
-	
-	push ix
-	
-	ld ix,VDU.Fonts.Font8x8	 + ('A'*1+FontCharOffset)*8
-	
-	ld a,(TransformedPoint0X)
-	ld d,a
-	ld a,(TransformedPoint0Y)
-	ld e,a
-	
-	call PlotTransformedSprite
-	
-	pop ix
-	ret
-
-; ---------------------------------------------------------
-; PutChar -> Draws a character at the graphics cursor and
-; advances right.
-; ---------------------------------------------------------
-PutChar:
-	call PutMap
-	jr CursorRight
 
 ; ---------------------------------------------------------
 ; PutMap -> Draws a character at the graphics cursor.
@@ -848,13 +818,69 @@ PutMap.BeginPlot:
 	push hl
 	pop ix
 	
+	; Is the sprite completely outside the viewport?
+	ld hl,(MaxX)
+	ld h,0
+	ld de,(TransformedPoint0X)
+	call SignedCPHLDE
+	ret c
+	
+	ld hl,8
+	add hl,de
+	ld de,(MinX)
+	ld d,0
+	call SignedCPHLDE
+	ret c
+	
+	; We'll need to build a mask value.
+	ld c,%11111111
+	
+	; Do we need to mask off the left or right edges where they run into the viewport?
+	
+	ld hl,(TransformedPoint0X)
+	ld de,(MinX)
+	ld d,0
+	call SignedCPHLDE
+	jr nc,PutMap.NoClipLeft
+	
+	; We need to clip the LEFT edge.
+	ld a,e
+	sub l
+	ld b,a
+-:	srl c
+	djnz -
+	
+PutMap.NoClipLeft:
+
+	ld de,8
+	add hl,de
+	ld de,(MaxX)
+	ld d,0
+	call SignedCPHLDE
+	jr c,PutMap.NoClipRight
+	
+	; We need to clip the RIGHT edge.	
+	ld a,l
+	sub e
+	ld b,a
+	xor a
+	cpl
+-:	add a,a
+	djnz -
+	and c
+	ld c,a
+
+PutMap.NoClipRight:
+
 	ld a,(TransformedPoint0X)
 	ld d,a
 	ld a,(TransformedPoint0Y)
 	ld e,a
-	
+	ld b,8
 	call PlotTransformedSprite
-	
+
++:
+
 	pop af
 	pop bc
 	pop de
@@ -862,6 +888,14 @@ PutMap.BeginPlot:
 	pop ix
 	ret
 
+; ---------------------------------------------------------
+; PutChar -> Draws a character at the graphics cursor and
+; advances right.
+; ---------------------------------------------------------
+PutChar:
+	call PutMap
+	; Fall-through.
+	
 ; ---------------------------------------------------------
 ; CursorRight -> Move the cursor right one character.
 ; ---------------------------------------------------------
@@ -1059,18 +1093,21 @@ HomeLeft:
 ; ---------------------------------------------------------
 ; Inputs:   PlotShape = pixel type to plot.
 ;           (d,e) top left corner.
+;           b = height of the sprite.
+;           c = mask value for each sprite row.
 ;           ix = pointer to sprite data.
 ; Destroys: Everything.
 ; ---------------------------------------------------------
 PlotTransformedSprite:
 
-	ld b,8
-
 PlotTransformedSprite.Loop:
 	
 	push bc
 	
-	ld h,(ix)
+	ld a,(ix)
+	and c
+	ld h,a
+	
 	ld a,d
 	and 7
 	jr z,+
@@ -1083,20 +1120,25 @@ PlotTransformedSprite.Loop:
 	ld l,a
 	
 	push de
+	push bc
 	call SetAlignedHorizontalLineSegment
+	pop bc
 	pop de
 	
 	ld a,d
 	and 7
 	jr z,PlotTransformedSprite.Aligned
-	
-	ld h,(ix)
-	
+
 	ld l,a
 	ld a,8
 	sub l
 	
 	ld b,a
+	
+	ld a,(ix)
+	and c
+	ld h,a
+	
 -:	sla h
 	djnz -
 	
@@ -1105,10 +1147,12 @@ PlotTransformedSprite.Loop:
 	ld l,a
 	
 	push de
+	push bc
 	ld a,d
 	add a,8
 	ld d,a
 	call SetAlignedHorizontalLineSegment
+	pop bc
 	pop de
 
 PlotTransformedSprite.Aligned:
