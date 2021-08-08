@@ -47,16 +47,17 @@ HeldKeys = allocVar(HeldKeyCount)
 ;------------------------------------------------------------------------------- 
 OSINIT:
 	
+	; Reset the clock.
 	ld hl,0
 	ld (TIME+0),hl
 	ld (TIME+2),hl
 	
-	ld (OSLINE.Override),hl
-	ld (OSWRCH.Override),hl
-	
+	; Clear the flags and keyboard-trapping timer.
 	xor a
 	ld (TrapKeyboardTimer),a
 	ld (Flags),a
+	
+	call RESET
 	
 	ld de,HIMEM  ; HIMEM
 	ld hl,(PAGE) ; PAGE
@@ -829,7 +830,7 @@ OSLINE.Prefilled:
 -:	ld a,(hl)
 	cp '\r'
 	jp z,OSLINE.Loop
-	call VDU.PutChar
+	call VDU.PutLiteralChar ; In case there are any control codes embedded in the line.
 	inc d
 	inc hl
 	inc b
@@ -1027,18 +1028,34 @@ TrapFileTransfers.Trap:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 RESET:
-	ld a,(Flags)
-	res Escape,a
-	ld (Flags),a
-	
+
 	push hl
 	push de
 	push bc
 	
+	; No custom OSLINE/OSWRCH handlers.
+	ld (OSLINE.Override),hl
+	ld (OSWRCH.Override),hl
+
+	; Clear the "Escape" state.
+	ld a,(Flags)
+	res Escape,a
+	ld (Flags),a	
+
+	; Clear the held keys.
+	ld hl,HeldKeys
+	ld de,HeldKeys+1
+	ld bc,HeldKeyCount-1
+	ld (hl),a
+	ldir
+	
+	; Shh!
 	call Sound.Silence
 	
+	; Make sure the video registers match our local copies.
 	call Video.SynchroniseRegisters
 	
+	; Flush the VDU queue.
 	xor a
 	ld (VDU.CommandQueue.Waiting),a
 	
