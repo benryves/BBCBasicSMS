@@ -159,10 +159,31 @@ ConvertScancode:
 	bit 0,a
 	jr z,TogglePushed
 	
+ToggleReleased:
 	inc hl
+	ld a,(hl)
+	cpl
+	rlca \ rlca \ rlca \ rlca
+	ld e,a
+	ld a,(LedState)
+	and e
+	ld (LedState),a
 	jr IsNotModifier
 
 TogglePushed
+	inc hl
+	ld a,(hl)
+	rlca \ rlca \ rlca \ rlca
+	ld e,a
+	ld a,(LedState)
+	ld d,a
+	and e
+	jr nz,IsNotModifier
+	ld a,d
+	or e
+	ld (LedState),a
+	dec hl
+	
 	ld a,(Status)
 	xor (hl)
 	ld (Status),a
@@ -174,6 +195,7 @@ TogglePushed
 	ld a,$ED
 	call AT.SendSafeByte
 	ld a,(LedState)
+	and %111
 	call AT.SendSafeByte
 	
 	inc hl
