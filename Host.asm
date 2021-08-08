@@ -123,8 +123,6 @@ GetDeviceKey:
 	ld a,(Flags)
 	bit GetKeyPending,a
 	jr z,GetDeviceKey.Skip
-	res GetKeyPending,a
-	ld (Flags),a
 	
 	call Keyboard.GetKey
 	jr nz,GetDeviceKey.NoKey
@@ -145,16 +143,20 @@ GetDeviceKey:
 	ld (Flags),a
 +:
 	pop af
-
-GetDeviceKey.NoKey:
 	pop de
 	ei
 	ret
 
+GetDeviceKey.NoKey:
+	ld a,(Flags)
+	res GetKeyPending,a
+	ld (Flags),a
 GetDeviceKey.Skip:
 	xor a
 	dec a
-	jr GetDeviceKey.NoKey
+	pop de
+	ei
+	ret
 
 ; ---------------------------------------------------------
 ; HoldDeviceKey -> Hold a key via its device code.
