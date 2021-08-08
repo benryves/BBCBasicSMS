@@ -57,6 +57,9 @@ OSINIT:
 	ld (TrapKeyboardTimer),a
 	ld (Flags),a
 	
+	ld a,%0101011
+	ld (KeyboardRate),a
+	
 	call RESET
 	
 	ld de,HIMEM  ; HIMEM
@@ -1152,76 +1155,6 @@ OSSAVE:
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
 ; 
-; === Host.OSOPEN ===
-; 
-;   Open a file for reading or writing.
-;
-; INPUTS:
-;   REGISTERS
-;   * HL - addresses a file descriptor (filename) terminated by CR.
-;   * AF - A=-1, NZ, NC = OPENOUT
-;        - A=0, Z, C = OPENIN
-;        - A=1, NZ, C = OPENUP
-;
-; OUTPUTS:
-;   * A  - is the file "handle" (channel number) allocated, or 0 on error.
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, BC, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-OSOPEN
-	jp SORRY
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSBGET ===
-; 
-;   Read a single byte from an open file.
-;
-; INPUTS:
-;   REGISTERS
-;   * E  - file handle (channel number). Zero constitutes an error.
-;
-; OUTPUTS:
-;   * A  - is the byte read from the file.
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, BC
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-OSBGET
-	jp SORRY
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSBPUT ===
-; 
-;   Write a single byte to an open file.
-;
-; INPUTS:
-;   REGISTERS
-;   * E  - file handle (channel number). Zero constitutes an error.
-;   * A  - is the byte to be written to the file.
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, BC
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-OSBPUT
-	jp SORRY
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
 ; === Host.OSCALL ===
 ; 
 ;   Intercept a CALL or USR to &FFxx.
@@ -1242,101 +1175,24 @@ OSBPUT
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-OSCALL
-	jp SORRY
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSSTAT ===
-; 
-;   Read the status of an open file.
-;
-; INPUTS:
-;   REGISTERS
-;   * E  - file handle (channel number). Zero constitutes an error.
-;
-; OUTPUTS:
-;   REGISTERS
-;   * F  - 	If at the end-of-file, return Z (zero flag set).
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-OSSTAT
-	jp SORRY
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.GETPTR ===
-; 
-;   Read the sequential pointer of an open file.
-;
-; INPUTS:
-;   REGISTERS
-;   * E  - file handle (channel number). Zero constitutes an error.
-;
-; OUTPUTS:
-;   REGISTERS
-;   * DEHL - 32-bit pointer (zero corresponds to the first byte in the file).
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, BC, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-GETPTR
-	jp SORRY
+OSCALL:
+	pop hl ; Dud
 	
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.PUTPTR ===
-; 
-;   Update the sequential pointer of an open file.
-;
-; INPUTS:
-;   REGISTERS
-;   * A  - file handle (channel number). Zero constitutes an error.
-;   * DEHL - 32-bit pointer (zero corresponds to the first byte in the file).
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, BC, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-PUTPTR
-	jp SORRY
+	ld h,(ix+4*('A'-'@'))
+	ld l,(ix+4*('F'-'@'))
+	
+	push hl
+	pop af
+	
+	ld b,(ix+4*('B'-'@'))
+	ld c,(ix+4*('C'-'@'))
+	ld d,(ix+4*('D'-'@'))
+	ld e,(ix+4*('E'-'@'))
+	ld h,(ix+4*('H'-'@'))
+	ld l,(ix+4*('L'-'@'))
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.GETEXT ===
-; 
-;   Return the length of an open file.
-;
-; INPUTS:
-;   REGISTERS
-;   * E  - file handle (channel number). Zero constitutes an error.
-;
-; OUTPUTS:
-;   REGISTERS
-;   * DEHL - 32-bit pointer (zero corresponds to the first byte in the file).
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, BC, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-GETEXT
-	jp SORRY
+	ld iyh,$40
+	jp (iy)
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -1356,7 +1212,7 @@ GETEXT
 ;
 ;@doc:end
 ;------------------------------------------------------------------------------- 
-OSSHUT
+OSSHUT:
 	ld a,e
 	or a
 	ret z
@@ -1380,7 +1236,6 @@ OSSHUT
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSCLI = CLI.Execute
-
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -2156,5 +2011,138 @@ ReportError
 	push hl
 	jp Basic.BBCBASIC_EXTERR
 
+OSBYTE:
+	cp 11
+	jr z,OSBYTE.KeyboardAutoRepeatDelay
+	cp 12
+	jr z,OSBYTE.KeyboardAutoRepeatRate
+	ret
+
+KeyboardRate = allocVar(1)
+
+OSBYTE.KeyboardAutoRepeatDelay:
+	push af
+	push hl
+	
+	; If H is non-zero, skip.
+	ld a,h
+	or a
+	jr nz,OSBYTE.SendNewKeyboardRate
+	
+	; Convert HL's time in centiseconds to time in 1/4 seconds.
+	call VDU.Graphics.DivideBy5
+	call VDU.Graphics.DivideBy5
+	ld a,l
+	or a
+	jr z,+
+	dec a
+	adc a,0
++:	cp 4
+	jr c,+
+	ld a,3
++:	
+	rrca
+	rrca
+	rrca
+	and %01100000
+	ld l,a
+	
+	ld a,(KeyboardRate)
+	and %00011111
+	or l
+	ld (KeyboardRate),a
+
+OSBYTE.SendNewKeyboardRate:
+	ld a,$F3
+	call AT.SendSafeByte
+	ld a,(KeyboardRate)
+	call AT.SendSafeByte
+	pop hl
+	pop af
+	ret
+
+OSBYTE.KeyboardAutoRepeatRate:
+	push af
+	push hl
+
+	; If H is non-zero, skip.
+	ld a,h
+	or a
+	jr nz,OSBYTE.SendNewKeyboardRate
+	
+	ld a,l
+	or a
+	jr nz,+
+	
+	ld a,%0101011
+	ld (KeyboardRate),a
+	jr OSBYTE.SendNewKeyboardRate
+
++:	ld hl,TypematicRates
+	ld bc,31*256
+-:	cp (hl)
+	jr z,+
+	jr c,+
+	inc c
+	inc hl
+	djnz -
++:	
+	ld a,(KeyboardRate)
+	and %01100000
+	or c
+	ld (KeyboardRate),a
+	jr OSBYTE.SendNewKeyboardRate
+
+TypematicRates:
+	.db round(3.333333333)
+	.db round(3.745318352)
+	.db round(4.166666667)
+	.db round(4.587155963)
+	.db round(4.830917874)
+	.db round(5.405405405)
+	.db round(5.847953216)
+	.db round(6.25)
+	.db round(6.666666667)
+	.db round(7.518796992)
+	.db round(8.333333333)
+	.db round(9.174311927)
+	.db round(10)
+	.db round(10.86956522)
+	.db round(11.62790698)
+	.db round(12.5)
+	.db round(13.33333333)
+	.db round(14.92537313)
+	.db round(16.66666667)
+	.db round(18.18181818)
+	.db round(20)
+	.db round(21.73913043)
+	.db round(23.25581395)
+	.db round(25)
+	.db round(27.02702703)
+	.db round(30.3030303)
+	.db round(33.33333333)
+	.db round(37.03703704)
+	.db round(40)
+	.db round(43.47826087)
+	.db round(47.61904762)
+	.db round(50)
+
+OSWORD:
+	ret
+
+; Big list of file-system "todo"s...
+OSFSC:
+OSFIND:
+OSGBPB:
+OSOPEN:
+OSARGS:
+OSFILE:
+OSBGET:
+OSBPUT:
+OSSTAT:
+GETPTR:
+PUTPTR:
+GETEXT:
+	jp SORRY
 
 .endmodule

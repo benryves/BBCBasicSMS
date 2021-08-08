@@ -34,6 +34,7 @@ NoRoom:
 ; ---------------------------------------------------------
 ; Inputs:   hl = pointer to command line.
 ; Outputs:  hl = pointer to next character.
+;           z = if at end of the command, nz if not.
 ; Destroys: af.
 ; ---------------------------------------------------------
 SkipWhitespace:
@@ -519,6 +520,32 @@ Serial.Commands:
 	osclicommand("BAUD", Serial.BaudRate)
 	.db 0
 
+FX:
+	call GetDecimalWord
+	push de
+	call SkipWhitespace
+	ld de,0
+	jr z,FXn0
+	ld a,(hl)
+	cp ','
+	jr nz,+
+	inc hl
++:	call GetDecimalWord
+FXn0:
+	call CheckCommandEnd
+	
+	pop hl
+	ld a,l
+	
+	ld l,e
+	ld h,d
+	
+	; *FX A,HL
+	call Host.OSBYTE
+	
+	scf
+	ret
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
@@ -526,6 +553,7 @@ Commands:
 	osclicommand(".", Catalogue)
 	osclicommand("EDIT", Edit)
 	osclicommand("SERIAL", Serial)
+	osclicommand("FX", FX)
 	.db 0
 
 .endmodule
