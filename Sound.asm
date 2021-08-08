@@ -80,6 +80,7 @@ ChannelUpdatePeriod = 5
 
 Status = allocVar(1)
 Status.CanPlaySynchronisedNotes = 0
+Status.Active = 1
 
 PSGState = allocVar(2 * ChannelCount)
 PSG.Amplitude = 0
@@ -185,7 +186,30 @@ Tick:
 	push de
 	push bc
 	
+	; Output any updated channels from the last tick.
+
+	ld ix,Channels
+	ld iy,PSGState
+	
+	ld b,4
+	ld c,0
+
+-:	; Send data to the PSG.
+	push bc	
+	call OutputChannel
+	pop bc
+	ld de,ChannelSize
+	add ix,de
+	inc iy
+	inc iy
+	inc c
+	djnz -
+
 	; Are there any active channels?
+	ld a,(Status)
+	res Status.Active,a
+	ld (Status),a
+	
 	ld hl,Channels+Channel.State
 	ld b,ChannelCount
 	ld de,ChannelSize
@@ -194,6 +218,10 @@ Tick:
 	add hl,de
 	djnz -
 	jp z,TickNoActiveChannels
+	
+	ld a,(Status)
+	set Status.Active,a
+	ld (Status),a
 	
 	; Is it time to update the channel note queue?
 	ld a,(ChannelUpdateTimer)
@@ -279,23 +307,20 @@ TickNextChannelNote:
 	; Have we reached the end of its duration?
 	ld a,(ix+Channel.Duration)
 	or a
-	jr nz,TickNotEndedNoteDuration
+	jr z,TickEndedNoteDuration
+	dec a
+	ld (ix+Channel.Duration),a
+	jr nz,ChannelNoteWasActive
 	
 	; The note has finished, so change channel state to "release".
+TickEndedNoteDuration:
+	ld (ix+Channel.Duration),a
+	
 	ld a,(ix+Channel.State)
 	and %11111100
 	ld (ix+Channel.State),a
-	
-	jr ChannelNoteInactive
-	
-TickNotEndedNoteDuration:
-	dec a
-TickEndedNoteDuration:
-	ld (ix+Channel.Duration),a
-	jr ChannelNoteWasActive
-	
-ChannelNoteInactive:
 
+ChannelNoteInactive:
 	; If we get here, the note is currently inactive.
 	; Is there a note in the queue to fetch?
 	ld a,(ix+Channel.State)
@@ -421,9 +446,6 @@ NoStepEnvelope:
 
 EnvelopeStepped:
 	pop bc
-	
-	; Send data to the PSG.
-	call OutputChannel
 	
 SkipChannelEnvelope:
 	

@@ -85,9 +85,17 @@ FrameInterrupt:
 +:
 
 	; Indicate that the host can try to read the keyboard if it wants.
+	ld a,(Sound.Status)
+	bit Sound.Status.Active,a
+	jr z,SoundIsInactive
+	ld a,(Sound.ChannelUpdateTimer)
+	cp Sound.ChannelUpdatePeriod
+	jr nz,SoundIsBusy
+SoundIsInactive:
 	ld a,(Host.Flags)
 	set Host.GetKeyPending,a
 	ld (Host.Flags),a
+SoundIsBusy:
 
 	; Update the sound.
 	call Sound.Tick
@@ -105,6 +113,7 @@ FinishedFrameInterrupt:
 	ret
 
 ; Libraries:
+.include "Video.asm"
 .include "AT.asm"
 .include "Keyboard.asm"
 .include "UK.inc"
@@ -259,7 +268,6 @@ SignOnMessage:
 .include "BBC BASIC.asm"
 .include "Sound.asm"
 .include "Host.asm"
-.include "Video.asm"
 PCLink2.Trap = Host.TrapFileTransfers
 
 .echoln strformat("{0} bytes free for code page page 1.", $8000 - $)
