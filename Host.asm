@@ -86,7 +86,7 @@ OSINIT:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSRDCH:
-	call VDU.Console.BeginBlinkingCursor
+	call VDU.BeginBlinkingCursor
 
 -:	call GetKey
 	
@@ -94,13 +94,13 @@ OSRDCH:
 	jr nc,OSRDCH.GotKey ; Accept pressed keys.
 
 +:	push af
-	call VDU.Console.DrawBlinkingCursor
+	call VDU.DrawBlinkingCursor
 	pop af
 	jr -
 
 OSRDCH.GotKey:
 	push af
-	call VDU.Console.EndBlinkingCursor	
+	call VDU.EndBlinkingCursor	
 	pop af
 	ret
 
@@ -289,7 +289,7 @@ NoKey:
 	ret
 
 KeyLoopEscape:
-	call VDU.Console.EndBlinkingCursor
+	call VDU.EndBlinkingCursor
 	pop af
 	
 	ld a,(Flags)
@@ -405,7 +405,7 @@ OSKEY.NoKey:
 	jr nz,OSKEY.TimedOut
 	
 	; No, so draw the flashing cursor.
-	call VDU.Console.DrawBlinkingCursor
+	call VDU.DrawBlinkingCursor
 	jr OSKEY.Loop
 
 OSKEY.TimedOut:
@@ -415,7 +415,7 @@ OSKEY.GotKey:
 	ccf
 	
 	push af
-	call VDU.Console.EndBlinkingCursor
+	call VDU.EndBlinkingCursor
 	pop af
 	
 	pop de
@@ -455,7 +455,7 @@ OSLINE:
 	ret
 
 +:
-	call VDU.Console.BeginBlinkingCursor	
+	call VDU.BeginBlinkingCursor	
 	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
 	ld d,0 ; D = index into current string.
 
@@ -469,7 +469,7 @@ OSLINE.Loop:
 	ld (hl),'\r'
 +:
 	
--:	call VDU.Console.DrawBlinkingCursor
+-:	call VDU.DrawBlinkingCursor
 	call GetKey
 	jr nz,-
 	jr c,-
@@ -512,7 +512,7 @@ OSLINE.Loop:
 	inc d
 	
 	push af
-	call VDU.Console.EndBlinkingCursor
+	call VDU.EndBlinkingCursor
 	pop af
 	
 	; Print the character.
@@ -528,7 +528,7 @@ OSLINE.InsertCharacter
 OSLINE.EnoughSpace:	
 	
 	push af
-	call VDU.Console.EndBlinkingCursor
+	call VDU.EndBlinkingCursor
 	pop af
 	
 	; Move all characters after the current one right.
@@ -587,17 +587,17 @@ OSLINE.RepaintToEnd:
 	; Are there any characters between the current one and the end of the line?
 	ld a,b
 	sub d
-	jr nz,OSLINE.RepairToEnd.HasCharacters
+	jr nz,OSLINE.RepaintToEnd.HasCharacters
 	
 	ld a,e
 	cp '\r'
 	jr nz,+
-	ld a,' '
+	ld a,127
 +:	or a
 	call nz,VDU.PutMap
 	jp OSLINE.Loop
 
-OSLINE.RepairToEnd.HasCharacters:
+OSLINE.RepaintToEnd.HasCharacters:
 
 	; We need to repaint...
 	push bc
@@ -614,13 +614,13 @@ OSLINE.RepairToEnd.HasCharacters:
 	ld a,e
 	cp '\r'
 	jr nz,+
-	ld a,' '
+	ld a,127
 +:	or a
 	call nz,VDU.PutMap
 	
 	; Move the cursor back to where it should be.
 	pop bc
--:	call VDU.Console.CursorLeft
+-:	call VDU.CursorLeft
 	djnz -
 	
 	pop hl
@@ -632,7 +632,7 @@ OSLINE.Return:
 	; Move to the end.
 	call OSLINE.End
 	
-	call VDU.Console.EndBlinkingCursor
+	call VDU.EndBlinkingCursor
 	
 	ld a,'\r'
 	call VDU.PutChar
@@ -664,8 +664,8 @@ OSLINE.Delete:
 	cp b
 	jp z,OSLINE.Loop
 	
-	call VDU.Console.EndBlinkingCursor
-	call VDU.Console.CursorRight
+	call VDU.EndBlinkingCursor
+	call VDU.CursorRight
 	inc hl
 	inc d
 	
@@ -677,7 +677,7 @@ OSLINE.Backspace:
 	or a
 	jp z,OSLINE.Loop
 	
-	call VDU.Console.EndBlinkingCursor
+	call VDU.EndBlinkingCursor
 	
 	; Move all characters from the current cursor position+1 to the end of the string left one.
 	push hl
@@ -704,12 +704,12 @@ OSLINE.Backspace:
 	inc c
 	
 	; Move the cursor left.
-	call VDU.Console.CursorLeft
+	call VDU.CursorLeft
 	
 	dec hl
 	dec d
 
-	ld e,' ' ; Blank off the end of the backspaced line.
+	ld e,127 ; Blank off the end of the backspaced line.
 	jp OSLINE.RepaintToEnd
 
 OSLINE.Home:
@@ -719,9 +719,9 @@ OSLINE.Home:
 	or a
 	jr z,+
 
-	call VDU.Console.EndBlinkingCursor
+	call VDU.EndBlinkingCursor
 
--:	call VDU.Console.CursorLeft
+-:	call VDU.CursorLeft
 	dec hl
 	dec d
 	jr nz,-
@@ -736,9 +736,9 @@ OSLINE.End:
 	cp b
 	jr z,+
 
-	call VDU.Console.EndBlinkingCursor
+	call VDU.EndBlinkingCursor
 
--:	call VDU.Console.CursorRight
+-:	call VDU.CursorRight
 	inc hl
 	inc d
 	ld a,b
@@ -756,8 +756,8 @@ OSLINE.Left:
 	or a
 	jr z,+
 	
-	call VDU.Console.EndBlinkingCursor
-	call VDU.Console.CursorLeft
+	call VDU.EndBlinkingCursor
+	call VDU.CursorLeft
 	dec hl
 	dec d
 	
@@ -773,8 +773,8 @@ OSLINE.Right:
 	cp b
 	jr z,+
 	
-	call VDU.Console.EndBlinkingCursor
-	call VDU.Console.CursorRight
+	call VDU.EndBlinkingCursor
+	call VDU.CursorRight
 	inc hl
 	inc d
 	
@@ -790,7 +790,7 @@ OSLINE.Clear:
 	jp z,OSLINE.Loop
 	
 	push af
-	call VDU.Console.EndBlinkingCursor
+	call VDU.EndBlinkingCursor
 	pop af
 	
 	; Move to the end of the line.
@@ -798,7 +798,7 @@ OSLINE.Clear:
 	jr z,+
 	
 -:	push af
-	call VDU.Console.CursorRight
+	call VDU.CursorRight
 	inc hl
 	inc d
 	pop af
@@ -811,9 +811,8 @@ OSLINE.Clear:
 	dec d
 	inc c
 	ld (hl),'\r'
-	call VDU.Console.CursorLeft
-	ld a,' '
-	call VDU.PutMap
+	ld a,127
+	call VDU.PutChar
 	djnz -
 	
 	jp OSLINE.Loop
@@ -842,7 +841,7 @@ OSLINE.Clear:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSLINE.Prefilled:
-	call VDU.Console.BeginBlinkingCursor
+	call VDU.BeginBlinkingCursor
 	ld bc,255
 	ld d,0
 -:	ld a,(hl)
@@ -1006,7 +1005,7 @@ TRAP.Escape:
 TrapFileTransfers:
 	ei
 	
-	call VDU.Console.DrawBlinkingCursor
+	call VDU.DrawBlinkingCursor
 	
 	; Is Escape pressed?
 	ld a,(Flags)
@@ -1106,10 +1105,10 @@ RESET:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSLOAD:
-	call VDU.Console.BeginBlinkingCursor
+	call VDU.BeginBlinkingCursor
 	call PCLink2.GetFile
 	push af
-	call VDU.Console.EndBlinkingCursor
+	call VDU.EndBlinkingCursor
 	pop af
 	jr nz,OSLOAD.Error
 	jp c,TRAP.Escape
@@ -1143,10 +1142,10 @@ OSLOAD.Error:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSSAVE:
-	call VDU.Console.BeginBlinkingCursor
+	call VDU.BeginBlinkingCursor
 	call PCLink2.SendFile
 	push af
-	call VDU.Console.EndBlinkingCursor
+	call VDU.EndBlinkingCursor
 	pop af
 	jp nz,DeviceFault
 	jp c,TRAP.Escape

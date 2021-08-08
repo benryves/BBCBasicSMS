@@ -2,6 +2,9 @@
 
 ; Temporary storage for a single 8x8 tile.
 TempTile = allocVar(8)
+Flags = allocVar(1)
+
+GraphicalText = 0
 
 FontTileIndex = 0
 FontCharOffset = FontTileIndex-' '
@@ -59,7 +62,7 @@ FunctionVectors = allocVar(Functions.Count * 3)
 .endmodule
 
 Clear = VDUFunctionAddress(Function.Clear)
-PutMap = VDUFunctionAddress(Function.PutMap)
+Console.PutMap = VDUFunctionAddress(Function.PutMap)
 Scroll = VDUFunctionAddress(Function.Scroll)
 BeginPlot = VDUFunctionAddress(Function.BeginPlot)
 SetPixel = VDUFunctionAddress(Function.SetPixel)
@@ -277,6 +280,7 @@ SetMode:
 	xor a
 	ld (CommandQueue),a
 	ld (CommandQueue.Waiting),a
+	ld (Flags),a
 	
 	; Reset colours to their defaults.
 	call ResetColoursCommand
@@ -451,10 +455,26 @@ NotCommand:
 	jp z,Delete
 
 PutLiteralChar:
-	call Console.FlushPendingScroll
 	call PutMap
-	jp Console.CursorRight
+	jp CursorRight
 
+PutMap:
+	call Console.FlushPendingScroll
+	
+	push hl
+	ld l,a
+	ld a,(Flags)
+	bit GraphicalText,a
+	ld a,l
+	pop hl
+	
+	jp nz,Graphics.PutMap
+	
+	cp 127
+	jp nz,Console.PutMap
+	ld a,' '
+	jp Console.PutMap
+	
 GetCommandJumpTable:
 	ld l,a
 	add a,a
@@ -477,16 +497,16 @@ CommandJumpTable:
 	.dw Stub                    \ .db  0 ;  1 Data -> Printer
 	.dw Stub                    \ .db  0 ;  2 Enable printer.
 	.dw Stub                    \ .db  0 ;  3 Disable printer.
-	.dw Stub                    \ .db  0 ;  4 Write text at text cursor position.
-	.dw Stub                    \ .db  0 ;  5 Write text at graphics cursor position.
+	.dw TextViaConsoleCommand   \ .db  0 ;  4 Write text at text cursor position.
+	.dw TextViaGraphicsCommand  \ .db  0 ;  5 Write text at graphics cursor position.
 	.dw Stub                    \ .db  0 ;  6 Enable output to the screen.
 	.dw Stub                    \ .db  0 ;  7 BEL
-	.dw Console.CursorLeft      \ .db  0 ;  8 Move text cursor backwards one character.
-	.dw Console.CursorRight     \ .db  0 ;  9 Move text cursor forwards one character.
-	.dw Console.CursorDown      \ .db  0 ; 10 Move text cursor down a line.
-	.dw Console.CursorUp        \ .db  0 ; 11 Move text cursor up a line.
+	.dw CursorLeft              \ .db  0 ;  8 Move text cursor backwards one character.
+	.dw CursorRight             \ .db  0 ;  9 Move text cursor forwards one character.
+	.dw CursorDown              \ .db  0 ; 10 Move text cursor down a line.
+	.dw CursorUp                \ .db  0 ; 11 Move text cursor up a line.
 	.dw Clear                   \ .db  0 ; 12 Clear the text area (CLS).
-	.dw Console.HomeLeft        \ .db  0 ; 13 Move text cursor to start of current line.
+	.dw HomeLeft                \ .db  0 ; 13 Move text cursor to start of current line.
 	.dw Stub                    \ .db  0 ; 14 Enable the auto-paging mode.
 	.dw Stub                    \ .db  0 ; 15 Disable the auto-paging mode.
 	.dw Graphics.Clear          \ .db  0 ; 16 Clear the graphics area (CLG).
@@ -513,16 +533,70 @@ CommandJumpTable:
 ; ========================================================================================
 ; VDU 4                                                           DRAW TEXT AT TEXT CURSOR
 ; ========================================================================================
-;;; TODO
+TextViaConsoleCommand:
+	ld a,(Flags)
+	res GraphicalText,a
+	ld (Flags),a
+	ret
 
 ; ========================================================================================
 ; VDU 5                                                       DRAW TEXT AT GRAPHICS CURSOR
 ; ========================================================================================
-;;; TODO
+TextViaGraphicsCommand:
+	; Check to see if there's a SetPixel routine.
+	; If not, assume we can't use VDU 5.
+	ld a,(SetPixel)
+	cp $C9
+	ret z
+	ld a,(Flags)
+	set GraphicalText,a
+	ld (Flags),a
+	ret
+
+; ========================================================================================
+; VDU 8                                                                        CURSOR LEFT
+; ========================================================================================
+CursorLeft:
+	ld a,(Flags)
+	bit GraphicalText,a
+	jp z,Console.CursorLeft
+	jp Graphics.CursorLeft
+
+; ========================================================================================
+; VDU 9                                                                       CURSOR RIGHT
+; ========================================================================================
+CursorRight:
+	ld a,(Flags)
+	bit GraphicalText,a
+	jp z,Console.CursorRight
+	jp Graphics.CursorRight
+
+; ========================================================================================
+; VDU 10                                                                       CURSOR DOWN
+; ========================================================================================
+CursorDown:
+	ld a,(Flags)
+	bit GraphicalText,a
+	jp z,Console.CursorDown
+	jp Graphics.CursorDown
+
+; ========================================================================================
+; VDU 11                                                                         CURSOR UP
+; ========================================================================================
+CursorUp:
+	ld a,(Flags)
+	bit GraphicalText,a
+	jp z,Console.CursorUp
+	jp Graphics.CursorUp
 
 ; ========================================================================================
 ; VDU 13                                                                   CARRIAGE RETURN
 ; ========================================================================================
+HomeLeft:
+	ld a,(Flags)
+	bit GraphicalText,a
+	jp z,Console.HomeLeft
+	jp Graphics.HomeLeft
 
 ; ========================================================================================
 ; VDU 14                                                           ENABLE AUTO-PAGING MODE
@@ -953,7 +1027,7 @@ TabCommand:
 Delete:
 	call Console.FlushPendingScroll
 	call Console.CursorLeft
-	ld a,' '
+	ld a,127
 	jp PutMap
 
 ; ---------------------------------------------------------
@@ -1208,7 +1282,7 @@ DefaultClear:
 	ld (Console.CurCol),a
 	
 -:	push bc
-	ld a,' '
+	ld a,127
 	call PutMap
 	ld a,(Console.CurCol)
 	inc a
@@ -1246,5 +1320,37 @@ DefaultResetConsoleViewport:
 	
 	ret
 	
+; ---------------------------------------------------------
+; BeginBlinkingCursor -> Prepare to draw blinking cursor.
+; ---------------------------------------------------------
+; Destroys: af.
+; ---------------------------------------------------------
+BeginBlinkingCursor:
+	ld a,(Flags)
+	bit GraphicalText,a
+	jp z,Console.BeginBlinkingCursor
+	ret
+
+; ---------------------------------------------------------
+; EndBlinkingCursor -> Ends drawing the blinking cursor.
+; ---------------------------------------------------------
+; Destroys: af.
+; ---------------------------------------------------------
+EndBlinkingCursor:
+	ld a,(Flags)
+	bit GraphicalText,a
+	jp z,Console.EndBlinkingCursor
+	ret
+
+; ---------------------------------------------------------
+; DrawBlinkingCursor -> Draws the blinking cursor.
+; ---------------------------------------------------------
+; Destroys: af.
+; ---------------------------------------------------------
+DrawBlinkingCursor
+	ld a,(Flags)
+	bit GraphicalText,a
+	jp z,Console.DrawBlinkingCursor
+	ret
 
 .endmodule

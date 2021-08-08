@@ -161,6 +161,23 @@ DivideBy5:
 	ret
 
 ; ---------------------------------------------------------
+; MultiplyBy5 -> Multiplies HL by 5.
+; ---------------------------------------------------------
+; Inputs:   hl = value to multiply by 5.
+; Outputs:  hl is multiplied by 5.
+; Destroys: f.
+; ---------------------------------------------------------
+MultiplyBy5:
+	push de
+	ld d,h
+	ld e,l
+	add hl,hl
+	add hl,hl
+	add hl,de
+	pop de
+	ret
+
+; ---------------------------------------------------------
 ; SortDEHL -> Sort DE <= HL.
 ; ---------------------------------------------------------
 ; Inputs:   de, hl: the two values to sort.
@@ -180,6 +197,54 @@ SortDEHL:
 	
 +:	ret pe
 	ex de,hl
+	ret
+
+; ---------------------------------------------------------
+; SignedCPHLBC -> Compare signed HL and BC.
+; ---------------------------------------------------------
+; Inputs:   hl, bc: the two values to compare.
+; Outputs:  z = signed equality.
+;           c = set if HL<BC.
+; Destroys: f.
+; ---------------------------------------------------------
+SignedCPHLBC:
+	or a
+	sbc hl,bc
+	add hl,bc
+	jr SignedCPHLDE.F
+
+; ---------------------------------------------------------
+; SignedCPHLDE -> Compare signed HL and DE.
+; ---------------------------------------------------------
+; Inputs:   hl, de: the two values to compare.
+; Outputs:  z = signed equality.
+;           c = set if HL<DE.
+; Destroys: f.
+; ---------------------------------------------------------
+SignedCPHLDE:
+	or a
+	sbc hl,de
+	add hl,de
+
+SignedCPHLDE.F:
+	jr z,SignedCPHLDE.Z
+	jp m,SignedCPHLDE.M
+
+SignedCPHLDE.P:
+	scf
+	ret pe
+	ccf
+	ret
+
+SignedCPHLDE.M:
+	scf
+	ret po
+	ccf
+	ret
+
+SignedCPHLDE.Z: ; If =Z, ensure =NC too.
+	ret nc
+	ccf
 	ret
 
 ; ---------------------------------------------------------
@@ -290,6 +355,9 @@ Plot.SelectedColour:
 	and 7
 	call BeginPlot
 
+	; Check if the plot shape is out of bounds.
+	; Note that we must do this down here, not earlier, so the Plot handler
+	; can be used to initialse colours and plotting modes for VDU 5.
 	ld a,(PlotShape)
 	cp 208
 	ret nc
@@ -332,7 +400,7 @@ PlotCommands:
 .dw Stub              ; 160..167: Draw circular arc.
 .dw Stub              ; 168..175: Draw solid segment.
 .dw Stub              ; 176..183: Draw solid sector.
-.dw Stub              ; 184..191: Block transfer operations.
+.dw SpriteTest        ; 184..191: Block transfer operations.
 .dw PlotDrawEllipse   ; 192..199: Ellipse outline.
 .dw PlotFillEllipse   ; 200..207: Ellipse fill.
 
@@ -688,6 +756,370 @@ NoSetAlignedHorizontalLineSegment:
 	djnz -
 	ei
 	ret
+	
+
+SpriteTest:
+
+	ld a,'A'
+	call PutChar
+	ret
+
+	ld b,1
+	call TransformPoints
+	
+	push ix
+	
+	ld ix,VDU.Fonts.Font8x8	 + ('A'*1+FontCharOffset)*8
+	
+	ld a,(TransformedPoint0X)
+	ld d,a
+	ld a,(TransformedPoint0Y)
+	ld e,a
+	
+	call PlotTransformedSprite
+	
+	pop ix
+	ret
+
+; ---------------------------------------------------------
+; PutChar -> Draws a character at the graphics cursor and
+; advances right.
+; ---------------------------------------------------------
+PutChar:
+	call PutMap
+	jr CursorRight
+
+; ---------------------------------------------------------
+; PutMap -> Draws a character at the graphics cursor.
+; ---------------------------------------------------------
+PutMap:
+	push ix
+	push hl
+	push de
+	push bc	
+	push af
+	push af
+	
+	cp 127
+	jr z,PutMap.Delete
+
+	ld a,1
+	ld (PlotShape),a
+
+	ld a,(Colour)
+	ld (PlotColour),a
+	
+	ld a,(ColourMode)
+	and 7
+	jr PutMap.BeginPlot
+
+PutMap.Delete:
+
+	ld a,3
+	ld (PlotShape),a
+
+	ld a,(Colour)
+	rrca
+	rrca
+	rrca
+	rrca
+	ld (PlotColour),a
+	xor a
+
+PutMap.BeginPlot:
+	ld (PlotMode),a
+	call BeginPlot
+	
+	ld b,1
+	call TransformPoints
+	
+	pop af
+	add a,FontCharOffset
+	
+	ld l,a
+	ld h,0
+	
+	add hl,hl
+	add hl,hl
+	add hl,hl
+	ld de,VDU.Fonts.Font8x8
+	add hl,de
+	
+	push hl
+	pop ix
+	
+	ld a,(TransformedPoint0X)
+	ld d,a
+	ld a,(TransformedPoint0Y)
+	ld e,a
+	
+	call PlotTransformedSprite
+	
+	pop af
+	pop bc
+	pop de
+	pop hl
+	pop ix
+	ret
+
+; ---------------------------------------------------------
+; CursorRight -> Move the cursor right one character.
+; ---------------------------------------------------------
+CursorRight:
+	push hl
+	push de
+	push bc
+	
+	ld hl,(VisitedPoint0X)
+	ld bc,8*5
+	add hl,bc
+	
+	push hl
+	call DivideBy5
+	ld bc,(MaxX)
+	ld b,0
+	call SignedCPHLBC
+	pop hl
+	
+	jr c,CursorRightNoWrap
+	
+	; Cursor home.
+	ld hl,(MinX)
+	ld h,0
+	call MultiplyBy5
+	jr CursorDown.FromCursorRight
+	
+CursorRightNoWrap:
+
+	ld de,(VisitedPoint0Y)
+	call VisitPoint
+	
+	pop bc
+	pop de
+	pop hl
+	ret
+
+; ---------------------------------------------------------
+; CursorDown -> Move the cursor down one character.
+; ---------------------------------------------------------
+CursorDown:
+	push hl
+	push de
+	push bc
+	
+	ld hl,(VisitedPoint0X)
+
+CursorDown.FromCursorRight:
+
+	ex de,hl
+	
+	ld hl,(VisitedPoint0Y)
+	ld bc,-8*5
+	add hl,bc
+	
+	push hl
+	
+	call DivideBy5
+	
+	ld a,(MaxY)
+	neg
+	add a,192
+	ld c,a
+	ld b,0
+	call SignedCPHLBC
+	pop hl
+	
+	jr nc,CursorDownNoWrap
+
+	ld a,(MinY)
+	neg
+	add a,192
+	ld l,a
+	ld h,0
+	call MultiplyBy5
+	dec hl
+
+CursorDownNoWrap:
+	
+	ex de,hl
+	call VisitPoint
+	
+	pop bc
+	pop de
+	pop hl
+	ret
+
+; ---------------------------------------------------------
+; CursorLeft -> Move the cursor left one character.
+; ---------------------------------------------------------
+CursorLeft:
+	push hl
+	push de
+	push bc
+	
+	ld hl,(VisitedPoint0X)
+	ld bc,-8*5
+	add hl,bc
+	
+	push hl
+	call DivideBy5
+	ld bc,(MinX)
+	ld b,0
+	call SignedCPHLBC
+	pop hl
+	
+	jr nc,CursorLeftNoWrap
+	
+	; Cursor to right edge.
+	ld hl,(MaxX)
+	ld h,0
+	ld bc,-8
+	add hl,bc
+	call MultiplyBy5
+	jr CursorUp.FromCursorLeft
+	
+CursorLeftNoWrap:
+
+	ld de,(VisitedPoint0Y)
+	call VisitPoint
+	
+	pop bc
+	pop de
+	pop hl
+	ret
+	ret
+
+; ---------------------------------------------------------
+; CursorUp -> Move the cursor up one character.
+; ---------------------------------------------------------
+CursorUp:
+	push hl
+	push de
+	push bc
+	
+	ld hl,(VisitedPoint0X)
+
+CursorUp.FromCursorLeft:
+
+	ex de,hl
+	
+	ld hl,(VisitedPoint0Y)
+	ld bc,8*5
+	add hl,bc
+	
+	push hl
+	
+	call DivideBy5
+	
+	ld a,(MinY)
+	neg
+	add a,191
+	ld c,a
+	ld b,0
+	call SignedCPHLBC
+	pop hl
+	
+	jr c,CursorDownNoWrap
+
+	ld a,(MinY)
+	neg
+	add a,192
+	ld l,a
+	ld h,0
+	call MultiplyBy5
+	dec hl
+
+CursorDownNoWrap:
+	
+	ex de,hl
+	call VisitPoint
+	
+	pop bc
+	pop de
+	pop hl
+	ret
+	
+; ---------------------------------------------------------
+; HomeLeft -> Move the cursor home to the left edge.
+; ---------------------------------------------------------
+HomeLeft:
+	push hl
+	push de
+	ld hl,(MinX)
+	ld h,0
+	call MultiplyBy5
+	ld de,(VisitedPoint0Y)
+	call VisitPoint
+	pop de
+	pop hl
+	ret
+
+; ---------------------------------------------------------
+; PlotTransformedSprite -> Plots a sprite.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = pixel type to plot.
+;           (d,e) top left corner.
+;           ix = pointer to sprite data.
+; Destroys: Everything.
+; ---------------------------------------------------------
+PlotTransformedSprite:
+
+	ld b,8
+
+PlotTransformedSprite.Loop:
+	
+	push bc
+	
+	ld h,(ix)
+	ld a,d
+	and 7
+	jr z,+
+	
+	ld b,a
+-:	srl h
+	djnz -
++:	ld a,h
+	cpl
+	ld l,a
+	
+	push de
+	call SetAlignedHorizontalLineSegment
+	pop de
+	
+	ld a,d
+	and 7
+	jr z,PlotTransformedSprite.Aligned
+	
+	ld h,(ix)
+	
+	ld l,a
+	ld a,8
+	sub l
+	
+	ld b,a
+-:	sla h
+	djnz -
+	
+	ld a,h
+	cpl
+	ld l,a
+	
+	push de
+	ld a,d
+	add a,8
+	ld d,a
+	call SetAlignedHorizontalLineSegment
+	pop de
+
+PlotTransformedSprite.Aligned:
+	
+	pop bc
+	inc e
+	inc ix
+	djnz PlotTransformedSprite.Loop
+	
+	ret	
+	
 
 ; ---------------------------------------------------------
 ; Clear -> Clears the viewport.
@@ -1066,6 +1498,15 @@ PlotEllipse:
 	pop iy
 	ret
 
+; ---------------------------------------------------------
+; PlotTriangle -> Fills a triangle.
+; ---------------------------------------------------------
+; Inputs:   PlotShape = triangle type to plot.
+;           VisitedPoint0 = First coordinate
+;           VisitedPoint1 = Second coordinate.
+;           VisitedPoint2 = Third coordinate.
+; Destroys: Everything.
+; ---------------------------------------------------------
 PlotTriangle:
 	ld b,3
 	call TransformPoints
