@@ -50,13 +50,17 @@ FunctionVectors = allocVar(Functions.Count * 3)
 	.include "Mode4.asm"
 	.include "Mode4ReducedColour.asm"
 
-	Count = 4
+	Count = 7
 	
 	Functions:
 		.dw Text.Functions
 		.dw Mode4ReducedColour.Functions
 		.dw Mode4.Functions
 		.dw GraphicsII.Functions
+		.dw Mode4ReducedColour.Functions
+		.dw Mode4ReducedColour.Functions
+		.dw Text.Functions
+		.dw Text.Functions
 
 
 .endmodule
@@ -300,7 +304,10 @@ Stub:
 
 SetModeInitialize:
 	cp Modes.Count
-	ret nc
+	jr c,+
+	sub Modes.Count
+	jr SetModeInitialize
++:
 	
 	push af
 	ld hl,DefaultFunctions
@@ -728,8 +735,6 @@ DefaultSelectDefaultPalette:
 ; ========================================================================================
 ModeCommand:
 	ld a,(VDUQ(0, 1))
-	cp Modes.Count
-	ret nc
 	jp SetMode
 
 ; ========================================================================================
