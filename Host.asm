@@ -13,8 +13,9 @@
 TIME = allocVar(4)
 
 Flags = allocVar(1)
-Pause = 0
+Escape = 0
 Overwrite = 1
+GetKeyPending = 2
 
 TrapKeyboardTimer = allocVar(1)
 
@@ -113,17 +114,43 @@ OSRDCH.GotKey:
 ; ---------------------------------------------------------
 GetDeviceKey:
 	push de
+	
+	di
+	ld a,(Flags)
+	bit GetKeyPending,a
+	jr z,GetDeviceKey.Skip
+	res GetKeyPending,a
+	ld (Flags),a
+	
 	call Keyboard.GetKey
-	jr nz,+
-	jr +
+	jr nz,GetDeviceKey.NoKey
 	
 	push af
 	call nc,HoldDeviceKey
 	call c,ReleaseDeviceKey
 	pop af
 	
-+:	pop de
+	; Is it Escape?
+	push af
+	jp p,+
+	jr c,+
+	cp Keyboard.KeyCode.Escape
+	jr nz,+
+	ld a,(Flags)
+	set Escape,a
+	ld (Flags),a
++:
+	pop af
+
+GetDeviceKey.NoKey:
+	pop de
+	ei
 	ret
+
+GetDeviceKey.Skip:
+	xor a
+	dec a
+	jr GetDeviceKey.NoKey
 
 ; ---------------------------------------------------------
 ; HoldDeviceKey -> Hold a key via its device code.
@@ -218,7 +245,7 @@ GetKey:
 
 	; Is it the pause key?
 	ld a,(Flags)
-	bit Pause,a
+	bit Escape,a
 	jr nz,KeyLoopEscape
 	
 	call GetDeviceKey
@@ -262,7 +289,7 @@ KeyLoopEscape:
 	pop af
 	
 	ld a,(Flags)
-	res Pause,a
+	res Escape,a
 	ld (Flags),a
 	
 	ld a,17 ; Escape
@@ -307,6 +334,7 @@ OSKEY:
 	ld a,'?'
 	jr z,OSKEY.ReturnValue
 	
+	call GetDeviceKey
 	ld a,l
 	neg
 	ld hl,HeldKeys
@@ -424,6 +452,7 @@ OSLINE.Loop:
 	
 -:	call VDU.Console.DrawBlinkingCursor
 	call GetKey
+	jr nz,-
 	jr c,-
 	
 	jp m,OSLINE.ExtendedKey
@@ -923,7 +952,7 @@ TRAP:
 	
 	; Is pause pressed?
 	ld a,(Flags)
-	bit Pause,a
+	bit Escape,a
 	jr nz,TRAP.Escape
 	
 	; Shall we poll the keyboard?
@@ -948,7 +977,7 @@ TRAP:
 TRAP.Escape:
 	
 	ld a,(Flags)
-	res Pause,a
+	res Escape,a
 	ld (Flags),a
 	
 	ld a,17 ; Escape
@@ -960,9 +989,9 @@ TrapFileTransfers:
 	
 	call VDU.Console.DrawBlinkingCursor
 	
-	; Is pause pressed?
+	; Is Escape pressed?
 	ld a,(Flags)
-	bit Pause,a
+	bit Escape,a
 	jr nz,TrapFileTransfers.Trap
 	
 	; Shall we poll the keyboard?
@@ -999,7 +1028,7 @@ TrapFileTransfers.Trap:
 ;------------------------------------------------------------------------------- 
 RESET:
 	ld a,(Flags)
-	res Pause,a
+	res Escape,a
 	ld (Flags),a
 	
 	push hl

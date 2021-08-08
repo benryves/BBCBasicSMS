@@ -31,7 +31,7 @@ IOControl = allocVar(1)
 .org $66
 	push af
 	ld a,(Host.Flags)
-	set Host.Pause,a
+	set Host.Escape,a
 	ld (Host.Flags),a
 	pop af
 	retn
@@ -83,6 +83,11 @@ FrameInterrupt:
 	dec a
 	ld (Host.TrapKeyboardTimer),a
 +:
+
+	; Indicate that the host can try to read the keyboard if it wants.
+	ld a,(Host.Flags)
+	set Host.GetKeyPending,a
+	ld (Host.Flags),a
 
 	; Update the sound.
 	call Sound.Tick
