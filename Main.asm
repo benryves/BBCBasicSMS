@@ -105,19 +105,14 @@ FinishedFrameInterrupt:
 	ret
 
 ; Libraries:
-.include "Video.asm"
 .include "AT.asm"
 .include "Keyboard.asm"
 .include "UK.inc"
 .include "VDU.asm"
 .include "Serial.asm"
 .include "PCLink2.asm"
-.include "Sound.asm"
 .include "Maths.asm"
 .include "CLI.asm"
-.include "Host.asm"
-
-PCLink2.Trap = Host.TrapFileTransfers
 
 Boot:
 	; Make sure SP points somewhere sensible.
@@ -254,12 +249,6 @@ SignOnMessage:
 ; *TIJUMP,MAIN/P:4100,EXEC,EVAL,FPP,RAM/P:DC00
 ; *BBCBASIC/N/Y/E
 
-.if Variables > EndOfVariables
-	.fail strformat("Too many variables! Please free up {0} bytes.", Variables - EndOfVariables)
-.else
-	.echoln strformat("{0} bytes free for variables.", EndOfVariables - Variables)
-.endif
-
 .if $>$4000
 	.fail "Too much code."
 .else
@@ -268,5 +257,15 @@ SignOnMessage:
 
 .org $4000
 .include "BBC BASIC.asm"
+.include "Sound.asm"
+.include "Host.asm"
+.include "Video.asm"
+PCLink2.Trap = Host.TrapFileTransfers
 
 .echoln strformat("{0} bytes free for code page page 1.", $8000 - $)
+
+.if Variables > EndOfVariables
+	.fail strformat("Too many variables! Please free up {0} bytes.", Variables - EndOfVariables)
+.else
+	.echoln strformat("{0} bytes free for variables.", EndOfVariables - Variables)
+.endif

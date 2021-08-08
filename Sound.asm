@@ -545,10 +545,10 @@ StepEnvelopeDoneAmplitude:
 	and %00110000
 	ret z ; No pitch envelope
 	
-	srl a
-	srl a
-	srl a
-	srl a
+	rrca
+	rrca
+	rrca
+	rrca
 	
 StepPitchSection:
 	
