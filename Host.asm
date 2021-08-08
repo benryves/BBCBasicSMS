@@ -338,10 +338,19 @@ OSKEY:
 	call GetDeviceKey
 	ld a,l
 	neg
-	ld hl,HeldKeys
-	ld bc,HeldKeyCount
-	cpir
-	jr nz,OSKEY.Return0
+	
+	cp 4 ; 1 = Shift, 2 = Ctrl, 3 = Alt
+	jr nc,OSKEY.CheckKey.NotModifier
+	
+	add a,3 ; Left: 4 = Shift, 5 = Ctrl, 6 = Alt.
+	call OSKEY.CheckKey
+	jr z,OSKEY.ReturnTrue
+	
+	add a,3 ; Right: 7 = Shift, 8 = Ctrl, 9 = Alt.
+
+OSKEY.CheckKey.NotModifier:
+	call OSKEY.CheckKey
+	jr nz,OSKEY.ReturnFalse
 
 OSKEY.ReturnTrue:
 	xor a
@@ -350,6 +359,7 @@ OSKEY.ReturnTrue:
 	pop de
 	pop bc
 	ret
+OSKEY.ReturnFalse:
 OSKEY.Return0:
 	xor a
 OSKEY.ReturnValue:
@@ -358,6 +368,11 @@ OSKEY.ReturnValue:
 	pop bc
 	ret
 
+OSKEY.CheckKey:
+	ld hl,HeldKeys
+	ld bc,HeldKeyCount
+	cpir
+	ret
 
 OSKEY.NotNegative:
 	
