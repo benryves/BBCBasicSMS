@@ -453,7 +453,7 @@ GetUserDefinedCharacter:
 	ret nc
 		
 	call Video.SetReadAddress
-	ld hl,TempTile
+	ld hl,(Basic.BBCBASIC_FREE)
 	push hl
 	ld b,8
 	
