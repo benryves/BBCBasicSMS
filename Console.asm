@@ -95,12 +95,16 @@ CursorDown:
 
 CursorLeft:
 	ld a,(CurCol)
+	or a
+	jr z,CursorLeftWrapped
 	dec a
 	push bc
 	ld bc,(MinCol)
 	cp c
 	pop bc
 	jr nc,+
+CursorLeftWrapped:
+	scf
 	ld a,(MaxCol)
 +:	push af
 	ld (CurCol),a
@@ -112,10 +116,13 @@ CursorUp:
 	ld a,(CurRow)
 	push bc
 	ld bc,(MinRow)
+	or a
+	jr z,CursorUpWrapped
 	dec a
 	cp c
 	pop bc
 	jr nc,+
+CursorUpWrapped:
 	ld a,(MaxRow)
 +:	push af
 	ld (CurRow),a
