@@ -82,6 +82,22 @@ ResetViewport:
 	ld (MaxY),a
 	
 	ret
+	
+
+; ---------------------------------------------------------
+; VisitPointAbsolute -> Visits an absolute point for
+; plotting.
+; ---------------------------------------------------------
+; Inputs:   hl = X coordinate to visit.
+;           de = Y coordinate to visit. 
+; Outputs:  None
+; Destroys: f.
+; ---------------------------------------------------------
+VisitPointAbsolute:
+	call ShiftPointBuffer
+	ld (VisitedPoint0X),hl
+	ld (VisitedPoint0Y),de
+	ret
 
 ; ---------------------------------------------------------
 ; VisitPoint -> Visits a point for plotting.
@@ -92,19 +108,8 @@ ResetViewport:
 ; Destroys: f.
 ; ---------------------------------------------------------
 VisitPoint:
-	; Shift the visited point buffer.
-	push hl
-	push de
-	push bc
 	
-	ld hl,VisitedPoints + VisitedPoints.Size - 4 - 1
-	ld de,VisitedPoints + VisitedPoints.Size - 1
-	ld bc,VisitedPoints.Size - 4
-	lddr
-	
-	pop bc
-	pop de
-	pop hl
+	call ShiftPointBuffer
 	
 	; Store the new point at the top of the buffer.
 	ld (VisitedPoint0Y),de
@@ -124,6 +129,30 @@ VisitPoint:
 	
 	pop de
 	
+	pop hl
+	ret
+
+; ---------------------------------------------------------
+; ShiftPointBuffer -> Shifts the point buffer before
+; adding a new one.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  None.
+; Destroys: f.
+; ---------------------------------------------------------
+ShiftPointBuffer:
+	; Shift the visited point buffer.
+	push hl
+	push de
+	push bc
+	
+	ld hl,VisitedPoints + VisitedPoints.Size - 4 - 1
+	ld de,VisitedPoints + VisitedPoints.Size - 1
+	ld bc,VisitedPoints.Size - 4
+	lddr
+	
+	pop bc
+	pop de
 	pop hl
 	ret
 
@@ -984,7 +1013,7 @@ CursorRight:
 CursorRightNoWrap:
 
 	ld de,(VisitedPoint0Y)
-	call VisitPoint
+	call VisitPointAbsolute
 	
 	pop bc
 	pop de
@@ -1034,7 +1063,7 @@ CursorDown.FromCursorRight:
 CursorDownNoWrap:
 	
 	ex de,hl
-	call VisitPoint
+	call VisitPointAbsolute
 	
 	pop bc
 	pop de
@@ -1073,7 +1102,7 @@ CursorLeft:
 CursorLeftNoWrap:
 
 	ld de,(VisitedPoint0Y)
-	call VisitPoint
+	call VisitPointAbsolute
 	
 	pop bc
 	pop de
@@ -1124,7 +1153,7 @@ CursorUp.FromCursorLeft:
 CursorDownNoWrap:
 	
 	ex de,hl
-	call VisitPoint
+	call VisitPointAbsolute
 	
 	pop bc
 	pop de
@@ -1141,7 +1170,7 @@ HomeLeft:
 	ld h,0
 	call MultiplyBy5
 	ld de,(VisitedPoint0Y)
-	call VisitPoint
+	call VisitPointAbsolute
 	pop de
 	pop hl
 	ret
