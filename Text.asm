@@ -240,7 +240,7 @@ SelectPalette:
 	and 1
 	ld c,a
 	ld a,b
-	call Mode4.SelectPalette
+	call MasterSystem16Colours.SelectPalette
 	
 	; Convert the console colour to a TMS9918 pair.
 	ld a,(VDU.Console.Colour)

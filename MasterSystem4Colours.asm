@@ -1,4 +1,4 @@
-.module Mode4ReducedColour
+.module MasterSystem4Colours
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1536 bytes
@@ -16,7 +16,7 @@ Functions:
 	.db Function.Initialise \ .dw Initialise
 	.db Function.PutMap \ .dw PutMap
 	.db Function.Scroll \ .dw Scroll
-	.db Function.BeginPlot \ .dw Mode4.BeginPlot
+	.db Function.BeginPlot \ .dw MasterSystem16Colours.BeginPlot
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
 	.db Function.SelectPalette \ .dw SelectPalette
 	.db Function.SelectDefaultPalette \ .dw SelectDefaultPalette
@@ -264,7 +264,7 @@ Scroll:
 	
 	; Get the pointer to the top left corner.
 	ld a,(Console.MinRow)
-	call Mode4.AMul64
+	call MasterSystem16Colours.AMul64
 	
 	ld a,(Console.MinCol)
 	add a,a
@@ -361,7 +361,7 @@ Scroll:
 SelectPalette:
 	ld b,c
 	push bc
-	call Mode4.ParsePaletteCommand
+	call MasterSystem16Colours.ParsePaletteCommand
 	ld c,a
 	pop af
 	; Fall-through...

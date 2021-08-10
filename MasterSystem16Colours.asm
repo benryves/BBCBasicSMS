@@ -1,4 +1,4 @@
-.module Mode4
+.module MasterSystem16Colours
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1536 bytes

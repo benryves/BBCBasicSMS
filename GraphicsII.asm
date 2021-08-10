@@ -8,7 +8,7 @@ Functions:
 	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
 	.db Function.GetUserDefinedCharacter \ .dw GetUserDefinedCharacter
 	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
-	.db Function.SelectPalette \ .dw Mode4.SelectPalette
+	.db Function.SelectPalette \ .dw MasterSystem16Colours.SelectPalette
 	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
 	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
 	.db Function.End
