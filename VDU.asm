@@ -661,34 +661,17 @@ TextColour.Background:
 ; VDU 18,<mode>,<colour>                                               SET GRAPHICS COLOUR
 ; ========================================================================================
 GraphicsColourCommand:
-	ld a,(VDUQ(0, 2))
-	ld (Graphics.ColourMode),a
+	ld hl,(VDUQ(0, 2))
 	
-	ld a,(VDUQ(1, 2))
-	ld c,a
-	and $0F
-	bit 7,c
-	ld c,a
-	
-	ld a,(Graphics.Colour)
+	bit 7,h
 	jr nz,GraphicsColour.Background
 
 GraphicsColour.Foreground:
-	and $F0
-	or c
-	ld (Graphics.Colour),a
+	ld (Graphics.ForegroundMode),hl
 	ret
 
 GraphicsColour.Background:
-	and $0F
-	ld b,a
-	ld a,c
-	add a,a
-	add a,a
-	add a,a
-	add a,a
-	or b
-	ld (Graphics.Colour),a
+	ld (Graphics.BackgroundMode),hl
 	ret
 
 ; ========================================================================================
@@ -707,14 +690,14 @@ SelectPaletteCommand:
 ResetColoursCommand:
 	
 	; Reset plotting mode.
-	xor a
-	ld (Graphics.ColourMode),a
-	ld (Graphics.PlotMode),a
+	ld hl,0
+	ld (Graphics.ForegroundMode),a
+	ld (Graphics.BackgroundMode),a
 	
 	; Reset to default colours.
 	ld a,$0F
 	ld (Console.Colour),a
-	ld (Graphics.Colour),a
+	ld (Graphics.ForegroundColour),a
 	
 	call SelectDefaultPalette
 	ret

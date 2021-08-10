@@ -180,6 +180,8 @@ Scroll:
 	ret
 
 BeginPlot:
+	cp 8
+	ret nc
 	ld h,0
 	ld l,a
 	add hl,hl

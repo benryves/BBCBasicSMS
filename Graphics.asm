@@ -41,11 +41,14 @@ TransformedPoint2X   = allocVar(2)
 TransformedPoint2Y   = allocVar(2)
 
 PlotShape  = allocVar(1)
-PlotMode   = allocVar(1)
-PlotColour = allocVar(1)
 
-ColourMode = allocVar(1) ; GCOL <m>, ....
-Colour     = allocVar(1) ; GCOL ..., <c>
+PlotMode   = allocVar(1) ; \ Must appear in this order!
+PlotColour = allocVar(1) ; /
+
+ForegroundMode   = allocVar(1) ; GCOL <m>, .... \
+ForegroundColour = allocVar(1) ; GCOL ..., <c>   \ Must appear in this order!
+BackgroundMode   = allocVar(1) ; GCOL <m>, ....  /
+BackgroundColour = allocVar(1) ; GCOL ..., <c>  /
 
 .include "Clip.asm"
 .include "Ellipse.asm"
@@ -57,7 +60,9 @@ Reset:
 	xor a
 	ld (PlotShape),a
 	ld (PlotMode),a
-	ld (ColourMode),a
+	ld (ForegroundMode),a
+	ld (BackgroundMode),a
+	ld (BackgroundColour),a
 	ld (VisitedPoints),a
 	ld hl,OriginX
 	ld (hl),a
@@ -66,8 +71,8 @@ Reset:
 	ldir
 	
 	; Reset the colours.
-	ld a,$0F
-	ld (Colour),a
+	ld a,15
+	ld (ForegroundColour),a
 	ld (PlotColour),a
 	; Fall-through to reset viewport.
 	
@@ -338,11 +343,12 @@ TransformPoint:
 ; ---------------------------------------------------------
 Plot:
 	
-	; Assume that the plot mode = the colour mode.
-	ld a,(ColourMode)
-	ld (PlotMode),a
+	; Default assumption is that we're using the foreground.
+	ld hl,(ForegroundMode)
+	ld (PlotMode),hl
 	
 	; Plot mode 5 is a no-op.
+	ld a,l
 	cp 5
 	ret z
 	
@@ -352,41 +358,31 @@ Plot:
 	ret z ; Invisible!
 	
 	dec a
-	jr nz,Plot.NotForegroundColour
-
-Plot.ForegroundColour: ; PLOT %..01
-	ld a,(Colour)
-	ld (PlotColour),a
-	jr Plot.SelectedColour
+	jr z,Plot.SelectedColour ; PLOT %..01
 
 Plot.NotForegroundColour:
 	dec a
 	jr nz,Plot.BackgroundColour
 
 Plot.Inverted:  ; PLOT %..10
-	ld a,4
-	ld (PlotMode),a
-	ld a,$FF
+	ld hl,$FF04
+	ld (PlotMode),hl
 	jr Plot.SelectedColour
 
 Plot.BackgroundColour:  ; PLOT %..11
-	ld a,(Colour)
-	rrca
-	rrca
-	rrca
-	rrca
-	ld (PlotColour),a
+	ld hl,(BackgroundMode)
+	ld (PlotMode),hl
 	
 Plot.SelectedColour:
 
 	; Ensure the graphics mode driver is set up to plot.
-	ld a,(PlotMode)
-	and 7
+	ld a,l
 	call BeginPlot
 
 	; Check if the plot shape is out of bounds.
 	; Note that we must do this down here, not earlier, so the Plot handler
-	; can be used to initialse colours and plotting modes for VDU 5.
+	; can be used to initialse colours and plotting modes for VDU 5
+	; by forcing an out-of-bounds plot shape.
 	ld a,(PlotShape)
 	cp 208
 	ret nc
@@ -827,12 +823,9 @@ PutMap:
 	
 	ld a,1
 	ld (PlotShape),a
-
-	ld a,(Colour)
-	ld (PlotColour),a
 	
-	ld a,(ColourMode)
-	and 7
+	ld hl,(ForegroundMode)
+	ld (PlotMode),hl
 	jr PutMap.BeginPlot
 
 PutMap.Delete:
@@ -843,16 +836,11 @@ PutMap.Delete:
 	ld a,3
 	ld (PlotShape),a
 
-	ld a,(Colour)
-	rrca
-	rrca
-	rrca
-	rrca
-	ld (PlotColour),a
-	xor a
+	ld hl,(BackgroundMode)
+	ld (PlotMode),hl
 
 PutMap.BeginPlot:
-	ld (PlotMode),a
+	ld a,l
 	call BeginPlot
 	
 	ld b,1
@@ -1285,17 +1273,11 @@ Clear:
 	ld (Graphics.PlotShape),a	
 	
 	; Set the plot colour to the background colour.
-	ld a,(Colour)
-	rrca
-	rrca
-	rrca
-	rrca
-	ld (PlotColour),a
+	ld hl,(BackgroundMode)
+	ld (PlotMode),hl
 	
 	; Load the plot mode.
-	ld a,(ColourMode)
-	ld (PlotMode),a
-	and 7
+	ld a,l
 	call BeginPlot
 	
 	jr PlotTransformedRectangle

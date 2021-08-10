@@ -387,7 +387,7 @@ SetAlignedHorizontalLineSegment:
 ManipulatePixelColour.SetForeground:
 	and %00001111
 	ld c,a
-	ld a,(VDU.Graphics.Colour)
+	ld a,(VDU.Graphics.ForegroundColour)
 	call VDU.Palettes.ConvertPaletteIndexToTMS9918A
 	rlca
 	rlca
@@ -399,7 +399,7 @@ ManipulatePixelColour.SetForeground:
 ManipulatePixelColour.SetBackground:
 	and %11110000
 	ld c,a
-	ld a,(VDU.Graphics.Colour)
+	ld a,(VDU.Graphics.BackgroundColour)
 	rrca
 	rrca
 	rrca
