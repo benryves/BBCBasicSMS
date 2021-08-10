@@ -695,6 +695,74 @@ GetUserDefinedCharacterAddress:
 	ret
 
 SetUserDefinedCharacter:
+
+	cp 11
+	jp z,SetDefaultFillPatterns
+	
+	or a
+	jp m,SetPattern
+
+	cp 6
+	jr c,SetPattern
+
+	cp 12
+	ret c
+	
+	cp 15
+	ret nc
+	
+	; Fill a simpler pattern.
+	
+	push af
+	push hl
+	
+	ld e,l
+	ld d,h
+
+	; Pack the two pixel values into a single value.
+	ld c,4
+--:	push bc	
+	
+	ld b,2
+	xor a
+-:	srl (hl)
+	inc hl
+	rr a
+	srl (hl)
+	dec hl
+	rr a
+	ld c,a
+	srl a
+	srl a
+	djnz -
+	
+	or c
+	
+	; Store, then move on.
+	
+	ld (de),a
+	inc de
+	inc hl
+	inc hl
+	
+	pop bc
+	dec c
+	jr nz,--
+	
+	pop hl
+	
+	; Copy the top half into the bottom half.
+	push hl
+	ld bc,4
+	ldir
+	pop hl
+	
+	; Subtract 10 then load as a normal (full) tile.
+	pop af
+	sub 10
+
+SetPattern:
+
 	push hl
 	call GetUserDefinedCharacterAddress
 	pop de
