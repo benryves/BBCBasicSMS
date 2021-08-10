@@ -483,7 +483,8 @@ NotCommand:
 	
 PutLiteralChar:
 	call PutMap
-	jp CursorRight
+	jp c,CursorRight
+	ret
 
 PutMap:
 	call Console.FlushPendingScroll
@@ -498,9 +499,12 @@ PutMap:
 	jp nz,Graphics.PutMap
 	
 	cp 127
-	jp nz,Console.PutMap
+	jr nz,+
 	ld a,' '
-	jp Console.PutMap
++:
+	call Console.PutMap
+	scf
+	ret
 	
 GetCommandJumpTable:
 	ld l,a
@@ -1285,8 +1289,8 @@ DefaultClear:
 	ld (Console.CurCol),a
 	
 -:	push bc
-	ld a,127
-	call PutMap
+	ld a,' '
+	call Console.PutMap
 	ld a,(Console.CurCol)
 	inc a
 	ld (Console.CurCol),a

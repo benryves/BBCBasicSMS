@@ -858,14 +858,14 @@ PutMap.BeginPlot:
 	ld h,0
 	ld de,(TransformedPoint0X)
 	call SignedCPHLDE
-	ret c
+	jp c,PutMap.ReturnNoPrint
 	
 	ld hl,8
 	add hl,de
 	ld de,(MinX)
 	ld d,0
 	call SignedCPHLDE
-	ret c
+	jp c,PutMap.ReturnNoPrint
 	
 	; We'll need to build a mask value.
 	ld c,%11111111
@@ -955,13 +955,21 @@ PutMap.NoClipBottom:
 	ld a,(TransformedPoint0Y)
 	ld e,a
 	call PlotTransformedSprite
-	
+
+PutMap.ReturnPrint:
 	pop af
-	pop bc
+	scf
+-:	pop bc
 	pop de
 	pop hl
 	pop ix
 	ret
+
+PutMap.ReturnNoPrint:
+	pop af
+	or a
+	jr -
+	
 
 ; ---------------------------------------------------------
 ; PutChar -> Draws a character at the graphics cursor and
@@ -969,6 +977,7 @@ PutMap.NoClipBottom:
 ; ---------------------------------------------------------
 PutChar:
 	call PutMap
+	ret nc
 	; Fall-through.
 	
 ; ---------------------------------------------------------
