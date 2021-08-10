@@ -734,8 +734,19 @@ UserCommand:
 	
 	; Is the command between 0..31?
 	cp 32
-	ret c
+;	jr nc,UserDefinedCharacter
 	
+	; So, it's <32. Is it >5?
+	cp 6
+;	ret nc
+	
+	; It's <=5.
+	cp 2
+;	jr nc,UserDefinedCharacter
+		
+;	ret
+
+UserDefinedCharacter:
 	; No, so it's a user-defined character.
 	ld hl,VDUQ(1, 9)
 	call SetUserDefinedCharacter

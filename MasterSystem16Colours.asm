@@ -2,6 +2,7 @@
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1536 bytes
+FillPatterns     = $3E00 ; 
 SpriteTable      = $3F00 ; 256 bytes
 TopOfMemory      = $4000 ; 16KB
 
@@ -27,6 +28,7 @@ Functions:
 	.db Function.SelectPalette \ .dw SelectPalette
 	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
 	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
+	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
 	.db Function.End
 
 Initialise:
@@ -63,6 +65,27 @@ LoadCharRow:
 	dec e
 	jr nz,--
 	
+	; Load the pattern fill data.
+	ld hl,FillPatterns
+	call Video.SetWriteAddress
+	
+	ld hl,DefaultPatterns
+	ld c,4
+--:	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld b,4
+-:	ld a,e
+	out (Video.Data),a
+	ld a,d
+	out (Video.Data),a
+	djnz -
+	dec c
+	jr nz,--
+	
+	
+	; Set the first free graphics tile index to be the smallest free graphics tile index.
 	ld hl,MinGraphicsTile
 	ld (FreeGraphicsTile),hl
 	
@@ -78,6 +101,15 @@ LoadCharRow:
 
 	ret
 
+DefaultPatterns:
+.db %00001011 ; 3 1 - GCOL 16
+.db %00000111 ; 1 3
+.db %00100011 ; 5 1 - GCOL 32
+.db %00010011 ; 1 5
+.db %00001110 ; 3 2 - GCOL 48
+.db %00001101 ; 2 3
+.db %00011111 ; 3 7 - GCOL 64
+.db %00101111 ; 7 3
 
 AMul64:
 	ld l,a
@@ -180,16 +212,37 @@ Scroll:
 	ret
 
 BeginPlot:
-	cp 8
-	ret nc
-	ld h,0
+	; Valid plot operators are only in the range 0..7.
+	ld d,a
+	and %111
 	ld l,a
+	
+	ld h,0
 	add hl,hl
+	
+	; Check if plot mode is 16, 32, 48 or 64 for pattern fills.
+	ld a,d
+	cp 16
+	jr nc,BeginPlotPattern
+
+BeginPlotSolid:
+	ld a,$C3 ; JP
+	ld (ManipulatePixelBitmask),a
 	ld de,PlotOperators
 	add hl,de
 	ld de,ManipulatePixelBitmask+1
 	ldi
 	ldi
+	ret	
+
+BeginPlotPattern:
+	ld de,PatternPlotOperators
+	add hl,de
+	ld de,ManipulatePixelBitmask
+	ldi
+	ldi
+	ld a,$C9
+	ld (de),a ; RET
 	ret
 
 PlotOperators:
@@ -201,6 +254,16 @@ PlotOperators:
 	.dw Stub
 	.dw ManipulatePixelBitmaskANDNOT
 	.dw ManipulatePixelBitmaskORNOT
+
+PatternPlotOperators:
+	or d \ and e ; Plot
+	or d \ ret ; OR
+	and e \ ret ; AND
+	xor d \ ret ; EOR
+	ret \ ret ; NOP
+	ret \ ret ; NOP
+	ret \ ret ; NOP
+	ret \ ret ; NOP
 
 SetAlignedHorizontalLineSegment:
 	
@@ -338,12 +401,88 @@ GotGraphicsTile:
 	ld b,0
 	add hl,bc
 	
-	; Retrieve masks
-	pop de
-	; D = bits to OR to set (DRAW)
-	; E = bits to AND to clear (ERASE)
-	
 	; HL -> pattern generator address for where we need to draw.
+	
+	; Are we using a solid colour or a pattern fill?
+	ld a,(Graphics.PlotMode)
+	cp 16
+	jr c,SolidColour
+	
+PatternFill:
+
+	; Fetch the pattern row data from VRAM.
+	sub 16
+	and %00110000
+	rrca
+	ld c,a
+	ld a,e ; Y coordinate
+	and 7
+	or c
+	ld c,a
+	ld b,0
+	
+	; Retrieve masks from stack.
+	pop de
+	; Save pattern generator address.
+	push hl
+	
+	ld hl,FillPatterns
+	add hl,bc
+	call Video.SetReadAddress
+	in a,(Video.Data)
+	ld c,a
+	
+	pop hl
+	push hl
+	call Video.SetReadAddress
+	ld hl,TempTile
+
+	ld b,4
+	; Shift off the last two bits as our LSB for the first and second pixels.
+--:	xor a
+	srl c
+	rr a
+	srl c
+	rr a
+	
+	push bc
+	
+	; Duplicate the two pixels to fill our entire byte row.
+	ld b,4
+	ld c,a
+-:	rrca
+	rrca
+	or c
+	djnz -
+	ld c,a
+	
+	push de
+	
+	; Modify the original Draw and Erase bitmasks with our pattern bitmask for the current bitplane.
+	and d
+	ld d,a
+	
+	ld a,c
+	or e
+	ld e,a
+	
+	; The filler only does a single bitplane at a time.
+	in a,(Video.Data)
+	call ManipulatePixelBitmask
+	ld (hl),a
+	inc hl
+	
+	pop de
+	pop bc
+	djnz --
+	
+	jr GeneratedTileRow
+
+SolidColour:
+	; Retrieve masks from stack.
+	pop de
+	
+	; Store pattern generator address.
 	push hl
 	call Video.SetReadAddress
 	
@@ -558,6 +697,40 @@ RestoreUnderCursor:
 	inc hl \ dec hl                       ; 12 <- 36
 	ld a,(VDU.Console.AreaUnderCursor+1)
 	out (Video.Data),a
+	
+	ei
+	ret
+
+SetUserDefinedCharacter:
+
+	; We can only define characters 2..5, the fill pattern.
+	cp 6
+	ret nc
+	
+	or a
+	ret z
+	dec a
+	ret z
+	dec a
+	
+	add a,a
+	add a,a
+	add a,a
+	
+	ex de,hl
+	
+	ld c,a
+	ld b,0
+	ld hl,FillPatterns
+	add hl,bc
+	
+	call Video.SetWriteAddress
+	
+	ld b,8
+-:	ld a,(de)           ; 7
+	out (Video.Data),a  ; 11
+	inc de              ; 6
+	djnz -              ; 13 = 37 clocks
 	
 	ei
 	ret
