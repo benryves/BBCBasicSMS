@@ -2,7 +2,7 @@
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1536 bytes
-FillPatterns     = $3E00 ; 
+FillPatterns     = $3E00 ; 32 bytes
 SpriteTable      = $3F00 ; 256 bytes
 TopOfMemory      = $4000 ; 16KB
 
@@ -52,38 +52,10 @@ LoadCharRow:
 	dec d
 	jr nz,LoadChar
 	
-	; Load the palette
-	ld de,2
---:	ld hl,VDU.Palettes.SegaMasterSystem
-	ld b,16
--:	ld a,d
-	ld c,(hl)
-	call Video.SetPalette
-	inc hl
-	inc d
-	djnz -
-	dec e
-	jr nz,--
-	
 	; Load the pattern fill data.
-	ld hl,FillPatterns
-	call Video.SetWriteAddress
-	
 	ld hl,DefaultPatterns
-	ld c,4
---:	ld e,(hl)
-	inc hl
-	ld d,(hl)
-	inc hl
-	ld b,4
--:	ld a,e
-	out (Video.Data),a
-	ld a,d
-	out (Video.Data),a
-	djnz -
-	dec c
-	jr nz,--
-	
+	ld de,FillPatterns
+	call LoadPackedFillPatterns
 	
 	; Set the first free graphics tile index to be the smallest free graphics tile index.
 	ld hl,MinGraphicsTile
@@ -99,6 +71,26 @@ LoadCharRow:
 	ld a,$C3
 	ld (ManipulatePixelBitmask),a
 
+	ret
+	
+
+LoadPackedFillPatterns:
+	ex de,hl
+	call Video.SetWriteAddress
+	ex de,hl
+	ld c,4
+--:	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld b,4
+-:	ld a,e
+	out (Video.Data),a
+	ld a,d
+	out (Video.Data),a
+	djnz -
+	dec c
+	jr nz,--
 	ret
 
 DefaultPatterns:

@@ -2,6 +2,7 @@
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1536 bytes
+FillPatterns     = $3E00 ; 32 bytes
 SpriteTable      = $3F00 ; 256 bytes
 TopOfMemory      = $4000 ; 16KB
 
@@ -44,6 +45,11 @@ Initialise:
 	call Video.SetWriteAddress
 	ld a,$D0
 	out (Video.Data),a
+
+	; Load the pattern fill data.
+	ld hl,DefaultPatterns
+	ld de,FillPatterns
+	call MasterSystem16Colours.LoadPackedFillPatterns
 	
 	; Callback jumps.
 	ld a,$C3
@@ -51,6 +57,16 @@ Initialise:
 	ld (ManipulatePixelBitmask),a
 	
 	ret
+
+DefaultPatterns:
+.db %10100101 ; 2 1 2 1 - GCOL 16
+.db %00001111 ; 1 1 1 1 
+.db %10100101 ; 2 1 2 1 - GCOL 22
+.db %01011010 ; 1 2 1 2
+.db %11110000 ; 2 2 2 2 - GCOL 48
+.db %01011010 ; 1 2 1 2
+.db %11110101 ; 2 3 2 3 - GCOL 64
+.db %11111010 ; 3 2 3 2
 
 WriteNameTable:
 	ld bc,MaxGraphicsTile - MinGraphicsTile
@@ -470,18 +486,100 @@ SetAlignedHorizontalLineSegment:
 	
 	ld a,e
 	and %111
-	add a,a
-	add a,a
 	ld e,a
-	ld d,0
-	add hl,de
-	
-	; Retrieve masks
-	pop de
-	; D = bits to OR to set (DRAW)
-	; E = bits to AND to clear (ERASE)
+	add a,a
+	add a,a
+	ld c,a
+	ld b,0
+	add hl,bc
 	
 	; HL -> pattern generator address for where we need to draw.
+	
+	; Are we using a solid colour or a pattern fill?
+	ld a,(Graphics.PlotMode)
+	cp 16
+	jr c,SolidColour
+	
+PatternFill:
+
+	; Fetch the pattern row data from VRAM.
+	sub 16
+	and %00110000
+	rrca
+	ld c,a
+	ld a,e ; Y coordinate
+	and 7
+	or c
+	ld c,a
+	ld b,0
+	
+	; Retrieve masks from stack.
+	pop de
+	; Save pattern generator address.
+	push hl
+	
+	ld hl,FillPatterns
+	add hl,bc
+	call Video.SetReadAddress
+	in a,(Video.Data)
+	ld c,a
+	
+	pop hl
+	push hl
+
+	call Video.SetReadAddress
+	ld hl,TempTile
+
+	; Unpack bitmask to bit planes: AB -> BB (first bit plane), AA (second bit plane).
+	ld b,2	
+	push bc
+	ld a,c
+--:	and %00001111
+	
+	ld b,a
+	add a,a
+	add a,a
+	add a,a
+	add a,a
+	or b
+	ld c,a
+	
+	push de
+	
+	; Modify the original Draw and Erase bitmasks with our pattern bitmask for the current bitplane.
+	and d
+	ld d,a
+	
+	ld a,c
+	or e
+	ld e,a
+	
+	; The filler only does a single bitplane at a time.
+	in a,(Video.Data)
+	call ManipulatePixelBitmask
+	ld (hl),a
+	inc hl
+	
+	pop de
+	pop bc
+	
+	dec b
+	jr z,GeneratedTileRow
+	
+	ld a,c
+	rlca
+	rlca
+	rlca
+	rlca
+	ld c,a
+	push bc
+	jr --
+
+SolidColour:
+	; Retrieve masks from stack.
+	pop de
+	
+	; Store pattern generator address.
 	push hl
 	call Video.SetReadAddress
 	
@@ -492,6 +590,9 @@ SetAlignedHorizontalLineSegment:
 	ld c,a
 	ld b,2
 	call ManipulatePixelBitmask
+
+GeneratedTileRow:
+	
 	
 	; Get ready to write the new data to VRAM!
 	pop hl
@@ -566,13 +667,26 @@ RestoreUnderCursor:
 ; Destroys: af, de.
 ; ---------------------------------------------------------
 GetUserDefinedCharacterAddress:
+	ld de,UserDefinedChars
 	add a,a
-	ret nc ; As we're expecting to map from $80..$FF, must carry
-	ld l,a
+	jr c,+ ; As we're expecting to map from $80..$FF, this should carry
+	
+	; Alternatively, this may be one of those fill patterns...
+	cp 6
+	ret nc
+	srl a
+	ret z
+	dec a
+	ret z
+	dec a
+	add a,a
+	
+	ld de,FillPatterns
+	
++:	ld l,a
 	ld h,0
 	add hl,hl
 	add hl,hl
-	ld de,UserDefinedChars
 	add hl,de
 	scf
 	ret
@@ -581,6 +695,7 @@ SetUserDefinedCharacter:
 	push hl
 	call GetUserDefinedCharacterAddress
 	pop de
+	
 	ret nc
 	
 	call Video.SetWriteAddress

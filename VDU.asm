@@ -261,6 +261,19 @@ SetMode:
 	
 	; Reset all video settings to their defaults.
 	call Video.Reset
+	
+	; Initialise the default Sega Master System palette.
+	ld de,2
+--:	ld hl,VDU.Palettes.SegaMasterSystem
+	ld b,16
+-:	ld a,d
+	ld c,(hl)
+	call Video.SetPalette
+	inc hl
+	inc d
+	djnz -
+	dec e
+	jr nz,--
 
 	; Set up a dummy field rate to avoid interrupts hanging.
 	ld a,(FieldRate)
@@ -734,21 +747,20 @@ UserCommand:
 	
 	; Is the command between 0..31?
 	cp 32
-;	jr nc,UserDefinedCharacter
+	jr nc,UserDefinedCharacter
 	
 	; So, it's <32. Is it >5?
 	cp 6
-;	ret nc
+	ret nc
 	
 	; It's <=5.
 	cp 2
-;	jr nc,UserDefinedCharacter
-		
-;	ret
-
+	ret c
+	
 UserDefinedCharacter:
 	; No, so it's a user-defined character.
 	ld hl,VDUQ(1, 9)
+	
 	call SetUserDefinedCharacter
 	
 	ei
