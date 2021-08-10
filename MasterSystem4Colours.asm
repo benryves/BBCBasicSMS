@@ -56,21 +56,6 @@ Initialise:
 	
 	ret
 
-SetDefaultFillPatterns:
-	ld hl,DefaultPatterns
-	ld de,FillPatterns
-	jp MasterSystem16Colours.LoadPackedFillPatterns
-
-DefaultPatterns:
-.db %10100101 ; 2 1 2 1 - GCOL 16
-.db %00001111 ; 1 1 1 1 
-.db %10100101 ; 2 1 2 1 - GCOL 22
-.db %01011010 ; 1 2 1 2
-.db %11110000 ; 2 2 2 2 - GCOL 48
-.db %01011010 ; 1 2 1 2
-.db %11110101 ; 2 3 2 3 - GCOL 64
-.db %11111010 ; 3 2 3 2
-
 WriteNameTable:
 	ld bc,MaxGraphicsTile - MinGraphicsTile
 -:	ld a,l
@@ -83,7 +68,22 @@ WriteNameTable:
 	or c
 	jr nz,-
 	ret
-	
+
+SetDefaultFillPatterns:
+	ld hl,DefaultPatterns
+	ld de,FillPatterns
+	jp MasterSystem16Colours.LoadPackedFillPatterns
+
+DefaultPatterns:
+.db %10100101 ; 2 1 2 1 - GCOL 16
+.db %00001111 ; 1 1 1 1 
+.db %10100101 ; 2 1 2 1 - GCOL 32
+.db %01011010 ; 1 2 1 2
+.db %11110000 ; 2 2 2 2 - GCOL 48
+.db %01011010 ; 1 2 1 2
+.db %11110101 ; 2 3 2 3 - GCOL 64
+.db %11111010 ; 3 2 3 2
+
 ; ---------------------------------------------------------
 ; PutMap -> Draws a character on the display.
 ; ---------------------------------------------------------

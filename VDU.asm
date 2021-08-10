@@ -50,18 +50,19 @@ FunctionVectors = allocVar(Functions.Count * 3)
 	.include "GraphicsII.asm"
 	.include "MasterSystem16Colours.asm"
 	.include "MasterSystem4Colours.asm"
+	.include "MasterSystem2Colours.asm"
 
 	Count = 8
 	
 	Functions:
-		.dw Text.Functions
-		.dw MasterSystem4Colours.Functions
-		.dw MasterSystem16Colours.Functions
-		.dw GraphicsII.Functions
-		.dw MasterSystem16Colours.Functions
-		.dw MasterSystem4Colours.Functions
-		.dw Text.Functions
-		.dw TextDoubleHeight.Functions
+		.dw Text.Functions                   ; MODE 0
+		.dw MasterSystem4Colours.Functions   ; MODE 1
+		.dw MasterSystem16Colours.Functions  ; MODE 2
+		.dw GraphicsII.Functions             ; MODE 3
+		.dw MasterSystem2Colours.Functions   ; MODE 4
+		.dw MasterSystem4Colours.Functions   ; MODE 5
+		.dw Text.Functions                   ; MODE 6
+		.dw TextDoubleHeight.Functions       ; MODE 7
 
 
 .endmodule

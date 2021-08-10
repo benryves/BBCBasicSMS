@@ -86,11 +86,16 @@ LoadPackedFillPatterns:
 	ld d,(hl)
 	inc hl
 	ld c,4
--:	ld a,e
-	out (Video.Data),a ; 11
+-:	ld a,e             ; 4
+	nop                ; 4
+	nop                ; 4
+	out (Video.Data),a ; 11 <- 35
 	dec c              ; 4
 	ld a,d             ; 4
-	out (Video.Data),a ; 11
+	inc hl             ; 6
+	dec hl             ; 6
+	nop                ; 4
+	out (Video.Data),a ; 11 <- 35
 	jr nz,-            ; 12/7
 	djnz --
 	ret
