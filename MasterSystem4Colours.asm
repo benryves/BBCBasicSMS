@@ -47,9 +47,7 @@ Initialise:
 	out (Video.Data),a
 
 	; Load the pattern fill data.
-	ld hl,DefaultPatterns
-	ld de,FillPatterns
-	call MasterSystem16Colours.LoadPackedFillPatterns
+	call SetDefaultFillPatterns
 	
 	; Callback jumps.
 	ld a,$C3
@@ -57,6 +55,11 @@ Initialise:
 	ld (ManipulatePixelBitmask),a
 	
 	ret
+
+SetDefaultFillPatterns:
+	ld hl,DefaultPatterns
+	ld de,FillPatterns
+	jp MasterSystem16Colours.LoadPackedFillPatterns
 
 DefaultPatterns:
 .db %10100101 ; 2 1 2 1 - GCOL 16

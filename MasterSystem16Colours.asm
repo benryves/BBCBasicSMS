@@ -53,9 +53,7 @@ LoadCharRow:
 	jr nz,LoadChar
 	
 	; Load the pattern fill data.
-	ld hl,DefaultPatterns
-	ld de,FillPatterns
-	call LoadPackedFillPatterns
+	call SetDefaultFillPatterns
 	
 	; Set the first free graphics tile index to be the smallest free graphics tile index.
 	ld hl,MinGraphicsTile
@@ -74,23 +72,27 @@ LoadCharRow:
 	ret
 	
 
+SetDefaultFillPatterns:
+	ld hl,DefaultPatterns
+	ld de,FillPatterns
+	
 LoadPackedFillPatterns:
 	ex de,hl
 	call Video.SetWriteAddress
 	ex de,hl
-	ld c,4
+	ld b,4
 --:	ld e,(hl)
 	inc hl
 	ld d,(hl)
 	inc hl
-	ld b,4
+	ld c,4
 -:	ld a,e
-	out (Video.Data),a
-	ld a,d
-	out (Video.Data),a
-	djnz -
-	dec c
-	jr nz,--
+	out (Video.Data),a ; 11
+	dec c              ; 4
+	ld a,d             ; 4
+	out (Video.Data),a ; 11
+	jr nz,-            ; 12/7
+	djnz --
 	ret
 
 DefaultPatterns:
@@ -695,10 +697,62 @@ RestoreUnderCursor:
 
 SetUserDefinedCharacter:
 
-	; We can only define characters 2..5, the fill pattern.
+	cp 11
+	jp z,SetDefaultFillPatterns
+
 	cp 6
+	jr c,SetFillPattern
+
+	cp 12
+	ret c
+	
+	cp 15
 	ret nc
 	
+	; Fill a simpler pattern.
+	
+	push af
+	push hl
+	
+	ld e,l
+	ld d,h
+
+	; Pack the two pixel values into a single value.
+	
+	ld c,4
+--:	ld b,4
+-:	srl (hl)
+	inc hl
+	rr a
+	srl (hl)
+	dec hl
+	rr a
+	djnz -
+	
+	; Store, then move on.
+	
+	ld (de),a
+	inc de
+	inc hl
+	inc hl
+	
+	dec c
+	jr nz,--
+	
+	pop hl
+	
+	; Copy the top half into the bottom half.
+	push hl
+	ld bc,4
+	ldir
+	pop hl
+	
+	; Subtract 10 then load as a normal (full) tile.
+	pop af
+	sub 10
+
+SetFillPattern:
+
 	or a
 	ret z
 	dec a

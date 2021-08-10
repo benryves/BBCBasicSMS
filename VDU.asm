@@ -745,22 +745,7 @@ ModeCommand:
 UserCommand:
 	ld a,(VDUQ(0, 9))
 	
-	; Is the command between 0..31?
-	cp 32
-	jr nc,UserDefinedCharacter
-	
-	; So, it's <32. Is it >5?
-	cp 6
-	ret nc
-	
-	; It's <=5.
-	cp 2
-	ret c
-	
-UserDefinedCharacter:
-	; No, so it's a user-defined character.
 	ld hl,VDUQ(1, 9)
-	
 	call SetUserDefinedCharacter
 	
 	ei
