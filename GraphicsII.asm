@@ -400,10 +400,6 @@ ManipulatePixelColour.SetBackground:
 	and %11110000
 	ld c,a
 	ld a,(VDU.Graphics.BackgroundColour)
-	rrca
-	rrca
-	rrca
-	rrca
 	call VDU.Palettes.ConvertPaletteIndexToTMS9918A
 	or c
 	ret
