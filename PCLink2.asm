@@ -1,8 +1,8 @@
 .module PCLink2
 
-TempPtr = allocVar(2)
-TempCapacity = allocVar(2)
-TempSize = allocVar(2)
+TempPtr = VDU.Graphics.TransformedPoint0X
+TempCapacity = VDU.Graphics.TransformedPoint0Y
+TempSize = VDU.Graphics.TransformedPoint1X
 
 ListItems.StartOfItem = 2 ; STX
 ListItems.EndOfItem   = 3 ; ETX
