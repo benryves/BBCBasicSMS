@@ -854,6 +854,8 @@ PutMap.BeginPlot:
 	pop ix
 	
 	; Is the sprite completely outside the viewport?
+	
+	; X axis check.
 	ld hl,(MaxX)
 	ld h,0
 	ld de,(TransformedPoint0X)
@@ -866,6 +868,21 @@ PutMap.BeginPlot:
 	ld d,0
 	call SignedCPHLDE
 	jp c,PutMap.ReturnNoPrint
+	
+	; Y axis check.
+	ld hl,(MaxY)
+	ld h,0
+	ld de,(TransformedPoint0Y)
+	call SignedCPHLDE
+	jp c,PutMap.ReturnNoPrint
+	
+	ld hl,8
+	add hl,de
+	ld de,(MinY)
+	ld d,0
+	call SignedCPHLDE
+	jp c,PutMap.ReturnNoPrint
+	
 	
 	; We'll need to build a mask value.
 	ld c,%11111111
