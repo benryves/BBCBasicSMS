@@ -76,14 +76,6 @@ FrameInterrupt:
 	ld (Host.TIME+2),hl
 +:	
 	
-	; Will we need to read the keyboard to trap Escape?
-	ld a,(Host.TrapKeyboardTimer)
-	or a
-	jr z,+
-	dec a
-	ld (Host.TrapKeyboardTimer),a
-+:
-
 	; Indicate that the host can try to read the keyboard if it wants.
 	ld a,(Sound.Status)
 	bit Sound.Status.Active,a

@@ -18,11 +18,13 @@ MaxHeight = allocVar(1)
 
 Colour = allocVar(1)
 
-Status = allocVar(1)
+global.VDU.Console.Flags = allocVar(1) ;; HACK for broken name resolution
 PendingScroll = 0
 PageMode = 1
 CursorMoved = 2
 CursorBlinking = 3
+Overwrite = 4
+CursorEditingDisabled = 5
 
 CursorBlinkTimer = allocVar(1)
 
@@ -31,7 +33,7 @@ AreaUnderCursor = allocVar(16)
 Reset:
 	
 	xor a
-	ld (Status),a
+	ld (Flags),a
 	ld a,$0F
 	ld (Colour),a
 
@@ -136,34 +138,34 @@ Tab:
 	ret
 
 MarkCursorMoved:
-	ld a,(Status)
+	ld a,(Flags)
 	set CursorMoved,a
-	ld (Status),a
+	ld (Flags),a
 	ret
 
 FlushPendingScroll:
 	push af
-	ld a,(Status)
+	ld a,(Flags)
 	bit PendingScroll,a
 	res PendingScroll,a
-	ld (Status),a
+	ld (Flags),a
 	call nz,Scroll
 	pop af
 	ret
 	
 ClearPendingScroll:
 	push af
-	ld a,(Status)
+	ld a,(Flags)
 	res PendingScroll,a
-	ld (Status),a
+	ld (Flags),a
 	pop af
 	ret
 
 SetPendingScroll:
 	push af
-	ld a,(Status)
+	ld a,(Flags)
 	set PendingScroll,a
-	ld (Status),a
+	ld (Flags),a
 	pop af
 	ret
 
@@ -272,11 +274,11 @@ ClearBottomRow:
 ; ---------------------------------------------------------
 BeginBlinkingCursor:
 	; Is the cursor already blinking?
-	ld a,(Status)
+	ld a,(Flags)
 	bit CursorBlinking,a
 	ret nz
 	set CursorBlinking,a
-	ld (Status),a
+	ld (Flags),a
 	
 	; We haven't already started.
 	push hl
@@ -298,11 +300,11 @@ BeginBlinkingCursor:
 ; ---------------------------------------------------------
 EndBlinkingCursor:
 	; Is the cursor currently blinking?
-	ld a,(Status)
+	ld a,(Flags)
 	bit CursorBlinking,a
 	ret z
 	res CursorBlinking,a
-	ld (Status),a
+	ld (Flags),a
 
 	; We had been drawing a blinking cursor.
 	push hl
@@ -321,7 +323,7 @@ EndBlinkingCursor:
 ; ---------------------------------------------------------
 DrawBlinkingCursor:
 	; Is the cursor set to blink?
-	ld a,(Status)
+	ld a,(Flags)
 	bit CursorBlinking,a
 	call z,BeginBlinkingCursor
 	
@@ -348,8 +350,8 @@ DrawBlinkingCursorOff:
 
 DrawBlinkingCursorOn:	
 	; What is the cursor?
-	ld a,(Host.Flags)
-	bit Host.Overwrite,a
+	ld a,(Flags)
+	bit Overwrite,a
 	ld a,'_' ; Insert mode cursor
 	jr z,+
 	ld a,127 ; Overwrite mode cursor 

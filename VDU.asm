@@ -2,7 +2,7 @@
 
 ; Temporary storage for a single 8x8 tile.
 TempTile = allocVar(8)
-Flags = allocVar(1)
+global.VDU.Flags = allocVar(1) ;; HACK for broken name resolution
 
 GraphicalText = 0
 

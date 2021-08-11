@@ -12,12 +12,13 @@
 
 TIME = allocVar(4)
 
-Flags = allocVar(1)
-Escape = 0
-Overwrite = 1
-GetKeyPending = 2
+KeyboardRate = allocVar(1)
 
-TrapKeyboardTimer = allocVar(1)
+global.Host.Flags = allocVar(1) ;; HACK for broken name resolution
+Escape = 0
+GetKeyPending = 1
+CursorKeysDisabled = 2 ; OSBYTE 4
+EscapeDisabled = 3 ; OSBYTE 200, 229?
 
 OSLINE.Override = allocVar(2)
 OSWRCH.Override = allocVar(2)
@@ -52,9 +53,8 @@ OSINIT:
 	ld (TIME+0),hl
 	ld (TIME+2),hl
 	
-	; Clear the flags and keyboard-trapping timer.
+	; Clear the flags.
 	xor a
-	ld (TrapKeyboardTimer),a
 	ld (Flags),a
 	
 	ld a,%0101011
@@ -134,16 +134,50 @@ GetDeviceKey:
 	
 	; Is it Escape?
 	push af
-	jp p,+
-	jr c,+
-	cp Keyboard.KeyCode.Escape
-	jr nz,+
+	jp m,GetDeviceKeyExtended ; Check extended keys.
+	jr c,ExitGetDeviceKey     ; Ignore released printable keys.
+	cp 27
+	jr nz,ExitGetDeviceKey
+	
+	; Set the Escape condition.
 	ld a,(Flags)
 	set Escape,a
 	ld (Flags),a
-+:
+	jr ExitGetDeviceKey
+
+GetDeviceKeyExtended:
+	
+	; Is it a cursor key?
+	ld e,a
+	ld a,(VDU.Console.Flags)
+	bit VDU.Console.CursorEditingDisabled,a
+	ld a,e
+	jr z,ExitGetDeviceKey
+	ld e,136
+	cp Keyboard.KeyCode.Left
+	jr z,ChangeGetDeviceKey
+	inc e
+	cp Keyboard.KeyCode.Right
+	jr z,ChangeGetDeviceKey	
+	inc e
+	cp Keyboard.KeyCode.Down
+	jr z,ChangeGetDeviceKey
+	inc e
+	cp Keyboard.KeyCode.Up
+	jr nz,ExitGetDeviceKey
+	
+ChangeGetDeviceKey:
 	pop af
-	pop de
+	ld a,e
+	jr nc,+
+	cp a
+	scf
+	jr ++
++:	cp a
+	jr ++
+ExitGetDeviceKey:
+	pop af
+++:	pop de
 	ei
 	ret
 
@@ -248,11 +282,6 @@ ReleaseDeviceKey:
 ; Destroys: af, de
 ; ---------------------------------------------------------
 GetKey:
-
-	; Is it the pause key?
-	ld a,(Flags)
-	bit Escape,a
-	jr nz,KeyLoopEscape
 	
 	call GetDeviceKey
 	
@@ -262,18 +291,14 @@ GetKey:
 	
 	push af
 	
-	; Is it Escape?
-	cp Keyboard.KeyCode.Escape
-	jr z,KeyLoopEscape
-	
 	; Is it Insert?
 	cp Keyboard.KeyCode.Insert
 	jr nz,KeyLoopNotInsert
 	
 	; Toggle insert/overwrite, then pretend no key happened.
-	ld a,(Flags)
-	xor 1<<Overwrite
-	ld (Flags),a
+	ld a,(VDU.Console.Flags)
+	xor 1 << VDU.Console.Overwrite
+	ld (VDU.Console.Flags),a
 	pop af
 	
 	jr NoKey
@@ -289,19 +314,6 @@ GotKey:
 NoKey:
 	scf
 	ret
-
-KeyLoopEscape:
-	call VDU.EndBlinkingCursor
-	pop af
-	
-	ld a,(Flags)
-	res Escape,a
-	ld (Flags),a
-	
-	ld a,17 ; Escape
-	call Basic.BBCBASIC_EXTERR
-	.db "Escape", 0
-
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -471,7 +483,8 @@ OSLINE.Loop:
 	ld (hl),'\r'
 +:
 	
--:	call VDU.DrawBlinkingCursor
+-:	call CheckEscape
+	call VDU.DrawBlinkingCursor
 	call GetKey
 	jr nz,-
 	jr c,-
@@ -498,8 +511,8 @@ OSLINE.Loop:
 	ld e,a
 	
 	; Is this going to be an insert or overwrite command?
-	ld a,(Flags)
-	bit Overwrite,a
+	ld a,(VDU.Console.Flags)
+	bit VDU.Console.Overwrite,a
 	jr z,OSLINE.InsertCharacter
 	
 	; If we're at the end of the current string, treat it as an insert, even in overwrite mode.
@@ -970,35 +983,25 @@ LTRAP:
 TRAP:
 	ei
 	
-	; Is pause pressed?
-	ld a,(Flags)
-	bit Escape,a
-	jr nz,TRAP.Escape
+	call CheckEscape
 	
-	; Shall we poll the keyboard?
-	ld a,(TrapKeyboardTimer)
-	or a
-	ret nz
-	ld a,20
-	ld (TrapKeyboardTimer),a
-	
-	ei
-	halt
 -:	call GetDeviceKey
-	
 	ret nz ; No key
-	ret c  ; It's being released
-	ret p  ; It's a printable key
-	
-	cp Keyboard.KeyCode.Escape
-	jr z,TRAP.Escape
 	jr -
 
+CheckEscape:
+	; Is the Escape condition flag set?
+	ld a,(Flags)
+	bit Escape,a
+	ret z
+	
 TRAP.Escape:
 	
 	ld a,(Flags)
 	res Escape,a
 	ld (Flags),a
+	
+	call VDU.Console.EndBlinkingCursor
 	
 	ld a,17 ; Escape
 	call Basic.BBCBASIC_EXTERR
@@ -1010,19 +1013,13 @@ TrapFileTransfers:
 	call VDU.DrawBlinkingCursor
 	
 	; Is Escape pressed?
-	ld a,(Flags)
+-:	ld a,(Flags)
 	bit Escape,a
 	jr nz,TrapFileTransfers.Trap
 	
 	; Shall we poll the keyboard?
--:	call GetDeviceKey
-	
+	call GetDeviceKey
 	jr nz,TrapFileTransfers.CarryOn ; No key
-	jr c,-                          ; It's being released
-	jp p,-                          ; It's a printable key
-	
-	cp Keyboard.KeyCode.Escape
-	jr z,TrapFileTransfers.Trap
 	jr -
 
 TrapFileTransfers.CarryOn:
@@ -2013,13 +2010,49 @@ ReportError
 	jp Basic.BBCBASIC_EXTERR
 
 OSBYTE:
+
+	; A = OSBYTE routine
+	; L = low byte of the parameter (X)
+	; H = high byte of the parameter (Y)
+	
+	; Routines &A6..&FF take the form:
+	; New Value = (<old value> AND H) OR L
+	; Return old value in L.
+
+	cp 4
+	jr z,OSBYTE.CursorEditing
 	cp 11
 	jr z,OSBYTE.KeyboardAutoRepeatDelay
 	cp 12
 	jr z,OSBYTE.KeyboardAutoRepeatRate
 	ret
 
-KeyboardRate = allocVar(1)
+OSBYTE.CursorEditing:
+	di
+	ld a,(VDU.Console.Flags)
+
+	bit 0,l ; New value
+	ld l,a  ; Old value
+	jr z,OSBYTE.CursorEditingEnable
+
+OSBYTE.CursorEditingDisable:
+	set VDU.Console.CursorEditingDisabled,a
+	jr OSBYTE.CursorEditingReturn
+	
+OSBYTE.CursorEditingEnable:
+	res VDU.Console.CursorEditingDisabled,a
+	
+OSBYTE.CursorEditingReturn:
+	ld (VDU.Console.Flags),a
+	
+	bit VDU.Console.CursorEditingDisabled,l
+	ld l,0
+	jr z,+
+	inc l
++:
+	ld a,4
+	ei
+	ret
 
 OSBYTE.KeyboardAutoRepeatDelay:
 	push af
