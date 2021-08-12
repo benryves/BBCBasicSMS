@@ -23,31 +23,6 @@ EscapeDisabled = 3 ; OSBYTE 200, 229?
 OSLINE.Override = allocVar(2)
 OSWRCH.Override = allocVar(2)
 
-HeldKeyCount = 8
-HeldKeys = allocVar(HeldKeyCount)
-
-CheckKeyboardWithInterrupt:
-	push af
-	ld a,(Video.Registers+$00)
-	and %00010000
-	jr nz,+
-	push bc
-	call Video.EnableLineInterrupt
-	pop bc
-+:	pop af
-	ret
-	
-CheckKeyboardByPolling:
-	push af
-	ld a,(Video.Registers+$00)
-	and %00010000
-	jr z,+
-	push bc
-	call Video.DisableLineInterrupt
-	pop bc
-+:	pop af
-	ret
-
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
 ; 
@@ -111,12 +86,13 @@ OSINIT:
 ;------------------------------------------------------------------------------- 
 OSRDCH:
 	call VDU.BeginBlinkingCursor
-	call CheckKeyboardByPolling
+	call KeyboardBuffer.CheckKeyboardByPolling
 	
--:	call GetKey
+-:	call KeyboardBuffer.GetKey
 	
+	jr z,+              ; No key.
 	jp m,+              ; Ignore extended keys.
-	jr nc,OSRDCH.GotKey ; Accept pressed keys.
+	jr OSRDCH.GotKey
 
 +:	push af
 	call VDU.DrawBlinkingCursor
@@ -127,217 +103,6 @@ OSRDCH.GotKey:
 	push af
 	call VDU.EndBlinkingCursor	
 	pop af
-	ret
-
-; ---------------------------------------------------------
-; GetDeviceKey -> Gets a key from the keyboard and stores
-; the device code.
-; ---------------------------------------------------------
-; This is a wrapper around Keyboard.GetKey that stores the
-; state of any pressed/released keys.
-; ---------------------------------------------------------
-; Outputs:  z = if key pressed or released, nz if no key.
-;           c = if key not pressed, nc if key pressed.
-;           p = if printable key, m if extended key.
-; Destroys: af.
-; ---------------------------------------------------------
-GetDeviceKey:
-	push de
-	
-	di
-	ld a,(Flags)
-	bit GetKeyPending,a
-	jr z,GetDeviceKey.Skip
-	
-	call Keyboard.GetKey
-	jr nz,GetDeviceKey.NoKey
-	
-	push af
-	call nc,HoldDeviceKey
-	call c,ReleaseDeviceKey
-	pop af
-	
-	; Is it Escape?
-	push af
-	jp m,GetDeviceKeyExtended ; Check extended keys.
-	jr c,ExitGetDeviceKey     ; Ignore released printable keys.
-	cp 27
-	jr nz,ExitGetDeviceKey
-	
-	; Set the Escape condition.
-	ld a,(Flags)
-	set Escape,a
-	ld (Flags),a
-	jr ExitGetDeviceKey
-
-GetDeviceKeyExtended:
-	
-	; Is it a cursor key?
-	ld e,a
-	ld a,(VDU.Console.Flags)
-	bit VDU.Console.CursorEditingDisabled,a
-	ld a,e
-	jr z,ExitGetDeviceKey
-	ld e,136
-	cp Keyboard.KeyCode.Left
-	jr z,ChangeGetDeviceKey
-	inc e
-	cp Keyboard.KeyCode.Right
-	jr z,ChangeGetDeviceKey	
-	inc e
-	cp Keyboard.KeyCode.Down
-	jr z,ChangeGetDeviceKey
-	inc e
-	cp Keyboard.KeyCode.Up
-	jr nz,ExitGetDeviceKey
-	
-ChangeGetDeviceKey:
-	pop af
-	ld a,e
-	jr nc,+
-	cp a
-	scf
-	jr ++
-+:	cp a
-	jr ++
-ExitGetDeviceKey:
-	pop af
-++:	pop de
-	ei
-	ret
-
-GetDeviceKey.NoKey:
-	ld a,(Flags)
-	res GetKeyPending,a
-	ld (Flags),a
-GetDeviceKey.Skip:
-	xor a
-	dec a
-	pop de
-	ei
-	ret
-
-; ---------------------------------------------------------
-; HoldDeviceKey -> Hold a key via its device code.
-; ---------------------------------------------------------
-; Inputs:   d = device code.
-; Outputs:  None.
-; Destroys: None.
-; ---------------------------------------------------------
-HoldDeviceKey:
-	push af
-	push hl
-	push de
-	push bc
-	
-	ld hl,HeldKeys
-	ld b,HeldKeyCount
-	
--:	ld a,(hl)
-	cp d
-	jr z,++ ; Already holding
-	or a
-	jr z,+ ; A free slot!
-	inc hl
-	djnz -
-	
-	; No free slot.
-	; Shift the entire buffer left.
-	ld a,d
-	
-	ld hl,HeldKeys+1
-	ld de,HeldKeys+0
-	ld bc,HeldKeyCount-1
-	ldir
-	ld (de),a
-	jr ++
-
-+:	ld (hl),d
-++:	pop bc
-	pop de
-	pop hl
-	pop af
-	ret
-
-; ---------------------------------------------------------
-; ReleaseDeviceKey -> Releases a key via its device code.
-; ---------------------------------------------------------
-; Inputs:   d = device code.
-; Outputs:  None.
-; Destroys: None.
-; ---------------------------------------------------------
-ReleaseDeviceKey:
-	push af
-	push hl
-	push de
-	push bc
-	
-	ld a,d
-	ld hl,HeldKeys
-	ld bc,HeldKeyCount
-	cpir
-	jr nz,++ ; It's not currently held.
-	
-	ld a,b
-	or c
-	jr z,+
-	ld d,h
-	ld e,l
-	dec de
-	ldir
-+:	ex de,hl
-	ld (hl),0
-++:
-	pop bc
-	pop de
-	pop hl
-	pop af
-	ret
-	
-; ---------------------------------------------------------
-; GetKey -> Gets a key from the keyboard.
-; ---------------------------------------------------------
-; This triggers an Escape condition if Escape is pressed
-; and toggles the Insert/Overwrite status if Insert is
-; pressed.
-; ---------------------------------------------------------
-; Outputs:  z = if key pressed or released, nz if no key.
-;           c = if key not pressed, nc if key pressed.
-;           p = if printable key, m if extended key.
-; Destroys: af, de
-; ---------------------------------------------------------
-GetKey:
-	
-	call GetDeviceKey
-	
-	jr nz,NoKey ; no key at all
-	jr c,NoKey  ; key released
-	jp p,GotKey ; printable key
-	
-	push af
-	
-	; Is it Insert?
-	cp Keyboard.KeyCode.Insert
-	jr nz,KeyLoopNotInsert
-	
-	; Toggle insert/overwrite, then pretend no key happened.
-	ld a,(VDU.Console.Flags)
-	xor 1 << VDU.Console.Overwrite
-	ld (VDU.Console.Flags),a
-	pop af
-	
-	jr NoKey
-
-KeyLoopNotInsert:	
-	pop af
-
-GotKey:
-	scf
-	ccf
-	ret
-
-NoKey:
-	scf
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -365,9 +130,7 @@ NoKey:
 OSKEY:
 	push bc
 	push de
-	
-	call CheckKeyboardByPolling
-	
+		
 	bit 7,h
 	jr z,OSKEY.NotNegative
 	
@@ -379,7 +142,7 @@ OSKEY:
 	ld a,'?'
 	jr z,OSKEY.ReturnValue
 	
-	call GetDeviceKey
+	call KeyboardBuffer.GetDeviceKey
 	ld a,l
 	neg
 	
@@ -413,23 +176,27 @@ OSKEY.ReturnValue:
 	ret
 
 OSKEY.CheckKey:
-	ld hl,HeldKeys
-	ld bc,HeldKeyCount
+	ld hl,KeyboardBuffer.HeldKeys
+	ld bc,KeyboardBuffer.HeldKeyCount
 	cpir
 	ret
 
 OSKEY.NotNegative:
+	
+	call KeyboardBuffer.CheckKeyboardByPolling
 	
 	; Calculate the end time-1 (easier to check for <0 instead of <=0 later)
 	ld de,(TIME)
 	dec de
 	add hl,de
 
+	ei
 OSKEY.Loop:
+	call KeyboardBuffer.GetKey
 	
-	call GetKey
-	jr c,OSKEY.NoKey
+	jr z,OSKEY.NoKey
 	jp m,OSKey.NoKey
+	
 	jr OSKEY.GotKey
 
 OSKEY.NoKey:
@@ -447,6 +214,7 @@ OSKEY.NoKey:
 	
 	; No, so draw the flashing cursor.
 	call VDU.DrawBlinkingCursor
+	halt
 	jr OSKEY.Loop
 
 OSKEY.TimedOut:
@@ -496,7 +264,7 @@ OSLINE:
 	ret
 
 +:
-	call CheckKeyboardByPolling
+	call KeyboardBuffer.CheckKeyboardByPolling
 	call VDU.BeginBlinkingCursor	
 	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
 	ld d,0 ; D = index into current string.
@@ -513,9 +281,8 @@ OSLINE.Loop:
 	
 -:	call CheckEscape
 	call VDU.DrawBlinkingCursor
-	call GetKey
-	jr nz,-
-	jr c,-
+	call KeyboardBuffer.GetKey
+	jr z,-
 	
 	jp m,OSLINE.ExtendedKey
 	
@@ -1017,11 +784,11 @@ LTRAP:
 TRAP:
 	ei
 	
-	call CheckKeyboardWithInterrupt
+	call KeyboardBuffer.CheckKeyboardWithInterrupt
 	
 	call CheckEscape
 	
--:	call GetDeviceKey
+-:	call KeyboardBuffer.GetDeviceKey
 	ret nz ; No key
 	jr -
 
@@ -1046,7 +813,7 @@ TRAP.Escape:
 TrapFileTransfers:
 	ei
 	
-	call CheckKeyboardWithInterrupt
+	call KeyboardBuffer.CheckKeyboardWithInterrupt
 	call VDU.DrawBlinkingCursor
 	
 	; Is Escape pressed?
@@ -1055,7 +822,7 @@ TrapFileTransfers:
 	jr nz,TrapFileTransfers.Trap
 	
 	; Shall we poll the keyboard?
-	call GetDeviceKey
+	call KeyboardBuffer.GetDeviceKey
 	jr nz,TrapFileTransfers.CarryOn ; No key
 	jr -
 
@@ -1087,20 +854,17 @@ RESET:
 	push bc
 	
 	; No custom OSLINE/OSWRCH handlers.
+	ld hl,0
 	ld (OSLINE.Override),hl
 	ld (OSWRCH.Override),hl
+	
 
 	; Clear the "Escape" state.
 	ld a,(Flags)
 	res Escape,a
 	ld (Flags),a	
 
-	; Clear the held keys.
-	ld hl,HeldKeys
-	ld de,HeldKeys+1
-	ld bc,HeldKeyCount-1
-	ld (hl),a
-	ldir
+	call KeyboardBuffer.Reset
 	
 	; Shh!
 	call Sound.Silence

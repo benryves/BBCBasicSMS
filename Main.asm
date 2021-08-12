@@ -71,6 +71,7 @@ LineInterrupt:
 +:
 	
 	pop af
+	ei
 	reti
 
 FrameInterrupt:
@@ -124,9 +125,9 @@ NotTestingKeyboard:
 +:	
 	
 	; Are we checking the keyboard state in a line interrupt?
-	;ld a,(Video.Registers+$00)
-	;and %00010000
-	;jr nz,CheckingKeyboardInInterrupt
+	ld a,(Video.Registers+$00)
+	and %00010000
+	jr nz,CheckingKeyboardInInterrupt
 	; Indicate that the host can try to read the keyboard if it wants.
 	ld a,(Sound.Status)
 	bit Sound.Status.Active,a
@@ -156,12 +157,14 @@ FinishedFrameInterrupt:
 	ld (FrameCounter),a
 	
 	pop af
+	ei
 	reti
 
 ; Libraries:
 .include "Video.asm"
 .include "AT.asm"
 .include "Keyboard.asm"
+.include "KeyboardBuffer.asm"
 .include "UK.inc"
 .include "VDU.asm"
 .include "Serial.asm"
