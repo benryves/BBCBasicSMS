@@ -79,12 +79,17 @@ ChannelUpdateTimer = allocVar(1)
 ChannelUpdatePeriod = 5
 
 Status = allocVar(1)
-Status.CanPlaySynchronisedNotes = 0
-Status.Active = 1
+Status.CanPlaySynchronisedNotes = 1
+Status.Active = 2
 
 PSGState = allocVar(2 * ChannelCount)
 PSG.Amplitude = 0
 PSG.Pitch = 1
+
+Bell.Channel     = allocVar(1) ; *FX 211
+Bell.Information = allocVar(1) ; *FX 212
+Bell.Frequency   = allocVar(1) ; *FX 213
+Bell.Duration    = allocVar(1) ; *FX 214
 
 .if Variables > $DFF8
 	.fail strformat("Too many sound variables! Please free up {0} bytes.", Variables - $DFF8)
@@ -122,6 +127,13 @@ Reset:
 	dec a
 	ld (hl),a
 	ldir
+	
+	; Set up a default bell.
+	ld hl,3+144*256 ; Channel = 3, Information = 144.
+	ld (Bell.Channel),hl
+	ld hl,101+7*256 ; Frequency = 101, Duration = 214.
+	ld (Bell.Frequency),hl
+	
 	
 	pop bc
 	pop de
@@ -1073,5 +1085,57 @@ PeriodTable:
 	.db (period >> 4) & %00111111
 .loop
 
+
+; ---------------------------------------------------------
+; PlayBell -> Plays the selected "BEL" sound.
+; ---------------------------------------------------------
+; Outputs:  None.
+; Destroys: af, c, d, hl, ix.
+; ---------------------------------------------------------
+PlayBell:
+	push ix
+	push hl
+	push de
+	push bc
+	
+	ld a,(Bell.Channel)
+	and 3
+	ld c,a
+	
+	ld a,(Bell.Information)
+	
+	; A=AAAAAHSS
+	; B=000H00SS
+	
+	sra a
+	rr b
+	sra a
+	rr b
+	
+	srl b
+	srl b
+	
+	sra a
+	rr b
+	
+	srl b
+	srl b
+	srl b
+	
+	; A=---AAAAA
+	inc a ; Values are stored as -1, *8 so to restore after /8, +1.
+	ld l,a
+	
+	ld a,(Bell.Frequency)
+	ld e,a
+	
+	ld a,(Bell.Duration)
+	call Sound.QueueCommand
+	
+	pop bc
+	pop de
+	pop hl
+	pop ix
+	ret
 
 .endmodule

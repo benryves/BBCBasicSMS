@@ -531,7 +531,7 @@ CommandJumpTable:
 	.dw TextViaConsoleCommand   \ .db  0 ;  4 Write text at text cursor position.
 	.dw TextViaGraphicsCommand  \ .db  0 ;  5 Write text at graphics cursor position.
 	.dw Stub                    \ .db  0 ;  6 Enable output to the screen.
-	.dw Stub                    \ .db  0 ;  7 BEL
+	.dw Bell                    \ .db  0 ;  7 BEL
 	.dw CursorLeft              \ .db  0 ;  8 Move text cursor backwards one character.
 	.dw CursorRight             \ .db  0 ;  9 Move text cursor forwards one character.
 	.dw CursorDown              \ .db  0 ; 10 Move text cursor down a line.
@@ -583,6 +583,12 @@ TextViaGraphicsCommand:
 	set GraphicalText,a
 	ld (Flags),a
 	ret
+
+; ========================================================================================
+; VDU 7                                                                               BEL
+; ========================================================================================
+Bell:
+	jp Sound.PlayBell
 
 ; ========================================================================================
 ; VDU 8                                                                        CURSOR LEFT

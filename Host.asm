@@ -62,6 +62,8 @@ OSINIT:
 	
 	call RESET
 	
+	call Sound.PlayBell
+	
 	ld de,HIMEM  ; HIMEM
 	ld hl,(PAGE) ; PAGE
 	
@@ -500,6 +502,12 @@ OSLINE.Loop:
 	jp z,OSLINE.Return
 	cp 21 ; NAK
 	jp z,OSLINE.Clear
+	
+	cp 7
+	jr nz,+
+	call VDU.PutChar
+	jr OSLINE.Loop
++:
 
 	; Check if it's in the range 32..127.
 	cp 32
@@ -2025,6 +2033,17 @@ OSBYTE:
 	jr z,OSBYTE.KeyboardAutoRepeatDelay
 	cp 12
 	jr z,OSBYTE.KeyboardAutoRepeatRate
+	
+	cp 211
+	jr c,+
+	cp 214+1
+	jr nc,+
+	push de
+	ld de,Sound.Bell.Channel-211
+	call OSBYTE.ModifyMemory
+	pop de
++:
+
 	ret
 
 OSBYTE.CursorEditing:
@@ -2160,6 +2179,49 @@ TypematicRates:
 	.db round(43.47826087)
 	.db round(47.61904762)
 	.db round(50)
+
+
+; ---------------------------------------------------------
+; OSBYTE.ModifyMemory -> Modifies memory based on OSBYTE
+; routine number and H,L values.
+; ---------------------------------------------------------
+; Inputs:   de = pointer to memory to modify MINUS the
+;                routine number.
+;           a = OSBYTE routine number.
+;           l = new value to EOR over value in memory.
+;           h = mask to AND over the existing value.
+; Outputs:  l = old value.
+;           h = value of next value in memory.
+; Destroys: None.
+; ---------------------------------------------------------
+OSBYTE.ModifyMemory:
+	push af
+	push bc
+	push de
+	
+	ex de,hl	
+	ld c,a
+	ld b,0
+	add hl,bc
+	
+	; Read and modify.
+	ld a,(hl)
+	and d
+	or e
+	
+	; Fetch back old value and store new one.
+	ld e,(hl)
+	ld (hl),a
+	
+	; Read next value in memory.
+	inc hl
+	ld d,(hl)
+	ex de,hl
+	
+	pop de
+	pop bc
+	pop af
+	ret
 
 OSWORD:
 	ret
