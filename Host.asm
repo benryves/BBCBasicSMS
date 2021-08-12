@@ -804,6 +804,9 @@ PressEscapeKey:
 +	pop af
 	ret
 
+PressBreakKey:
+	rst 0
+
 SetEscape:
 	push af
 	jr -

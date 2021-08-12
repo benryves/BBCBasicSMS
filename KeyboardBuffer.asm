@@ -63,7 +63,7 @@ GetDeviceKey:
 	di
 	ld a,(Host.Flags)
 	bit Host.GetKeyPending,a
-	jr z,GetDeviceKey.Skip
+	jp z,GetDeviceKey.Skip
 	
 	call Keyboard.GetKey
 	jr nz,GetDeviceKey.NoKey
@@ -109,6 +109,10 @@ GetDeviceKeyExtended:
 
 GetDeviceKeyNotInsert:
 	
+	; Is it Pause?
+	cp Keyboard.KeyCode.Pause
+	jp z,Host.PressBreakKey
+	
 	; Is it a cursor key?
 	ld e,a
 	ld a,(VDU.Console.Flags)
@@ -126,7 +130,9 @@ GetDeviceKeyNotInsert:
 	jr z,ChangeGetDeviceKey
 	inc e
 	cp Keyboard.KeyCode.Up
-	jr nz,ExitGetDeviceKey
+	jr z,ChangeGetDeviceKey
+	
+	jr ExitGetDeviceKey
 	
 ChangeGetDeviceKey:
 	pop af

@@ -42,7 +42,7 @@ Interrupt:
 	; Check the reset button.
 	in a,($DD)
 	bit 4,a
-	jp z,0
+	call z,Host.PressBreakKey
 	
 	in a,($BF)
 	bit 7,a

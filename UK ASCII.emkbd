@@ -496,7 +496,7 @@
     <value modifier="33" value="16" isnonprintable="True" />
   </key>
   <key friendlyname="Pause" scancode="225" devicecode="45" isextended="False" ismodifier="False" modifiermask="0">
-    <value modifier="0" value="0" isnonprintable="False" />
+    <value modifier="0" value="38" isnonprintable="True" />
   </key>
   <key friendlyname="Space" scancode="41" devicecode="99" isextended="False" ismodifier="False" modifiermask="0">
     <value modifier="0" value="32" isnonprintable="False" />

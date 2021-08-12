@@ -28,6 +28,8 @@ GetScancode:
 	ld l,64
 	call AT.GetByte
 	ret nz
+	cp $E1
+	jr z,GetPauseScancode
 	cp $E0
 	jr nz,+
 	ld l,128|64
@@ -39,6 +41,18 @@ GetScancode:
 	call AT.GetByte
 	ret nz
 +:	ld h,a
+	push hl
+	pop af
+	ret
+
+GetPauseScancode:
+	ld b,7
+-:	push bc
+	call AT.GetByte
+	pop bc
+	ret nz
+	djnz -
+	ld hl,64+$E1*256
 	push hl
 	pop af
 	ret
@@ -202,7 +216,7 @@ TogglePushed
 	jr IsNotModifier
 	
 NotToggle
-	ld a,(OriginalScancode)
+	ld a,(OriginalScancode)	
 	bit 0,a
 	jr nz,StatusOff
 	ld a,(Status)
@@ -382,6 +396,7 @@ GetKey:
     Wake         = $24
     
     Escape       = $25
+    Pause        = $26
 .endmodule
 
 .endmodule
