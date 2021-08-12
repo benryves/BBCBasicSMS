@@ -26,6 +26,22 @@ OSWRCH.Override = allocVar(2)
 HeldKeyCount = 8
 HeldKeys = allocVar(HeldKeyCount)
 
+CheckKeyboardWithInterrupt:
+	push af
+	push bc
+	call Video.EnableLineInterrupt
+	pop bc
+	pop af
+	ret
+	
+CheckKeyboardByPolling:
+	push af
+	push bc
+	call Video.DisableLineInterrupt
+	pop bc
+	pop af
+	ret
+
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
 ; 
@@ -89,7 +105,8 @@ OSINIT:
 ;------------------------------------------------------------------------------- 
 OSRDCH:
 	call VDU.BeginBlinkingCursor
-
+	call CheckKeyboardByPolling
+	
 -:	call GetKey
 	
 	jp m,+              ; Ignore extended keys.
@@ -343,6 +360,8 @@ OSKEY:
 	push bc
 	push de
 	
+	call CheckKeyboardByPolling
+	
 	bit 7,h
 	jr z,OSKEY.NotNegative
 	
@@ -471,6 +490,7 @@ OSLINE:
 	ret
 
 +:
+	call CheckKeyboardByPolling
 	call VDU.BeginBlinkingCursor	
 	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
 	ld d,0 ; D = index into current string.
@@ -991,6 +1011,8 @@ LTRAP:
 TRAP:
 	ei
 	
+	call CheckKeyboardWithInterrupt
+	
 	call CheckEscape
 	
 -:	call GetDeviceKey
@@ -1018,6 +1040,7 @@ TRAP.Escape:
 TrapFileTransfers:
 	ei
 	
+	call CheckKeyboardWithInterrupt
 	call VDU.DrawBlinkingCursor
 	
 	; Is Escape pressed?

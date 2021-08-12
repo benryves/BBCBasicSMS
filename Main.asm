@@ -20,6 +20,8 @@ HIMEM = Variables
 PAGE = allocVar(2)
 IOControl = allocVar(1)
 
+LastHCounter = allocVar(1)
+
 .org $00
 	di
 	im 1
@@ -48,12 +50,57 @@ Interrupt:
 	
 	in a,($BF)
 	bit 7,a
-	call nz,FrameInterrupt
+	jr nz,FrameInterrupt
+	
+LineInterrupt:
+	
+	; Are we already waiting for a key?
+	ld a,(Host.Flags)
+	bit Host.GetKeyPending,a
+	jr nz,+
+	
+	; Release the keyboard's clock line.
+	ld a,(IOControl)
+	or %00110011 ; A.TH, A.TR = input, high
+	out ($3F),a
+	ld (IOControl),a
+	
+	; What's the current H counter?
+	in a,(Video.HCounter)
+	ld (LastHCounter),a
++:
 	
 	pop af
 	reti
 
 FrameInterrupt:
+
+	ld a,(IOControl)
+	and %00000010 ; Bit 1 = Port A TH pin direction (1=input, 0=output)
+	jr z,NotTestingKeyboard
+
+	push hl
+	in a,(Video.HCounter)
+	ld l,a
+	
+	; Inhibit the keyboard's clock line.
+	ld a,(IOControl)
+	or %00100010 ; A.TH (data) = input high
+	and %11101110 ; A.TR (clock) = output low
+	out ($3F),a
+	ld (IOControl),a
+	
+	ld a,(LastHCounter)
+	cp l
+	jr z,+
+	
+	; We know there's a key waiting!
+	ld a,(Host.Flags)
+	set Host.GetKeyPending,a
+	ld (Host.Flags),a
+	
++:	pop hl
+NotTestingKeyboard:
 
 	; Handle the 100Hz TIME counter
 	
@@ -76,6 +123,10 @@ FrameInterrupt:
 	ld (Host.TIME+2),hl
 +:	
 	
+	; Are we checking the keyboard state in a line interrupt?
+	;ld a,(Video.Registers+$00)
+	;and %00010000
+	;jr nz,CheckingKeyboardInInterrupt
 	; Indicate that the host can try to read the keyboard if it wants.
 	ld a,(Sound.Status)
 	bit Sound.Status.Active,a
@@ -88,6 +139,7 @@ SoundIsInactive:
 	set Host.GetKeyPending,a
 	ld (Host.Flags),a
 SoundIsBusy:
+CheckingKeyboardInInterrupt:
 
 	; Update the sound.
 	call Sound.Tick
@@ -102,7 +154,9 @@ SoundIsBusy:
 
 FinishedFrameInterrupt:
 	ld (FrameCounter),a
-	ret
+	
+	pop af
+	reti
 
 ; Libraries:
 .include "Video.asm"

@@ -313,6 +313,11 @@ SetMode:
 	call Video.DisplayOn
 	call Video.EnableFrameInterrupt
 	
+	; We also want to trigger a line interrupt just before the frame interrupt.
+	ld a,191-8
+	ld b,$0A
+	call Video.SetRegister
+	
 	; Field rate
 	call Video.GetFieldRate
 	ld (FieldRate),a

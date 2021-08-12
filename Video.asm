@@ -123,6 +123,36 @@ DisableRegisterBits: ; Clear the register B bits with the clear values in A (bit
 	pop bc
 	ret
 
+DisplayOn:
+	ld a,%01000000
+	ld b,$01
+	jr EnableRegisterBits
+
+DisplayOff:
+	ld a,%10111111
+	ld b,$01
+	jr DisableRegisterBits
+
+EnableFrameInterrupt:
+	ld a,%00100000
+	ld b,$01
+	jr EnableRegisterBits
+
+DisableFrameInterrupt:
+	ld a,%11011111
+	ld b,$01
+	jr DisableRegisterBits
+
+EnableLineInterrupt:
+	ld a,%00010000
+	ld b,$00
+	jr EnableRegisterBits
+
+DisableLineInterrupt:
+	ld a,%11101111
+	ld b,$00
+	jr DisableRegisterBits
+
 GotoPalette: ; Set the CRAM pointer to colour a.
 	di
 	out (Control),a
@@ -181,26 +211,6 @@ ClearAll:
 -:	out (Data),a
 	djnz -
 	ret
-
-DisplayOn:
-	ld a,%01000000
-	ld b,$01
-	jr EnableRegisterBits
-
-DisplayOff:
-	ld a,%10111111
-	ld b,$01
-	jr DisableRegisterBits
-
-EnableFrameInterrupt:
-	ld a,%00100000
-	ld b,$01
-	jr EnableRegisterBits
-
-DisableFrameInterrupt:
-	ld a,%11011111
-	ld b,$01
-	jr DisableRegisterBits
 
 ; Gets the total number of scanlines.
 GetScanlineCount:
