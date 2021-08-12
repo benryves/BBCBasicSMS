@@ -76,6 +76,7 @@ SetRegister: ; Set register B to value A.
 	pop de
 	pop hl
 	
+	di
 	out (Control),a
 	ld a,%10000000
 	or b
