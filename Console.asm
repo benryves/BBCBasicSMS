@@ -152,8 +152,15 @@ FlushPendingScroll:
 	bit PendingScroll,a
 	res PendingScroll,a
 	ld (Flags),a
-	call nz,Scroll
-	pop af
+	jr z,+
+	push bc
+	push de
+	push hl
+	call Scroll
+	pop hl
+	pop de
+	pop bc
++:	pop af
 	ret
 	
 ClearPendingScroll:

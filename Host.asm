@@ -658,6 +658,7 @@ OSLINE.Clear:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSLINE.Prefilled:
+	call KeyboardBuffer.CheckKeyboardByPolling
 	call VDU.BeginBlinkingCursor
 	ld bc,255
 	ld d,0
@@ -665,6 +666,7 @@ OSLINE.Prefilled:
 	cp '\r'
 	jp z,OSLINE.Loop
 	call VDU.PutLiteralChar ; In case there are any control codes embedded in the line.
+	call VDU.Console.FlushPendingScroll
 	inc d
 	inc hl
 	inc b

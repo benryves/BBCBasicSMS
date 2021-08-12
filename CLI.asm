@@ -440,6 +440,9 @@ Edit:
 	call CheckCommandEnd
 	pop hl
 	
+	; Scrolling uses BASIC's free memory, so ensure that we're not about to scroll.
+	call VDU.Console.FlushPendingScroll
+	
 	; Store the *EDIT line number in BASIC's free memory.
 	ld de,(Basic.BBCBASIC_FREE)
 	ld (TempPtr),de
@@ -455,7 +458,6 @@ Edit:
 	ret
 
 Edit.OSLINE.List:
-	
 	; Pretend we typed "L."
 	ld (hl),'L'
 	inc hl
@@ -481,7 +483,7 @@ Edit.OSLINE.List:
 	xor a
 	ret
 
-Edit.OSWRCH.List.FirstChar:
+Edit.OSWRCH.List.FirstChar:	
 	cp '>' ; is it the prompt?
 	jr nz,+
 
