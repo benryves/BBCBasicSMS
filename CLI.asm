@@ -52,6 +52,37 @@ SkipWhitespace:
 	jr SkipWhitespace
 
 ; ---------------------------------------------------------
+; SkipWhitespaceAndComma -> Skip past whitespace and a
+; single optional comma in a command. This is useful for
+; *FX for example as arguments can take the form
+; *FX 1,2 or *FX 1 2.
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to command line.
+; Outputs:  hl = pointer to next character.
+;           z = if at end of the command, nz if not.
+; Destroys: af.
+; ---------------------------------------------------------
+SkipWhitespaceAndComma:
+	call SkipWhitespace
+	ret z
+	; Fall-through
+
+; ---------------------------------------------------------
+; SkipComma -> Skip past a single comma in a command.
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to command line.
+; Outputs:  hl = pointer to next character.
+;           nz = set.
+; Destroys: af.
+; ---------------------------------------------------------
+	ld a,(hl)
+	cp ','
+	ret nz
+	inc hl
+	or a ; Ensure NZ as we're not at the end of the statement.
+	ret
+
+; ---------------------------------------------------------
 ; CheckCommandEnd -> Ensure we've reached the end of the
 ;                    command, raise an error if not.
 ; ---------------------------------------------------------
@@ -148,7 +179,7 @@ DispatchCommandNoMatch:
 ; Inputs:   hl = pointer to command line.
 ; Outputs:  hl = pointer to next character in the command.
 ;           de = parsed value.
-; Destroys: af, hl, de.
+; Destroys: af, de.
 ; ---------------------------------------------------------
 GetDecimalWord:
 	ld de,0
@@ -207,6 +238,24 @@ GetDecimalWord:
 	pop bc
 	
 	jr -
+
+; ---------------------------------------------------------
+; GetDecimalWord -> Gets a value between 0..255
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to command line.
+; Outputs:  hl = pointer to next character in the command.
+;           a  = parsed value.
+; Destroys: af.
+; ---------------------------------------------------------
+GetDecimalByte:
+	push de
+	call GetDecimalWord
+	ld a,d
+	or a
+	jp nz,TooBig
+	ld a,e
+	pop de
+	ret
 
 Terminal:
 	call CheckCommandEnd
@@ -520,25 +569,35 @@ Serial.Commands:
 	osclicommand("BAUD", Serial.BaudRate)
 	.db 0
 
+; *FX A     = OSBYTE A, L=0, H=0
+; *FX A,L   = OSBYTE A, L, H=0
+; *FX A,L,H = OSBYTE A, L, H
 FX:
-	call GetDecimalWord
-	push de
-	call SkipWhitespace
+	
+	; Get the first argument.
+	call GetDecimalByte
+	push af
 	ld de,0
-	jr z,FXn0
-	ld a,(hl)
-	cp ','
-	jr nz,+
-	inc hl
-+:	call GetDecimalWord
-FXn0:
+	call SkipWhitespaceAndComma
+	jr z,FXGotArguments
+	
+	; Get the second argument.
+	call GetDecimalByte
+	ld e,a
+	call SkipWhitespaceAndComma
+	jr z,FXGotArguments
+	
+	; Get the third argument.
+	call GetDecimalByte
+	ld d,a
+	
+FXGotArguments:
+	
+	; Ensure there's nothing further to handle.
 	call CheckCommandEnd
 	
-	pop hl
-	ld a,l
-	
-	ld l,e
-	ld h,d
+	pop af
+	ex de,hl
 	
 	; *FX A,HL
 	call Host.OSBYTE
