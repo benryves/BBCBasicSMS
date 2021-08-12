@@ -530,7 +530,7 @@ GetCommandJumpTable:
 	
 CommandJumpTable:
 	.dw Stub                    \ .db  0 ;  0 NUL
-	.dw Stub                    \ .db  0 ;  1 Data -> Printer
+	.dw Stub                    \ .db -1 ;  1 Data -> Printer
 	.dw Stub                    \ .db  0 ;  2 Enable printer.
 	.dw Stub                    \ .db  0 ;  3 Disable printer.
 	.dw TextViaConsoleCommand   \ .db  0 ;  4 Write text at text cursor position.
