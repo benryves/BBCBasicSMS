@@ -750,12 +750,42 @@ ModeCommand:
 UserCommand:
 	ld a,(VDUQ(0, 9))
 	
+	or a
+	jr z,CRTC
+	
+	dec a
+	jr z,CursorControl
+	inc a
+	
 	ld hl,VDUQ(1, 9)
 	call SetUserDefinedCharacter
 	
 	ei
 	ret
 
+CRTC:
+	; VDU 23;8202;0;0;0 = VDU 23,0,10,32,0,0,0,0,0,0
+	ld a,(VDUQ(1, 9))
+	cp 10  ; We only support the cursor start register.
+	ret nz
+	ld a,(VDUQ(2, 9))
+	bit 6,a ; The cursor blink enable flag.
+	jr SetCursorEnabled
+
+CursorControl:
+	ld a,(VDUQ(1, 9))
+	or a
+	
+SetCursorEnabled:
+	di
+	ld a,(VDU.Console.Flags)
+	jr z,+
+	res VDU.Console.CursorHidden,a
+	jr ++
++:	set VDU.Console.CursorHidden,a
+++:	ld (VDU.Console.Flags),a
+	ei
+	ret
 
 ; ========================================================================================
 ; VDU 24,<left>;<bottom>;<right>;<top>;                              SET GRAPHICS VIEWPORT
