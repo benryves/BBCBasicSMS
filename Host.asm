@@ -28,18 +28,24 @@ HeldKeys = allocVar(HeldKeyCount)
 
 CheckKeyboardWithInterrupt:
 	push af
+	ld a,(Video.Registers+$00)
+	and %00010000
+	jr nz,+
 	push bc
 	call Video.EnableLineInterrupt
 	pop bc
-	pop af
++:	pop af
 	ret
 	
 CheckKeyboardByPolling:
 	push af
+	ld a,(Video.Registers+$00)
+	and %00010000
+	jr z,+
 	push bc
 	call Video.DisableLineInterrupt
 	pop bc
-	pop af
++:	pop af
 	ret
 
 ;------------------------------------------------------------------------------- 
