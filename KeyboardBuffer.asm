@@ -84,10 +84,16 @@ GetDeviceKey:
 	jr nz,ExitGetDeviceKey
 	
 	; Set the Escape condition.
+	call Host.PressEscapeKey
+	
+	; Have we also disabled the ASCII code?
 	ld a,(Host.Flags)
-	set Host.Escape,a
-	ld (Host.Flags),a
-	jr ExitGetDeviceKey
+	and (1<<Host.EscapeKeyDisabled)|(1<<Host.EscapeErrorDisabled)
+	cp (0<<Host.EscapeKeyDisabled)|(1<<Host.EscapeErrorDisabled)
+	
+	jr nz,ExitGetDeviceKey
+	ld e,0
+	jr ChangeGetDeviceKey
 
 GetDeviceKeyExtended:
 	

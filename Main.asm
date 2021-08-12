@@ -31,11 +31,7 @@ LastHCounter = allocVar(1)
 	jp Interrupt
 
 .org $66
-	push af
-	ld a,(Host.Flags)
-	set Host.Escape,a
-	ld (Host.Flags),a
-	pop af
+	call Host.PressEscapeKey
 	retn
 
 FrameCounter = allocVar(1)

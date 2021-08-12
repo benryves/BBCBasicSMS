@@ -15,10 +15,11 @@ TIME = allocVar(4)
 KeyboardRate = allocVar(1)
 
 global.Host.Flags = allocVar(1) ;; HACK for broken name resolution
-Escape = 0
+EscapeError = 0
 GetKeyPending = 1
 CursorKeysDisabled = 2 ; OSBYTE 4
-EscapeDisabled = 3 ; OSBYTE 200, 229?
+EscapeKeyDisabled = 3
+EscapeErrorDisabled = 4
 
 OSLINE.Override = allocVar(2)
 OSWRCH.Override = allocVar(2)
@@ -792,16 +793,41 @@ TRAP:
 	ret nz ; No key
 	jr -
 
+PressEscapeKey:
+	push af
+	ld a,(Flags)
+	and (1<<EscapeKeyDisabled)|(1<<EscapeErrorDisabled)
+	jr nz,+
+-:	ld a,(Flags)
+	set EscapeError,a
+	ld (Flags),a
++	pop af
+	ret
+
+SetEscape:
+	push af
+	jr -
+
+AcknowledgeEscape:
+	ld l,255
+ClearEscape:
+	push af
+	ld a,(Flags)
+	res EscapeError,a
+	ld (Flags),a
+	pop af
+	ret
+
 CheckEscape:
 	; Is the Escape condition flag set?
 	ld a,(Flags)
-	bit Escape,a
+	bit EscapeError,a
 	ret z
 	
 TRAP.Escape:
 	
 	ld a,(Flags)
-	res Escape,a
+	res EscapeError,a
 	ld (Flags),a
 	
 	call VDU.Console.EndBlinkingCursor
@@ -818,7 +844,7 @@ TrapFileTransfers:
 	
 	; Is Escape pressed?
 -:	ld a,(Flags)
-	bit Escape,a
+	bit EscapeError,a
 	jr nz,TrapFileTransfers.Trap
 	
 	; Shall we poll the keyboard?
@@ -861,7 +887,7 @@ RESET:
 
 	; Clear the "Escape" state.
 	ld a,(Flags)
-	res Escape,a
+	and ~((1<<EscapeError) | (1<<EscapeKeyDisabled) | (1<<EscapeErrorDisabled))
 	ld (Flags),a	
 
 	call KeyboardBuffer.Reset
@@ -1826,6 +1852,13 @@ OSBYTE:
 	jp z,OSBYTE.KeyboardAutoRepeatDelay
 	cp 12
 	jp z,OSBYTE.KeyboardAutoRepeatRate
+	
+	cp 124
+	jp z,ClearEscape
+	cp 125
+	jp z,SetEscape
+	cp 126
+	jp z,AcknowledgeEscape
 
 	; Sound suppression and bell
 	cp 210
@@ -1872,6 +1905,12 @@ OSBYTE.ChangeSound:
 	ret
 	
 OSBYTE.NotSoundBell:
+	
+	cp 200
+	jr z,OSBYTE.EscapeErrorDisable
+	
+	cp 229
+	jr z,OSByte.EscapeKeyDisable
 
 	ret
 
@@ -1900,6 +1939,27 @@ OSBYTE.CursorEditingReturn:
 +:
 	ld a,4
 	ei
+	ret
+	
+
+OSBYTE.EscapeErrorDisable:
+	push de
+	push bc
+	ld de,Flags
+	ld c,1<<EscapeErrorDisabled
+	call OSBYTE.ModifyFlag
+	pop bc
+	pop de
+	ret
+
+OSBYTE.EscapeKeyDisable:
+	push de
+	push bc
+	ld de,Flags
+	ld c,1<<EscapeKeyDisabled
+	call OSBYTE.ModifyFlag
+	pop bc
+	pop de
 	ret
 
 OSBYTE.KeyboardAutoRepeatDelay:
@@ -2045,6 +2105,51 @@ OSBYTE.ModifyMemory:
 	; Read next value in memory.
 	inc hl
 	ld d,(hl)
+	ex de,hl
+	
+	pop de
+	pop bc
+	pop af
+	ret
+
+; ---------------------------------------------------------
+; OSBYTE.ModifyFlag -> Modifies a single flag value.
+; ---------------------------------------------------------
+; Inputs:   de = address of the flag.
+;           c = bitmask of the flag.
+;           l = new value to EOR over value in memory.
+;           h = mask to AND over the existing value.
+; Outputs:  l = old value.
+; Destroys: None.
+; ---------------------------------------------------------
+OSBYTE.ModifyFlag:
+	push af
+	push bc
+	push de
+	
+	ex de,hl
+	
+	ld a,(hl)
+	and c
+	jr z,+
+	ld a,1
++:	ld b,a
+
+	and d
+	xor e
+	ld a,c
+		
+	jr z,+
+	
+	or (hl)
+	jr ++
+	
++:	cpl
+	and (hl)
+	
+++:	ld e,b
+	ld (hl),a
+	
 	ex de,hl
 	
 	pop de
