@@ -2024,25 +2024,61 @@ OSBYTE:
 	; H = high byte of the parameter (Y)
 	
 	; Routines &A6..&FF take the form:
-	; New Value = (<old value> AND H) OR L
+	; New Value = (<old value> AND H) EOR L
 	; Return old value in L.
 
 	cp 4
-	jr z,OSBYTE.CursorEditing
+	jp z,OSBYTE.CursorEditing
 	cp 11
-	jr z,OSBYTE.KeyboardAutoRepeatDelay
+	jp z,OSBYTE.KeyboardAutoRepeatDelay
 	cp 12
-	jr z,OSBYTE.KeyboardAutoRepeatRate
+	jp z,OSBYTE.KeyboardAutoRepeatRate
+
+	; Sound suppression and bell
+	cp 210
+	jr nz,OSBYTE.NotSoundSuppression
 	
+	; We can only modify the low bit of the status value.
+	ld a,l
+	or a
+	ld l,0
+	jr z,+
+	inc l
++:	ld a,h
+	or %11111110
+	ld h,a
+	ld a,210
+	jr OSBYTE.ChangeSound
+	
+OSBYTE.NotSoundSuppression:
 	cp 211
-	jr c,+
+	jr c,OSBYTE.NotSoundBell
 	cp 214+1
-	jr nc,+
+	jr nc,OSBYTE.NotSoundBell
+
+OSBYTE.ChangeSound:
 	push de
-	ld de,Sound.Bell.Channel-211
+	ld de,Sound.Status-210
 	call OSBYTE.ModifyMemory
 	pop de
-+:
+	
+	; If it's sound suppression, make sure we silence any playing sounds!
+	cp 210
+	ret nz
+	
+	ld a,(Sound.Status)
+	bit Sound.Status.SoundSuppressed,a
+	jr z,+
+	push hl
+	call Sound.Silence
+	pop hl
++:	ld a,l
+	and 1
+	ld l,a
+	ld a,210
+	ret
+	
+OSBYTE.NotSoundBell:
 
 	ret
 
@@ -2207,7 +2243,7 @@ OSBYTE.ModifyMemory:
 	; Read and modify.
 	ld a,(hl)
 	and d
-	or e
+	xor e
 	
 	; Fetch back old value and store new one.
 	ld e,(hl)

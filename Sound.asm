@@ -79,17 +79,20 @@ ChannelUpdateTimer = allocVar(1)
 ChannelUpdatePeriod = 5
 
 Status = allocVar(1)
+Status.SoundSuppressed          = 0
 Status.CanPlaySynchronisedNotes = 1
-Status.Active = 2
-
-PSGState = allocVar(2 * ChannelCount)
-PSG.Amplitude = 0
-PSG.Pitch = 1
+Status.Active                   = 2
 
 Bell.Channel     = allocVar(1) ; *FX 211
 Bell.Information = allocVar(1) ; *FX 212
 Bell.Frequency   = allocVar(1) ; *FX 213
 Bell.Duration    = allocVar(1) ; *FX 214
+
+PSGState = allocVar(2 * ChannelCount)
+PSG.Amplitude = 0
+PSG.Pitch = 1
+
+
 
 .if Variables > $DFF8
 	.fail strformat("Too many sound variables! Please free up {0} bytes.", Variables - $DFF8)
@@ -119,21 +122,11 @@ Reset:
 	ld (hl),a
 	ldir
 	
-	; Fill the PSGState with dummy data to force an update.
-	dec a
-	ld hl,PSGState
-	ld de,PSGState + 1
-	ld bc,(2 * ChannelCount) - 1
-	dec a
-	ld (hl),a
-	ldir
-	
 	; Set up a default bell.
 	ld hl,3+144*256 ; Channel = 3, Information = 144.
 	ld (Bell.Channel),hl
 	ld hl,101+7*256 ; Frequency = 101, Duration = 214.
 	ld (Bell.Frequency),hl
-	
 	
 	pop bc
 	pop de
@@ -155,7 +148,8 @@ Silence:
 	ld a,ChannelUpdatePeriod
 	ld (ChannelUpdateTimer),a
 
-	xor a
+	ld a,(Status)
+	and 1<<Status.SoundSuppressed
 	ld (Status),a
 	
 	; Clear the channels.
@@ -174,6 +168,15 @@ Silence:
 	add ix,de
 	djnz -
 	pop ix
+	
+	; Fill the PSGState with dummy data to force an update.
+	dec a
+	ld hl,PSGState
+	ld de,PSGState + 1
+	ld bc,(2 * ChannelCount) - 1
+	dec a
+	ld (hl),a
+	ldir
 	
 	ei
 	
@@ -877,12 +880,18 @@ QueueCommand:
 	.endif
 
 	push af
+	
+	; Is the sound system disabled?
+	ld a,(Status)
+	bit Status.SoundSuppressed,a
+	jr nz,QueueCommandIsDisabled
 
 	; Quick sanity check on the channel number.
 	ld a,c
 	and %00001100
 	jr z,QueueInvalidChannel
-	
+
+QueueCommandIsDisabled:
 	pop af
 	cp a
 	ret
