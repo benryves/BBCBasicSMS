@@ -47,10 +47,10 @@ ResetViewport:
 HomeUp:
 	ld a,(MinRow)
 	ld (CurRow),a
+	call ClearPendingScroll
 	; Fall-through to HomeLeft
 	
 HomeLeft:
-	call ClearPendingScroll
 	ld a,(MinCol)
 	ld (CurCol),a
 	ret
@@ -90,7 +90,7 @@ CursorDown:
 	jr z,+
 	jr c,+
 	
-	call Scroll
+	call SetPendingScroll
 	
 	ld a,(MaxRow)
 +:	ld (CurRow),a
@@ -98,6 +98,7 @@ CursorDown:
 	jr MarkCursorMoved
 
 CursorLeft:
+	call ClearPendingScroll
 	ld a,(CurCol)
 	or a
 	jr z,CursorLeftWrapped
@@ -329,6 +330,8 @@ DrawBlinkingCursor:
 	ld a,(Flags)
 	bit CursorHidden,a
 	ret nz
+
+	call FlushPendingScroll
 
 	; Is the cursor set up to blink?
 	bit CursorBlinking,a
