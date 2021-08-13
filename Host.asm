@@ -20,6 +20,7 @@ GetKeyPending = 1
 CursorKeysDisabled = 2 ; OSBYTE 4
 EscapeKeyDisabled = 3
 EscapeErrorDisabled = 4
+TapeFS = 5
 
 OSLINE.Override = allocVar(2)
 OSWRCH.Override = allocVar(2)
@@ -938,12 +939,23 @@ RESET:
 OSLOAD:
 	push de
 	
+	
+	ld a,(Flags)
+	and 1<<TapeFS
+	jr nz,OSLOAD.Tape
+	
+OSLOAD.PCLink:
 	call VDU.BeginBlinkingCursor
 	call PCLink2.GetFile
 	push af
 	call VDU.EndBlinkingCursor
 	pop af
-	jr nz,OSLOAD.Error
+	jr +
+
+OSLOAD.Tape:
+	call Tape.GetFile
+
++:	jr nz,OSLOAD.Error
 	jp c,TRAP.Escape
 	
 	pop hl

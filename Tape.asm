@@ -10,7 +10,7 @@
 InputPort = $DD
 InputBit  = 3
 
-HalfWaveLengthThreshold = 20
+HalfWaveLengthThreshold = 18
 
 Header.LoadAddress      = 0
 Header.ExecutionAddress = 4
@@ -255,6 +255,81 @@ CRC16:
 	ld a,b
 	or c
 	jr nz,-
+	ret
+
+; ---------------------------------------------------------
+; GetFile -> Gets a file.
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to file name NUL/CR terminated.
+;           de = pointer to RAM to store the file in.
+;           bc = maximum file size that can be loaded.
+; Outputs:  nz if there was a protocol/receive error.
+;           if no error, c set if transfer was cancelled.
+;           if error, c is set if the error is "No room".
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+GetFile:
+
+	push ix
+	ld (PCLink2.TempPtr),de
+
+TapeBlockLoop:
+
+	ld de,(PCLink2.TempPtr)
+	ld hl,Basic.BBCBASIC_BUFFER
+	
+	call Tape.GetBlock
+	scf
+	jr z,GetFileError
+	
+	ld hl,Basic.BBCBASIC_BUFFER
+	call VDU.PutString
+	
+	ld a,' '
+	call VDU.PutChar
+	
+	ld l,(ix+Tape.Header.BlockNumber+0)
+	ld h,(ix+Tape.Header.BlockNumber+1)
+	call VDU.PutDecimalWord
+	
+	ld a,' '
+	call VDU.PutChar
+	
+	
+	ld c,(ix+Tape.Header.DataBlockLength+0)
+	ld b,(ix+Tape.Header.DataBlockLength+1)
+	ld a,b
+	or c
+	jr z,+
+	
+	push de
+	ld de,(PCLink2.TempPtr)
+	call Tape.CRC16
+	call VDU.PutHexWord
+	pop de
+	
+	ld a,'='
+	call VDU.PutChar
+	
+	ld l,(ix+Tape.Header.DataCRC+1)
+	ld h,(ix+Tape.Header.DataCRC+0)
+	call VDU.PutHexWord
+	
++:	ld (PCLink2.TempPtr),de
+	call VDU.Console.NewLine
+	
+	ld a,(ix+Tape.Header.BlockFlag)
+	add a,a
+	jr nc,TapeBlockLoop
+	
+	pop ix
+	xor a
+	
+	ret
+
+GetFileError:
+	xor a
+	inc a
 	ret
 
 .endmodule

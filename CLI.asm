@@ -611,6 +611,16 @@ Tape:
 
 	call SkipWhitespace
 	ld a,(hl)
+	cp '\r'
+	jr nz,+
+	
+	ld a,(Host.Flags)
+	or 1<<Host.TapeFS
+	ld (Host.Flags),a
+	scf
+	ret
+	
++:	
 	and %11011111
 	cp 'B'
 	jr z,TapeBlock
@@ -732,6 +742,13 @@ TapeBlockLoop:
 	
 	scf
 	ret
+	
+PCLink2:
+	ld a,(Host.Flags)
+	and ~(1<<Host.TapeFS)
+	ld (Host.Flags),a
+	scf
+	ret
 
 Commands:
 	osclicommand("TERM", Terminal)
@@ -741,7 +758,8 @@ Commands:
 	osclicommand("EDIT", Edit)
 	osclicommand("SERIAL", Serial)
 	osclicommand("FX", FX)
-	osclicommand("TAPE", Tape
+	osclicommand("TAPE", Tape)
+	osclicommand("PCLINK", PCLink2)
 	.db 0
 
 .endmodule
