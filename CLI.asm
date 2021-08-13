@@ -607,6 +607,58 @@ FXGotArguments:
 	scf
 	ret
 
+Tape:
+
+	call SkipWhitespace
+	ld a,(hl)
+	push af
+	
+	ld hl,Basic.BBCBASIC_BUFFER
+	
+-:	call Tape.GetByte
+	jr z,-
+	ld (hl),a
+	inc l
+	jr nz,-
+
+DoneTape:
+
+	pop af
+	cp 'T'
+	ld hl,Basic.BBCBASIC_BUFFER
+	
+	jr z,Tape.ShowText
+	
+
+--:	ld b,12	
+-:	ld a,(hl)
+	call VDU.PutHexByte
+	ld a, ' '
+	call VDU.PutChar
+	inc l
+	jr z,FinishedTapeDump
+	djnz -
+	call VDU.Console.NewLine
+	jr --
+	jr FinishedTapeDump
+
+Tape.ShowText:
+	
+-:	ld a,(hl)
+	call VDU.PutLiteralChar
+	inc l
+	jr z,FinishedTapeDump
+	jr -
+
+FinishedTapeDump:
+	call VDU.Console.NewLine
+	
+	ld hl,Basic.BBCBASIC_BUFFER
+	ld (hl),'\r'
+	
+	scf
+	ret
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
@@ -615,6 +667,7 @@ Commands:
 	osclicommand("EDIT", Edit)
 	osclicommand("SERIAL", Serial)
 	osclicommand("FX", FX)
+	osclicommand("TAPE", Tape
 	.db 0
 
 .endmodule

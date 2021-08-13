@@ -167,6 +167,7 @@ FinishedFrameInterrupt:
 .include "PCLink2.asm"
 .include "Maths.asm"
 .include "CLI.asm"
+.include "Tape.asm"
 
 Boot:
 	; Make sure SP points somewhere sensible.
