@@ -703,10 +703,26 @@ TapeBlockLoop:
 	ld a,' '
 	call VDU.PutChar
 	
-	ld l,(ix+Tape.Header.CRC+0)
-	ld h,(ix+Tape.Header.CRC+1)
+	
+	ld c,(ix+Tape.Header.DataBlockLength+0)
+	ld b,(ix+Tape.Header.DataBlockLength+1)
+	ld a,b
+	or c
+	jr z,+
+	
+	ld de,(Basic.BBCBASIC_FREE)
+	call Tape.CRC16
 	call VDU.PutHexWord
-	call VDU.Console.NewLine
+	
+	ld a,'='
+	call VDU.PutChar
+	
+	ld l,(ix+Tape.Header.DataCRC+1)
+	ld h,(ix+Tape.Header.DataCRC+0)
+	call VDU.PutHexWord
+	
+	
++:	call VDU.Console.NewLine
 	
 	ld a,(ix+Tape.Header.BlockFlag)
 	add a,a
