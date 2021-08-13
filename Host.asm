@@ -936,6 +936,8 @@ RESET:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSLOAD:
+	push de
+	
 	call VDU.BeginBlinkingCursor
 	call PCLink2.GetFile
 	push af
@@ -943,6 +945,10 @@ OSLOAD:
 	pop af
 	jr nz,OSLOAD.Error
 	jp c,TRAP.Escape
+	
+	pop hl
+	call RepairProgram
+	
 	scf
 	ret
 	
@@ -950,6 +956,81 @@ OSLOAD.Error:
 	; What sort of error?
 	jp nc,DeviceFault
 	ccf
+	ret
+
+RepairProgram:
+	ld c,l
+	ld b,h
+	
+-:	ld a,(hl) ; Start of line
+	cp '\r'
+	ret nz
+	
+	inc hl
+	ld a,(hl)
+	cp -1
+	jr z,CanConvert
+	
+	inc hl
+	inc hl
+	ld e,(hl)
+	ld d,0
+	add hl,de
+	dec hl
+	dec hl
+	dec hl
+	jr -
+
+CanConvert:
+
+	; If we get this far, there's a valid Acorn BBC BASIC program in memory.
+	ld l,c
+	ld h,b
+	
+-:	ld a,(hl)
+	cp '\r'
+	ret nz
+	inc hl    ; Advance past CR
+	ld d,(hl) ; High part of line number.
+	ld a,d
+	cp -1
+	jr z,WriteEOF
+	inc hl
+	ld e,(hl) ; Low part of line number.
+	inc hl
+	ld b,(hl) ; Line length
+		
+	push hl
+	dec hl
+	ld (hl),d
+	dec hl
+	ld (hl),e
+	dec hl
+	ld (hl),b
+	pop hl
+	
+	ld d,h
+	ld e,l
+	inc hl
+	
+	ld a,b
+	sub 3
+	ret c
+	ld c,a
+	ld b,0
+	ldir
+	ex de,hl
+	jr -
+
+WriteEOF:
+
+	dec hl
+	ld (hl),0
+	inc hl
+	ld (hl),a
+	inc hl
+	ld (hl),a
+	xor a
 	ret
 
 ;------------------------------------------------------------------------------- 
