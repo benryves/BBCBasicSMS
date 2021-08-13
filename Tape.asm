@@ -61,6 +61,12 @@ GetBit.1: ; 2x 2400Hz
 	call GetHalfWaveLength
 	ret z
 	
+	; The initial bit might have been a trailing 2400Hz half-wave.
+	; If we now receive a 1200Hz half-wave, we should ignore the previous 2400Hz half-wave.
+	ld a,b
+	cp HalfWaveLengthThreshold
+	jr nc,GetBit.0
+	
 	call GetHalfWaveLength
 	ret z
 	

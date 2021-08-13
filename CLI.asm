@@ -653,6 +653,19 @@ Tape.ShowText:
 FinishedTapeDump:
 	call VDU.Console.NewLine
 	
+	ld hl,0
+	ld de,Basic.BBCBASIC_BUFFER
+	
+-:	ld a,(de)
+	ld c,a
+	ld b,0
+	add hl,bc
+	inc e
+	jr nz,-
+	
+	call VDU.PutHexWord
+	call VDU.Console.NewLine
+	
 	ld hl,Basic.BBCBASIC_BUFFER
 	ld (hl),'\r'
 	
