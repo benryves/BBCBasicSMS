@@ -12,6 +12,14 @@ InputBit  = 3
 
 HalfWaveLengthThreshold = 20
 
+Header.LoadAddress      = 0
+Header.ExecutionAddress = 4
+Header.BlockNumber      = 8
+Header.DataBlockLength  = 10
+Header.BlockFlag        = 12
+Header.NextFileAddress  = 13
+Header.CRC              = 17
+
 ; ---------------------------------------------------------
 ; GetHalfWaveLength -> Gets the length of half of a wave.
 ; ---------------------------------------------------------
@@ -39,6 +47,14 @@ GetHalfWaveLength:
 	scf
 	ret
 
+; ---------------------------------------------------------
+; GetBit -> Gets a bit from the tape.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  c = the bit value.
+;           z set if the bit timed out. 
+; Destroys: af, bc.
+; ---------------------------------------------------------
 GetBit:
 	call GetHalfWaveLength
 	ret z ; Time out.
@@ -75,6 +91,13 @@ GetBit.1: ; 2x 2400Hz
 	scf
 	ret
 
+; ---------------------------------------------------------
+; GetByte -> Gets a byte from the tape.
+; ---------------------------------------------------------
+; Outputs:  a = the byte value.
+;           z set if the byte timed out. 
+; Destroys: af, bc.
+; ---------------------------------------------------------
 GetByte:
 	
 	; Get the start bit.
@@ -108,5 +131,75 @@ GetByte:
 	; If it's not a 1 bit, it's not a stop bit!
 	cp c
 	ret
+
+; ---------------------------------------------------------
+; GetBlock -> Gets a complete block from the tape.
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to storage for the block header.
+;           de = pointer to storage for the block data.
+; Outputs:  ix = address of block data structure.
+;           z set if there was a problem receiving.
+; Destroys: af, bc, de, hl.
+; ---------------------------------------------------------
+GetBlock:
+	
+	; Wait for the synchronisation byte.
+-:	push bc
+	call GetByte
+	pop bc
+	jr z,-
+	cp $2A
+	jr nz,-
+	
+	; Now read the header!
+
+	; Variable length filename, NUL terminated.
+-:	call GetByte
+	ret z
+	ld (hl),a
+	inc hl
+	or a
+	jr nz,-
+	
+	push hl
+	
+	; 19 bytes of further data.
+	ld b,19
+	
+-:	push bc
+	call GetByte
+	pop bc
+	ret z
+	ld (hl),a
+	inc hl
+	djnz -
+	
+	pop ix
+
+	; Read the data block length.
+	ld c,(ix+Header.DataBlockLength+0)
+	ld b,(ix+Header.DataBlockLength+1)
+	
+	ld a,b
+	or c
+	jr nz,ReadData
+	inc a ; Set NZ
+	ret
+
+ReadData:
+	push bc
+	call GetByte
+	pop bc
+	ret z
+	ld (de),a
+	inc de
+	dec bc
+	ld a,b
+	or c
+	jr nz,ReadData
+	
+	inc a ; Set NZ
+	ret
+	
 
 .endmodule

@@ -611,6 +611,9 @@ Tape:
 
 	call SkipWhitespace
 	ld a,(hl)
+	and %11011111
+	cp 'B'
+	jr z,TapeBlock
 	push af
 	
 	ld hl,Basic.BBCBASIC_BUFFER
@@ -668,6 +671,48 @@ FinishedTapeDump:
 	
 	ld hl,Basic.BBCBASIC_BUFFER
 	ld (hl),'\r'
+	
+	scf
+	ret
+
+TapeBlock:
+
+	push ix
+
+TapeBlockLoop:
+
+	ld de,(Basic.BBCBASIC_FREE)
+	ld hl,256
+	add hl,de
+	
+	call Tape.GetBlock
+	scf
+	jp z,Host.DeviceFault
+	
+	ld hl,(Basic.BBCBASIC_FREE)
+	inc h
+	call VDU.PutString
+	
+	ld a,' '
+	call VDU.PutChar
+	
+	ld l,(ix+Tape.Header.BlockNumber+0)
+	ld h,(ix+Tape.Header.BlockNumber+1)
+	call VDU.PutDecimalWord
+	
+	ld a,' '
+	call VDU.PutChar
+	
+	ld l,(ix+Tape.Header.CRC+0)
+	ld h,(ix+Tape.Header.CRC+1)
+	call VDU.PutHexWord
+	call VDU.Console.NewLine
+	
+	ld a,(ix+Tape.Header.BlockFlag)
+	add a,a
+	jr nc,TapeBlockLoop
+	
+	pop ix
 	
 	scf
 	ret
