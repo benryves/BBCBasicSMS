@@ -301,6 +301,10 @@ SerialTerminal:
 Catalogue:
 	call SkipWhitespace
 	
+	ld a,(Host.Flags)
+	and 1<<Host.TapeFS
+	jp nz,Catalogue.Tape
+	
 	; Is there an argument?
 	ld a,(hl)
 	or a
@@ -415,6 +419,10 @@ Catalogue.PrintEndOfItem:
 Catalogue.PrintEndOfList:
 	jp VDU.Console.NewLine
 
+Catalogue.Tape:
+	call Tape.Catalogue
+	scf
+	ret
 
 Edit:
 	; We cannot use *EDIT inside a BASIC program!
@@ -608,138 +616,10 @@ FXGotArguments:
 	ret
 
 Tape:
-
-	call SkipWhitespace
-	ld a,(hl)
-	cp '\r'
-	jr nz,+
-	
+	call CheckCommandEnd
 	ld a,(Host.Flags)
 	or 1<<Host.TapeFS
 	ld (Host.Flags),a
-	scf
-	ret
-	
-+:	
-	and %11011111
-	cp 'B'
-	jr z,TapeBlock
-	push af
-	
-	ld hl,Basic.BBCBASIC_BUFFER
-	
--:	call Tape.GetByte
-	jr z,-
-	ld (hl),a
-	inc l
-	jr nz,-
-
-DoneTape:
-
-	pop af
-	cp 'T'
-	ld hl,Basic.BBCBASIC_BUFFER
-	
-	jr z,Tape.ShowText
-	
-
---:	ld b,12	
--:	ld a,(hl)
-	call VDU.PutHexByte
-	ld a, ' '
-	call VDU.PutChar
-	inc l
-	jr z,FinishedTapeDump
-	djnz -
-	call VDU.Console.NewLine
-	jr --
-	jr FinishedTapeDump
-
-Tape.ShowText:
-	
--:	ld a,(hl)
-	call VDU.PutLiteralChar
-	inc l
-	jr z,FinishedTapeDump
-	jr -
-
-FinishedTapeDump:
-	call VDU.Console.NewLine
-	
-	ld hl,0
-	ld de,Basic.BBCBASIC_BUFFER
-	
--:	ld a,(de)
-	ld c,a
-	ld b,0
-	add hl,bc
-	inc e
-	jr nz,-
-	
-	call VDU.PutHexWord
-	call VDU.Console.NewLine
-	
-	ld hl,Basic.BBCBASIC_BUFFER
-	ld (hl),'\r'
-	
-	scf
-	ret
-
-TapeBlock:
-
-	push ix
-
-TapeBlockLoop:
-
-	ld de,(Basic.BBCBASIC_FREE)
-	ld hl,256
-	add hl,de
-	
-	call Tape.GetBlock
-	scf
-	jp z,Host.DeviceFault
-	
-	ld hl,(Basic.BBCBASIC_FREE)
-	inc h
-	call VDU.PutString
-	
-	ld a,' '
-	call VDU.PutChar
-	
-	ld l,(ix+Tape.Header.BlockNumber+0)
-	ld h,(ix+Tape.Header.BlockNumber+1)
-	call VDU.PutDecimalWord
-	
-	ld a,' '
-	call VDU.PutChar
-	
-	
-	ld c,(ix+Tape.Header.DataBlockLength+0)
-	ld b,(ix+Tape.Header.DataBlockLength+1)
-	ld a,b
-	or c
-	jr z,+
-	
-	ld de,(Basic.BBCBASIC_FREE)
-	call Tape.CRC16
-	call VDU.PutHexWord
-	
-	ld a,'='
-	call VDU.PutChar
-	
-	ld l,(ix+Tape.Header.DataCRC+1)
-	ld h,(ix+Tape.Header.DataCRC+0)
-	call VDU.PutHexWord
-	
-	
-+:	call VDU.Console.NewLine
-	
-	ld a,(ix+Tape.Header.BlockFlag)
-	add a,a
-	jr nc,TapeBlockLoop
-	
-	pop ix
-	
 	scf
 	ret
 	
@@ -756,6 +636,7 @@ Commands:
 	osclicommand("DIR", Catalogue)
 	osclicommand(".", Catalogue)
 	osclicommand("EDIT", Edit)
+	osclicommand("E.", Edit)
 	osclicommand("SERIAL", Serial)
 	osclicommand("FX", FX)
 	osclicommand("TAPE", Tape)

@@ -267,7 +267,7 @@ OSLINE:
 
 +:
 	call KeyboardBuffer.CheckKeyboardByPolling
-	call VDU.BeginBlinkingCursor	
+	call VDU.BeginBlinkingCursor
 	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
 	ld d,0 ; D = index into current string.
 

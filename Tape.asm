@@ -12,6 +12,12 @@ InputBit  = 3
 
 HalfWaveLengthThreshold = 18
 
+.define GetFileName          Basic.BBCBASIC_BUFFER+207 ; Pointer to the filename to retrieve.
+.define GetFileAddress       Basic.BBCBASIC_BUFFER+209 ; Pointer to the start address to store the actual file.
+.define GetFileExpectedBlock Basic.BBCBASIC_BUFFER+211 ; 2 byte block number we SHOULD get.
+.define GetFileExpectedName  Basic.BBCBASIC_BUFFER+213 ; 10 character+NUL filename we SHOULD get.
+.define GetFileHeader        Basic.BBCBASIC_BUFFER+224 ; Last-received file header.
+
 Header.LoadAddress      = 0
 Header.ExecutionAddress = 4
 Header.BlockNumber      = 8
@@ -258,6 +264,19 @@ CRC16:
 	ret
 
 ; ---------------------------------------------------------
+; Catalogue -> Shows a list of files.
+; ---------------------------------------------------------
+; Outputs:  nz if there was a protocol/receive error.
+;           if no error, c set if transfer was cancelled.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+Catalogue:
+	ld hl,0
+	ld de,(Basic.BBCBASIC_FREE)
+	ld bc,512
+	; Fall-through.
+
+; ---------------------------------------------------------
 ; GetFile -> Gets a file.
 ; ---------------------------------------------------------
 ; Inputs:   hl = pointer to file name NUL/CR terminated.
@@ -269,67 +288,281 @@ CRC16:
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
 GetFile:
-
 	push ix
+
+	ld (GetFileName),hl
+	ld (GetFileAddress),de
+	ld (PCLink2.TempCapacity),bc
+	ld bc,0
+	ld (PCLink2.TempSize),bc
+	
+	ld a,h
+	or l
+	jr z,TapeSearchFileLoop
+	
+	ld hl,Searching
+	call VDU.PutStringWithNewLines
+	call VDU.Console.FlushPendingScroll
+
+TapeSearchFileLoop:
+	
+	; We always want to start from block 0...
+	ld hl,0
+	ld (GetFileExpectedBlock),hl
+	
+	; ...and always start from the beginning of the available buffer.
+	ld de,(GetFileAddress)
 	ld (PCLink2.TempPtr),de
 
 TapeBlockLoop:
 
+	; Wait for carrier tone.
+
+	call VDU.Console.FlushPendingScroll	
+	call VDU.BeginBlinkingCursor
+
+TapeBlockAwaitCarrier:
+	ei
+	halt
+	call KeyboardBuffer.GetDeviceKey
+	call Host.CheckEscape
+	call VDU.DrawBlinkingCursor
+	
+	ld b,10
+-:	push bc
+	call GetBit
+	pop bc
+	jr z,TapeBlockAwaitCarrier  ; No bit.
+	jr nc,TapeBlockAwaitCarrier ; Zero bit, not carrier.
+	djnz -
+	
+	; If we get this far, we just received a long string of "1" bits in a row.
+	; It's the carrier!
+	call VDU.EndBlinkingCursor
+	
 	ld de,(PCLink2.TempPtr)
-	ld hl,Basic.BBCBASIC_BUFFER
+	ld hl,GetFileHeader
 	
 	call Tape.GetBlock
-	scf
-	jr z,GetFileError
+	jr nz,TapeGotBlock
+
+CRCError:
+
+	ld hl,DataError
+	call VDU.PutStringWithNewLines
+	jr TapeBlockLoop
 	
-	ld hl,Basic.BBCBASIC_BUFFER
+TapeGotBlock:
+	
+	; Are we loading block 0?
+	ld a,(ix+Tape.Header.BlockNumber+0)
+	or (ix+Tape.Header.BlockNumber+1)
+	jr nz,TapeNotLoading
+	
+	; Is it the one we need to load?
+	ld bc,(GetFileName)
+	ld a,b
+	or c
+	jr z,TapeNotLoading
+	
+	; If it's the empty string, always load that.
+	ld a,(bc)
+	cp '\r'
+	jr z,TapeStartLoading
+	
+	ld hl,GetFileHeader
+-:	ld a,(bc)
+	cp '\r'
+	jr nz,+
+	xor a
++:	cp (hl)
+	jr nz,TapeNotLoading
+	or a
+	jr z,TapeStartLoading
+	inc hl
+	inc bc
+	jr -
+	
+TapeStartLoading:
+
+	ld hl,Loading
+	call VDU.PutStringWithNewLines
+	
+	; Blank out the filename to search for to indicate we've found it.
+	ld hl,-1
+	ld (GetFileName),hl
+
+TapeNotLoading:
+	; Print the name of the received block.
+	call VDU.Console.HomeLeft
+	ld hl,GetFileHeader
 	call VDU.PutString
 	
-	ld a,' '
+	; Pad to 11 characters.
+	ld a,GetFileHeader+12
+	sub l
+	
+	ld b,a
+-:	ld a,' '
 	call VDU.PutChar
+	djnz -
 	
-	ld l,(ix+Tape.Header.BlockNumber+0)
-	ld h,(ix+Tape.Header.BlockNumber+1)
-	call VDU.PutDecimalWord
+	; Display the block number in hex.
+	ld a,(ix+Tape.Header.BlockNumber+0)
+	call VDU.PutHexByte
 	
-	ld a,' '
-	call VDU.PutChar
+	; If we're not loading a program, we can ignore the block number check.
+	ld hl,(GetFileName)
+	inc hl
+	ld a,h
+	or l
+	jr nz,GotValidBlockFileName
 	
+	; Is this the right block?
+	ld hl,(GetFileExpectedBlock)
+	ld c,(ix+Tape.Header.BlockNumber+0)
+	ld b,(ix+Tape.Header.BlockNumber+1)
+	or a
+	sbc hl,bc
+	jr z,CorrectBlockNumber
+
+GotWrongBlock:
+	; Zut, the wrong block!
+	ld hl,BlockError
+	call VDU.PutStringWithNewLines
+	jp TapeBlockLoop
+
+CorrectBlockNumber:
+	; bc = old block number, so get ready for the next block number.
+	inc bc
+	ld (GetFileExpectedBlock),bc
 	
+	dec bc
+	ld a,b
+	or c
+	jr nz,CheckBlockFilename
+	
+	; This is our first time around, so remember the block name for next time.
+	push de
+	ld hl,GetFileHeader
+	ld de,GetFileExpectedName
+	ld bc,11
+	ldir
+	pop de
+	jr GotValidBlockFilename
+
+CheckBlockFilename:
+	
+	ld hl,GetFileHeader
+	ld bc,GetFileExpectedName
+-:	ld a,(bc)
+	cp (hl)
+	jr nz,GotWrongBlock
+	or a
+	jr z,GotValidBlockFilename
+	inc hl
+	inc bc
+	jr -
+
+GotValidBlockFilename:
+
+	; Now we can advance the pointer if the block had valid data.
+	
+	; Was there any data in the block?
 	ld c,(ix+Tape.Header.DataBlockLength+0)
 	ld b,(ix+Tape.Header.DataBlockLength+1)
 	ld a,b
 	or c
 	jr z,+
 	
+	; Increment the received size.
+	ld hl,(PCLink2.TempSize)
+	add hl,bc
+	ld (PCLink2.TempSize),hl
+	
+	; Compute the CRC16.
 	push de
 	ld de,(PCLink2.TempPtr)
 	call Tape.CRC16
-	call VDU.PutHexWord
 	pop de
 	
+	ld a,l
+	cp (ix+Tape.Header.DataCRC+1)
+	jp nz,CRCError
+	ld a,h
+	cp (ix+Tape.Header.DataCRC+0)
+	jp nz,CRCError
+	
+.if 0
+	ld a,' '
+	call VDU.PutChar
+	call VDU.PutHexWord
 	ld a,'='
 	call VDU.PutChar
 	
 	ld l,(ix+Tape.Header.DataCRC+1)
 	ld h,(ix+Tape.Header.DataCRC+0)
 	call VDU.PutHexWord
+.endif
 	
+	
++:	
+	; If we're not actively loading a file, reset DE.
+	ld bc,(GetFileName)
+	inc bc
+	ld a,b
+	or c
+	jr z,+
+	ld de,(GetFileAddress)
 +:	ld (PCLink2.TempPtr),de
-	call VDU.Console.NewLine
 	
+	; Is this end of the file?
 	ld a,(ix+Tape.Header.BlockFlag)
 	add a,a
-	jr nc,TapeBlockLoop
+	jp nc,TapeBlockLoop
+	
+	; Show the file size (in hex).
+	ld a,' '
+	call VDU.PutChar
+	ld hl,(PCLink2.TempSize)
+	call VDU.PutHexWord
+	
+	; Always move down at the end of the file.
+	call VDU.Console.NewLine
+	
+	; Is it the actual file we want?
+	ld hl,(GetFileName)
+	ld a,h
+	or a
+	jp z,TapeSearchFileLoop
+	
+	inc hl
+	ld a,h
+	or a
+	jp nz,TapeSearchFileLoop
+	
 	
 	pop ix
 	xor a
-	
 	ret
 
 GetFileError:
+	pop ix
 	xor a
 	inc a
 	ret
+
+Searching:
+.db "Searching\r\r",0
+Loading:
+.db "Loading\r\r",0
+
+DataError:
+.db "\rData?\r",0
+HeaderError:
+.db "\rHeader?\r",0
+BlockError:
+.db "\rBlock?\r",0
+	
 
 .endmodule

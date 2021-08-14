@@ -1107,6 +1107,19 @@ PutString:
 	jr nz,PutString
 
 ; ---------------------------------------------------------
+; PutStringWithNewLines -> Sends a string with embedded
+; newlines to the display.
+; ---------------------------------------------------------
+; Inputs:   hl = pointer to NUL string.
+; Outputs:  hl = points to next string after terminator.
+; Destroys: hl, af.
+; ---------------------------------------------------------
+PutStringWithNewLines:
+-:	call PutString
+	ret z
+	jr -
+
+; ---------------------------------------------------------
 ; PutHexNybble -> Puts a hex nybble (0..F) on the screen.
 ; ---------------------------------------------------------
 ; Inputs:   a = hex nybble (must only be in the range 0..F)
