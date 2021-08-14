@@ -306,9 +306,12 @@ GetFile:
 
 TapeSearchFileLoop:
 	
-	; We always want to start from block 0...
+	; We always want to start from block 0 and a zero-length file.
 	ld hl,0
 	ld (GetFileExpectedBlock),hl
+	
+	ld bc,0
+	ld (PCLink2.TempSize),bc
 	
 	; ...and always start from the beginning of the available buffer.
 	ld de,(GetFileAddress)
@@ -473,7 +476,7 @@ GotValidBlockFilename:
 	ld b,(ix+Tape.Header.DataBlockLength+1)
 	ld a,b
 	or c
-	jr z,+
+	jr z,EmptyBlock
 	
 	; Increment the received size.
 	ld hl,(PCLink2.TempSize)
@@ -486,11 +489,11 @@ GotValidBlockFilename:
 	call Tape.CRC16
 	pop de
 	
-	ld a,l
-	cp (ix+Tape.Header.DataCRC+1)
+	ld a,(ix+Tape.Header.DataCRC+1)
+	cp l
 	jp nz,CRCError
-	ld a,h
-	cp (ix+Tape.Header.DataCRC+0)
+	ld a,(ix+Tape.Header.DataCRC+0)
+	cp h
 	jp nz,CRCError
 	
 .if 0
@@ -503,11 +506,17 @@ GotValidBlockFilename:
 	ld l,(ix+Tape.Header.DataCRC+1)
 	ld h,(ix+Tape.Header.DataCRC+0)
 	call VDU.PutHexWord
+	
+	ld a,'@'
+	call VDU.PutChar
+	push de
+	pop hl
+	call VDU.PutHexWord
 .endif
 	
 	
-+:	
-	; If we're not actively loading a file, reset DE.
+EmptyBlock:	
+	; If we're not actively loading a file (GetFileName=-1), reset DE.
 	ld bc,(GetFileName)
 	inc bc
 	ld a,b
@@ -531,12 +540,12 @@ GotValidBlockFilename:
 	call VDU.Console.NewLine
 	
 	; Is it the actual file we want?
-	ld hl,(GetFileName)
+	ld hl,(GetFileName) ; If filename to get = 0, never return.
 	ld a,h
 	or a
 	jp z,TapeSearchFileLoop
 	
-	inc hl
+	inc hl  ; If filename to get = -1, we have our file!
 	ld a,h
 	or a
 	jp nz,TapeSearchFileLoop
