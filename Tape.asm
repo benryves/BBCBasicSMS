@@ -98,6 +98,7 @@ GetBit.1: ; 2x 2400Hz
 	scf
 	ret
 
+
 ; ---------------------------------------------------------
 ; GetByte -> Gets a byte from the tape.
 ; ---------------------------------------------------------
@@ -107,12 +108,25 @@ GetBit.1: ; 2x 2400Hz
 ; ---------------------------------------------------------
 GetByte:
 	
-	; Get the start bit.
-	call GetBit
+	call GetHalfWaveLength
+	jr z,GetByte
+	
+	ld a,b
+	cp HalfWaveLengthThreshold
+	jr c,GetByte
+	
+	call GetHalfWaveLength
 	ret z
 	
-	jr c,GetByte ; We need a 0!
+	ld a,b
+	cp HalfWaveLengthThreshold
+	jr nc,GotStartBit
 	
+	xor a
+	ret
+	
+GotStartBit:
+
 	; Fetch 8 data bits.
 	ld bc,8<<8
 	
@@ -151,12 +165,24 @@ GetByte:
 GetBlock:
 	
 	; Wait for the synchronisation byte.
+	ld b,0
 -:	push bc
 	call GetByte
 	pop bc
-	jr z,-
-	cp $2A
-	jr nz,-
+	jr nz,+
+	djnz -
+	
+	xor a ; Timed out
+	ret
+
++:	cp $2A
+	jr z,+
+	
+	; Not the synchronisation byte.
+	xor a
+	ret
+	
++:
 	
 	; Now read the header!
 
@@ -331,7 +357,7 @@ TapeBlockAwaitCarrier:
 	call Host.CheckEscape
 	call VDU.DrawBlinkingCursor
 	
-	ld b,10
+	ld b,30
 -:	push bc
 	call GetBit
 	pop bc
@@ -348,6 +374,7 @@ TapeBlockAwaitCarrier:
 	
 	call Tape.GetBlock
 	jr nz,TapeGotBlock
+	jr TapeBlockLoop
 
 CRCError:
 
