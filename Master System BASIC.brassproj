@@ -1,24 +1,26 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <brassproject version="3">
-
 	
 	<plugins>
+		<collection source="Core.dll" />
+		<collection source="Z80.dll" />
+		<collection source="Sega.dll" />
 		<collection source="Scripting.dll" />
 	</plugins>
-
-	<template source="SMS/32KB.brassproj" />
 	
-	<debugger name="externalprogram" />
+	<buildconfiguration name="SMS" displayname="Sega Master System Computer">
+		<output writer="smsrom" extension="smsc" />
+	</buildconfiguration>
 	
-	<output extension="smsc" />
-	
-	<input source="Main.asm">
+	<input assembler="z80" source="Main.asm">
 		<label name="Program.Version" type="number" value="1.0" />
 		<label name="Program.Name" type="string" value="Master System BASIC" />
 		<label name="Program.Author" type="string" value="Ben Ryves" />
 		<label name="Program.Notes" type="string" value="BBC BASIC for the Sega Master System" />
-		<label name="Debugger.Path" type="string" value="D:\Documents\Documents\GitHub\Cogwheel\Cogwheel SlimDX\bin\Release\Cogwheel Interface.exe" />
-		<label name="Debugger.Args" type="string" value="&quot;$(TargetPath)&quot;" />
+		<label name="Debugger.Path" type="string" value="cmd.exe" />
+		<label name="Debugger.Args" type="string" value="/c &quot;&quot;$(OutDir)/Debugger.cmd&quot; &quot;$(TargetPath)&quot;&quot;" />
 	</input>
+	
+	<debugger name="externalprogram" />
 	
 </brassproject>

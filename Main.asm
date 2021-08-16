@@ -1,4 +1,7 @@
-﻿; Script
+﻿.sdsctag Program.Version, Program.Name, Program.Notes, Program.Author
+.defpage 0, kb(32), 0
+
+; Script
 .incscript "Scripts.cs"
 
 ; Resources
