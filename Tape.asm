@@ -108,14 +108,28 @@ GetBit.1: ; 2x 2400Hz
 ; ---------------------------------------------------------
 GetByte:
 	
-	call GetHalfWaveLength
-	jr z,GetByte
+	ld b,20
 	
+-:	push bc
+	call GetHalfWaveLength
 	ld a,b
-	cp HalfWaveLengthThreshold
-	jr c,GetByte
+	pop bc
 	
-	call GetHalfWaveLength
+	jr nz,+
+	djnz -
+	
+	xor a
+	ret
+	
++:	cp HalfWaveLengthThreshold
+	jr nc,+
+
+	djnz -
+	xor a
+	ret
+
+
++:	call GetHalfWaveLength
 	ret z
 	
 	ld a,b
