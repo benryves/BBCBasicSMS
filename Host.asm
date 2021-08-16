@@ -2273,4 +2273,86 @@ PUTPTR:
 GETEXT:
 	jp SORRY
 
+
+
+; ==========================================================================
+; GetSafeScratchMemory
+; --------------------------------------------------------------------------
+; Gets a safe pointer to a free block of memory for temporary usage.
+; --------------------------------------------------------------------------
+; Inputs:    BC: Amount of memory required.
+; Outputs:   F: Carry set if there's not enough space.
+;            HL: Address of allocated memory.
+; Destroyed: AF, BC HL.
+; Interupts: Enabled.
+; ==========================================================================
+GetSafeScratchMemory:
+	push de
+	
+	; Get the free memory pointer in DE.
+	; If it's < $C000 move it up to $8000 so it's always in work RAM.
+	; (If it's < $C000 in cartridge RAM, which can be paged out!)
+	ld de,(Basic.BBCBASIC_FREE)
+	ld a,d
+	cp $C0
+	jr nc,+
+	ld de,$C000
++:	
+	
+	; Where is SP?
+	ld hl,0
+	add hl,sp
+	
+	; Is there enough room between DE and SP?
+	or a
+	sbc hl,de
+	jr c,+
+	
+	; HL = free memory, is that bigger than BC?
+	sbc hl,bc
+
++:	ex de,hl
+	pop de
+	ret
+
+; ==========================================================================
+; GetSafeScratchMemoryHL
+; --------------------------------------------------------------------------
+; Gets a safe pointer to a free block of memory for temporary usage. This
+; is similar to GetSafeScratchMemory but takes the amount of free memory
+; in HL.
+; --------------------------------------------------------------------------
+; Inputs:    HL: Amount of memory required.
+; Outputs:   F: Carry set if there's not enough space.
+;            HL: Address of allocated memory.
+; Destroyed: AF, HL.
+; Interupts: Enabled.
+; ==========================================================================
+GetSafeScratchMemoryHL:
+	push bc
+	ld b,h
+	ld c,l
+	call GetSafeScratchMemory
+	pop bc
+	ret
+
+; ==========================================================================
+; GetSafeScratchMemoryDE
+; --------------------------------------------------------------------------
+; Gets a safe pointer to a free block of memory for temporary usage. This
+; is similar to GetSafeScratchMemory but takes the amount of free memory
+; in DE and returns the address in DE.
+; --------------------------------------------------------------------------
+; Inputs:    DE: Amount of memory required.
+; Outputs:   F: Carry set if there's not enough space.
+;            DE: Address of allocated memory.
+; Destroyed: AF, HL.
+; Interupts: Enabled.
+; ==========================================================================
+GetSafeScratchMemoryDE:
+	ex de,hl
+	call GetSafeScratchMemoryHL
+	ex de,hl
+	ret
+
 .endmodule

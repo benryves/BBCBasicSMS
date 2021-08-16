@@ -314,9 +314,15 @@ Scroll:
 	inc a
 	ld b,a
 	
-	; We'll store the top row in BASIC's FREE memory.
-	ld de,(Basic.BBCBASIC_FREE)
+	; We'll store the top row on the stack.
+	di
+	ex de,hl
+	ld hl,-32 ; Leave enough room for a regular stack.
+	add hl,sp
+	ex de,hl
+	
 	push de
+	
 	push bc
 	push bc
 	push hl
@@ -326,23 +332,21 @@ Scroll:
 	ld b,c	
 -:	in a,(Video.Data) ; 11
 	ld (de),a         ; 12
-	inc de            ; 6
+	dec de            ; 6
 	djnz -            ; 12 <- 41.
 	
 	
 	pop hl
 	pop bc
-	ld (Basic.BBCBASIC_FREE),de
 	
 	; We'll be moving row by row.
 	ld de,64
 	
 	call Console.ScrollBlockNoClear
 	
-	; Restore column/row count and FREE
+	; Restore column/row count and place we stored the top row.
 	pop bc
 	pop de
-	ld (Basic.BBCBASIC_FREE),de
 	
 	; HL -> bottom row.
 	call Video.SetWriteAddress
@@ -350,7 +354,7 @@ Scroll:
 	ld b,c
 -:	ld a,(de)
 	out (Video.Data),a
-	inc de
+	dec de
 	djnz -
 	
 	; Now, the slow bit: clear the bottom row.
@@ -365,7 +369,6 @@ Scroll:
 	pop hl
 	pop de
 	pop bc
-	ei
 	ret
 	
 ; ---------------------------------------------------------
@@ -786,7 +789,8 @@ GetUserDefinedCharacter:
 	ret nc
 		
 	call Video.SetReadAddress
-	ld hl,(Basic.BBCBASIC_FREE)
+	ld hl,8
+	call Host.GetSafeScratchMemoryHL
 	push hl
 	ld b,8
 	

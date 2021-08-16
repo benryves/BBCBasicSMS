@@ -312,7 +312,9 @@ CRC16:
 ; ---------------------------------------------------------
 Catalogue:
 	ld hl,0
-	ld de,(Basic.BBCBASIC_FREE)
+	ld de,256
+	call Host.GetSafeScratchMemoryDE
+	ret c
 	ld bc,512
 	; Fall-through.
 

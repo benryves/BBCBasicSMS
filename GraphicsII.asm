@@ -449,7 +449,8 @@ GetUserDefinedCharacter:
 	ret nc
 		
 	call Video.SetReadAddress
-	ld hl,(Basic.BBCBASIC_FREE)
+	ld hl,8
+	call Host.GetSafeScratchMemoryHL
 	push hl
 	ld b,8
 	

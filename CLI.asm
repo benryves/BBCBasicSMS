@@ -431,14 +431,10 @@ Edit:
 	push hl
 	push de
 	ld hl,0
-	ld de,(Basic.BBCBASIC_FREE)
-	or a
-	sbc hl,de	
-	add hl,sp
 	ld de,384
-	or a
-	sbc hl,de
+	call Host.GetSafeScratchMemoryDE
 	jp c,NoRoom
+	ld (TempPtr),de
 	pop de
 	pop hl
 	
@@ -452,8 +448,7 @@ Edit:
 	call VDU.Console.FlushPendingScroll
 	
 	; Store the *EDIT line number in BASIC's free memory.
-	ld de,(Basic.BBCBASIC_FREE)
-	ld (TempPtr),de
+	ld de,(TempPtr)
 -:	ld a,(hl)
 	ldi
 	cp '\r'
@@ -474,7 +469,7 @@ Edit.OSLINE.List:
 	
 	; Copy the line number
 	ex de,hl
-	ld hl,(Basic.BBCBASIC_FREE)
+	ld hl,(TempPtr)
 -:	ld a,(hl)
 	ldi
 	cp '\r'
@@ -532,7 +527,9 @@ Edit.OSLINE.Edit:
 	push de
 	
 	; Read LISTed line from memory.
-	ld hl,(Basic.BBCBASIC_FREE)
+	ld hl,384
+	call Host.GetSafeScratchMemoryHL
+	jp c,NoRoom
 	call SkipWhitespace
 -:	ld a,(hl)
 	ldi

@@ -161,6 +161,7 @@ FlushPendingScroll:
 	pop de
 	pop bc
 +:	pop af
+	ei
 	ret
 	
 ClearPendingScroll:
@@ -208,7 +209,7 @@ ScrollBlockNoClear:
 ; Destroys: af, hl, de, bc.
 ; ---------------------------------------------------------
 ScrollBlock:
-	
+		
 	xor a
 
 ScrollBlockSetNZ:
@@ -225,18 +226,21 @@ ScrollBlockRow:
 	
 	; Copy one row.
 	call Video.SetReadAddress
-	ld hl,(Basic.BBCBASIC_FREE)
+	
+	ld hl,64
+	call Host.GetSafeScratchMemoryHL
+	jr c,+
 	
 	ld b,c
 -:	in a,(Video.Data) ; 11
 	ld (hl),a         ; 7
 	inc hl            ; 6
 	djnz -            ; 12 <- 36
+
++:
 	
 	pop bc
 	pop hl
-	
-	ei
 	
 	; Write back to the row above.
 	push hl
@@ -246,18 +250,22 @@ ScrollBlockRow:
 	sbc hl,de
 	
 	call Video.SetWriteAddress
-	ld hl,(Basic.BBCBASIC_FREE)
+	
+	ld hl,64
+	call Host.GetSafeScratchMemoryHL
+	jr c,+
 	
 	ld b,c
 -:	ld a,(hl)          ; 7
 	out (Video.Data),a ; 11
 	inc hl             ; 6
 	djnz -             ; 12 <- 36
-	
+
++:
+
 	pop bc
 	pop hl
 	
-	ei
 	djnz ScrollBlockRow
 
 ClearBottomRow:
@@ -274,8 +282,7 @@ ClearBottomRow:
 	nop                 ; 4
 	djnz -              ; 12 <- 34
 
-+:	ei
-	ret
++:	ret
 
 ; ---------------------------------------------------------
 ; BeginBlinkingCursor -> Prepare to draw blinking cursor.
