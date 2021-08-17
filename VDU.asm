@@ -58,16 +58,16 @@ Stub:
 	.include "Text.asm"
 ;	.include "TextDoubleHeight.asm"
 ;	.include "GraphicsII.asm"
-;	.include "MasterSystem16Colours.asm"
+	.include "MasterSystem16Colours.asm"
 ;	.include "MasterSystem4Colours.asm"
 ;	.include "MasterSystem2Colours.asm"
 
-	Count = 1
+	Count = 2
 	
 	Vectors:
 		.dw Text.Vectors                     ; MODE 0
 ;		.dw MasterSystem4Colours.Functions   ; MODE 1
-;		.dw MasterSystem16Colours.Functions  ; MODE 2
+		.dw MasterSystem16Colours.Vectors    ; MODE 2
 ;		.dw GraphicsII.Functions             ; MODE 3
 ;		.dw MasterSystem2Colours.Functions   ; MODE 4
 ;		.dw MasterSystem4Colours.Functions   ; MODE 5

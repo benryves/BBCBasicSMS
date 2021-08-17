@@ -25,6 +25,22 @@ NameTablePtr = TempTile+0
 NameTableEntry = TempTile+2
 PatternGeneratorPtr = TempTile+4
 
+Execute:
+	or a \ jr z,Initialise
+	dec a \ ret z
+	dec a \ ret z
+	dec a \ ret z
+	dec a \ jp z,Scroll
+	dec a \ ret z
+	dec a \ jp z,SetUserDefinedCharacter
+	dec a \ jp z,PreserveUnderCursor
+	dec a \ jp z,RestoreUnderCursor
+	dec a \ jp z,SelectPalette
+	dec a \ ret z
+	dec a \ ret z
+	dec a \ ret z
+	ret
+
 Initialise:
 
 	; Load the font.
@@ -61,7 +77,7 @@ LoadCharRow:
 	
 	; Callback jump.
 	ld a,$C3
-	ld (ManipulatePixelBitmask),a
+	ld (Driver.ManipulatePixelBitmask),a
 
 	ret
 	
@@ -220,10 +236,10 @@ BeginPlot:
 
 BeginPlotSolid:
 	ld a,$C3 ; JP
-	ld (ManipulatePixelBitmask),a
+	ld (Driver.ManipulatePixelBitmask),a
 	ld de,PlotOperators
 	add hl,de
-	ld de,ManipulatePixelBitmask+1
+	ld de,Driver.ManipulatePixelBitmask+1
 	ldi
 	ldi
 	ret	
@@ -231,7 +247,7 @@ BeginPlotSolid:
 BeginPlotPattern:
 	ld de,PatternPlotOperators
 	add hl,de
-	ld de,ManipulatePixelBitmask
+	ld de,Driver.ManipulatePixelBitmask
 	ldi
 	ldi
 	ld a,$C9
@@ -461,7 +477,7 @@ PatternFill:
 	
 	; The filler only does a single bitplane at a time.
 	in a,(Video.Data)
-	call ManipulatePixelBitmask
+	call Driver.ManipulatePixelBitmask
 	ld (hl),a
 	inc hl
 	
@@ -485,7 +501,7 @@ SolidColour:
 	ld a,(Graphics.PlotColour)
 	ld c,a
 	ld b,4
-	call ManipulatePixelBitmask
+	call Driver.ManipulatePixelBitmask
 
 GeneratedTileRow:
 	
@@ -590,8 +606,7 @@ ManipulatePixelBitmaskORNOT: ; GCOL 7,<c>
 ; ---------------------------------------------------------
 ; SelectPalette -> Selects the palette.
 ; ---------------------------------------------------------
-; Inputs:   a = "physical" colour (from BBC BASIC palette).
-;           b = "physical" colour.
+; Inputs:   b = "physical" colour (from BBC BASIC palette).
 ;           c = logical colour.
 ;           hl = pointer to RGB colour (if applicable).
 ; Destroys: af, hl, bc.
@@ -616,12 +631,13 @@ SelectPalette:
 ; ParsePaletteCommand -> Converts a palette command into
 ;                        a CRAM colour value.
 ; ---------------------------------------------------------
-; Inputs:   a = "physical" colour (from BBC BASIC palette).
+; Inputs:   b = "physical" colour (from BBC BASIC palette).
 ;           hl = pointer to RGB colour (if applicable).
 ; Outputs:  a = CRAM colour value in 00bbggrr form.
 ; Destroys: af, hl, bc.
 ; ---------------------------------------------------------
 ParsePaletteCommand:
+	ld a,b
 	; We need the palette in BGR order.
 	inc hl
 	inc hl
@@ -695,6 +711,7 @@ RestoreUnderCursor:
 	ret
 
 SetUserDefinedCharacter:
+	ld a,c
 
 	cp 11
 	jp z,SetDefaultFillPatterns
