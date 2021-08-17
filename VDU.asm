@@ -1,3 +1,9 @@
+; ==========================================================================
+; VDU
+; --------------------------------------------------------------------------
+; Provides a library of routines for displaying text and graphics on the
+; screen.
+; ==========================================================================
 .module VDU
 
 ; Temporary storage for a single 8x8 tile.
@@ -9,150 +15,72 @@ GraphicalText = 0
 FontTileIndex = 0
 FontCharOffset = FontTileIndex-' '
 
+CommandQueue.Capacity = 10
+CommandQueue = allocVar(CommandQueue.Capacity)
+CommandQueue.Waiting = allocVar(1)
+
 FieldRate = allocVar(1)
 
 ; Dependencies
 .include "Console.asm"
 .include "Graphics.asm"
 
-; Mode driver functions.
-Function.End = 0
-Function.Initialise = 1
-Function.PutMap = 2
-Function.Scroll = 3
-Function.BeginPlot = 4
-Function.SetAlignedHorizontalLineSegment = 5
-Function.SetUserDefinedCharacter = 6
-Function.GetUserDefinedCharacter = 7
-Function.ResetConsoleViewport = 8
-Function.SelectPalette = 9
-Function.SelectDefaultPalette = 10
-Function.PreserveUnderCursor = 11
-Function.RestoreUnderCursor = 12
+; Vectors usable by graphics drivers.
+Driver.Vectors                         = allocVar(0)
+Driver.Execute                         = allocVar(3)
+Driver.PutMap                          = allocVar(3)
+Driver.BeginPlot                       = allocVar(3)
+Driver.SetAlignedHorizontalLineSegment = allocVar(3)
+Driver.ManipulatePixelBitmask          = allocVar(3)
+Driver.ManipulatePixelColour           = allocVar(3)
+Driver.Vectors.Length                  = allocVar(0) - Driver.Vectors
 
-Functions.Count = 12
-FunctionVectors = allocVar(Functions.Count * 3)
+Driver.Execute.Reset = 0
+Driver.Execute.ScrollRight = 1
+Driver.Execute.ScrollLeft = 2
+Driver.Execute.ScrollDown = 3
+Driver.Execute.ScrollUp = 4
+Driver.Execute.GetUserDefinedCharacter = 5
+Driver.Execute.SetUserDefinedCharacter = 6
+Driver.Execute.GetCursorArea = 7
+Driver.Execute.SetCursorArea = 8
+Driver.Execute.SelectPalette = 9
+Driver.Execute.ResetPalette = 10
+Driver.Execute.ResetConsoleViewport = 11
+Driver.Execute.ResetGraphicsViewport = 12
 
-.function VDUFunctionAddress(function)
-	VDUFunctionAddress = FunctionVectors + 3 * (function - 1)
-.endfunction
+Stub:
+	ret
 
 ; Mode files
 .module Modes
 
-	; Vectors usable by graphics drivers.
-	ManipulatePixelBitmask = allocVar(3)
-	ManipulatePixelColour = allocVar(3)
-
 	.include "Text.asm"
-	.include "TextDoubleHeight.asm"
-	.include "GraphicsII.asm"
-	.include "MasterSystem16Colours.asm"
-	.include "MasterSystem4Colours.asm"
-	.include "MasterSystem2Colours.asm"
+;	.include "TextDoubleHeight.asm"
+;	.include "GraphicsII.asm"
+;	.include "MasterSystem16Colours.asm"
+;	.include "MasterSystem4Colours.asm"
+;	.include "MasterSystem2Colours.asm"
 
-	Count = 8
+	Count = 1
 	
-	Functions:
-		.dw Text.Functions                   ; MODE 0
-		.dw MasterSystem4Colours.Functions   ; MODE 1
-		.dw MasterSystem16Colours.Functions  ; MODE 2
-		.dw GraphicsII.Functions             ; MODE 3
-		.dw MasterSystem2Colours.Functions   ; MODE 4
-		.dw MasterSystem4Colours.Functions   ; MODE 5
-		.dw Text.Functions                   ; MODE 6
-		.dw TextDoubleHeight.Functions       ; MODE 7
+	Vectors:
+		.dw Text.Vectors                     ; MODE 0
+;		.dw MasterSystem4Colours.Functions   ; MODE 1
+;		.dw MasterSystem16Colours.Functions  ; MODE 2
+;		.dw GraphicsII.Functions             ; MODE 3
+;		.dw MasterSystem2Colours.Functions   ; MODE 4
+;		.dw MasterSystem4Colours.Functions   ; MODE 5
+;		.dw Text.Functions                   ; MODE 6
+;		.dw TextDoubleHeight.Functions       ; MODE 7
 
 
 .endmodule
 
-Console.PutMap = VDUFunctionAddress(Function.PutMap)
-Scroll = VDUFunctionAddress(Function.Scroll)
-BeginPlot = VDUFunctionAddress(Function.BeginPlot)
-SetAlignedHorizontalLineSegment = VDUFunctionAddress(Function.SetAlignedHorizontalLineSegment)
-SetUserDefinedCharacter = VDUFunctionAddress(Function.SetUserDefinedCharacter)
-GetUserDefinedCharacter = VDUFunctionAddress(Function.GetUserDefinedCharacter)
-ResetConsoleViewport = VDUFunctionAddress(Function.ResetConsoleViewport)
-SelectPalette = VDUFunctionAddress(Function.SelectPalette)
-SelectDefaultPalette = VDUFunctionAddress(Function.SelectDefaultPalette)
-PreserveUnderCursor = VDUFunctionAddress(Function.PreserveUnderCursor)
-RestoreUnderCursor = VDUFunctionAddress(Function.RestoreUnderCursor)
-
-LoadModeFunctions:
-	
-	push hl
-	push de
-	push bc
-	
-	push hl
-	
-	ld hl,FunctionVectors
-	ld de,FunctionVectors+1
-	ld bc,(Functions.Count*3)-1
-	ld a,$C9 ; RET
-	ld (hl),a
-	ldir
-	
-	pop hl
-	
-	jr LoadFunctionLoop
-
-AppendModeFunctions:
-
-	push hl
-	push de
-	push bc
-	
-LoadFunctionLoop:
-	ld a,(hl)
-	
-	or a
-	jr z,LoadedAllFunctions
-	
-	add a,a
-	add a,(hl)
-	ld e,a
-	ld d,0
-	
-	push hl
-	ld hl,FunctionVectors-3
-	add hl,de
-	ex de,hl
-	pop hl
-	
-	ld a,$C3 ; JP
-	ld (de),a
-	
-	inc hl
-	inc de
-	
-	ldi
-	ldi
-	
-	jr LoadFunctionLoop
-	
-LoadedAllFunctions:	
-
-	pop bc
-	pop de
-	pop hl
-	
-	ret
-
-DefaultFunctions:
-	.db Function.ResetConsoleViewport \ .dw DefaultResetConsoleViewport
-	.db Function.SelectDefaultPalette \ .dw DefaultSelectDefaultPalette
-	.db Function.End
-
 ; Font data
 .module Fonts
-
-	Font8x8:
-	.incbin "Font8x8.bin"
-
-	Font6x8:
-	.incbin "Font6x8.bin"
-
+	Font8x8: .incbin "Font8x8.bin"
+	Font6x8: .incbin "Font6x8.bin"
 .endmodule
 
 ; Palette data
@@ -242,20 +170,57 @@ ConvertSegaMasterSystemToTMS9918A:
 	pop hl
 	ret
 
-
 .endmodule
 
-; Mode-specific vectors.
-CommandQueue.Capacity = 10
-
-CommandQueue = allocVar(CommandQueue.Capacity)
-CommandQueue.Waiting = allocVar(1)
-
+; ==========================================================================
+; Reset
+; --------------------------------------------------------------------------
+; Resets the VDU system to its default mode and configuration.
+; --------------------------------------------------------------------------
+; Destroyed: AF, BC, DE, HL.
+; Interupts: Enabled.
+; ==========================================================================
 Reset:
 	ld a,7
+	; Fall-through.
+
+; ==========================================================================
+; SetMode
+; --------------------------------------------------------------------------
+; Switches to a particular VDU mode, resets the palette, clears and resets
+; the text and graphics viewports to their default states.
+; --------------------------------------------------------------------------
+; Inputs:    A: Desired mode number.
+; Destroyed: AF, BC, DE, HL.
+; Interupts: Enabled.
+; ==========================================================================
 SetMode:
 	di
-	push af
+
+	; Make sure the mode number is in range.	
+-:	cp Modes.Count
+	jr c,+
+	sub Modes.Count
+	jr -
++:
+	
+	; We'll need to load the vectors to the mode-specific functions.
+	ld l,a
+	ld h,0
+	add hl,hl
+	
+	ld de,Modes.Vectors
+	add hl,de
+	
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	
+	ex de,hl
+	
+	ld de,Driver.Vectors
+	ld bc,Driver.Vectors.Length
+	ldir
 	
 	; Reset all video settings to their defaults.
 	call Video.Reset
@@ -281,20 +246,21 @@ SetMode:
 	jr z,+
 	ld a,60
 	ld (FieldRate),a
-+:
++:	
 	
-	pop af
-	
-	; Mode-specific initialisation.
-	call SetModeInitialize
+	; Initialise the driver.
+	ld a,Driver.Execute.Reset
+	call Driver.Execute
 	
 	; Reset colours to their defaults.
 	call ResetColoursCommand
 	
 	; Set character 255 to the block graphic.
-	ld a,255
+	ld c,255
 	ld hl,Fonts.Font8x8+(127+FontCharOffset)*8
-	call SetUserDefinedCharacter
+	
+	ld a,Driver.Execute.SetUserDefinedCharacter
+	call Driver.Execute
 	
 	; Reset console and graphics now the mode is loaded.
 	call Console.Reset
@@ -320,34 +286,6 @@ SetMode:
 	ld (FieldRate),a
 	
 	ei
-	
-Stub:
-	ret
-
-SetModeInitialize:
-	cp Modes.Count
-	jr c,+
-	sub Modes.Count
-	jr SetModeInitialize
-+:
-	
-	push af
-	ld hl,DefaultFunctions
-	call LoadModeFunctions
-	pop af
-	
-	add a,a
-	ld e,a
-	ld d,0
-	ld hl,Modes.Functions
-	add hl,de
-	ld e,(hl)
-	inc hl
-	ld d,(hl)
-	ex de,hl
-	
-	call AppendModeFunctions
-	call FunctionVectors
 	ret
 
 ; ---------------------------------------------------------
@@ -504,7 +442,7 @@ PutMap:
 	jr nz,+
 	ld a,' '
 +:
-	call Console.PutMap
+	call Driver.PutMap
 	scf
 	ret
 	
@@ -578,7 +516,7 @@ TextViaConsoleCommand:
 TextViaGraphicsCommand:
 	; Check to see if there's a SetAlignedHorizontalLineSegment routine.
 	; If not, assume we can't use VDU 5.
-	ld a,(SetAlignedHorizontalLineSegment)
+	ld a,(Driver.SetAlignedHorizontalLineSegment)
 	cp $C9
 	ret z
 	ld a,(Flags)
@@ -710,9 +648,9 @@ GraphicsColour.Background:
 ; ========================================================================================
 SelectPaletteCommand:
 	ld bc,(VDUQ(0, 5)) ; C = logical colour, B = physical colour.
-	ld a,b ; A = "actual" :)
 	ld hl,VDUQ(2, 5) ; hl -> RGB colour.
-	call SelectPalette
+	ld a,Driver.Execute.SelectPalette
+	call Driver.Execute
 	ret	
 
 ; ========================================================================================
@@ -730,7 +668,8 @@ ResetColoursCommand:
 	ld (Console.Colour),a
 	ld (Graphics.ForegroundColour),a
 	
-	call SelectDefaultPalette
+	ld a,Driver.Execute.ResetPalette
+	call Driver.Execute
 	ret
 
 DefaultSelectDefaultPalette:
@@ -763,15 +702,17 @@ ModeCommand:
 UserCommand:
 	ld a,(VDUQ(0, 9))
 	
+	ld c,a
 	or a
 	jr z,CRTC
 	
 	dec a
 	jr z,CursorControl
-	inc a
 	
 	ld hl,VDUQ(1, 9)
-	call SetUserDefinedCharacter
+	
+	ld a,Driver.Execute.SetUserDefinedCharacter
+	call Driver.Execute
 	
 	ei
 	ret
@@ -1321,25 +1262,7 @@ PutDecimalByteSub10:
 	pop bc
 	pop af
 	ret
-	
-DefaultResetConsoleViewport:
-	
-	xor a
-	ld (Console.MinRow),a
-	ld a,23
-	ld (Console.MaxRow),a
-	inc a
-	ld (Console.MaxHeight),a
-	
-	ld a,2
-	ld (Console.MinCol),a
-	ld a,29
-	ld (Console.MaxCol),a
-	ld a,32
-	ld (Console.MaxWidth),a
-	
-	ret
-	
+
 ; ---------------------------------------------------------
 ; GetCharacterData -> Gets a pointer to pixel data for a
 ; particular character.
@@ -1351,8 +1274,10 @@ DefaultResetConsoleViewport:
 GetCharacterData:
 	push de
 	push af
-	or a
-	call GetUserDefinedCharacter
+	
+	ld c,a
+	ld a,Driver.Execute.GetUserDefinedCharacter
+	call Driver.Execute
 	jr c,GotCharacterData
 	
 	pop af

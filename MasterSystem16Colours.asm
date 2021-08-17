@@ -1,5 +1,11 @@
 .module MasterSystem16Colours
 
+Vectors:
+	jp Execute
+	jp PutMap
+	jp BeginPlot
+	jp SetAlignedHorizontalLineSegment
+
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1536 bytes
 FillPatterns     = $3E00 ; 32 bytes
@@ -18,18 +24,6 @@ MaxGraphicsTile = 448 ; +1
 NameTablePtr = TempTile+0
 NameTableEntry = TempTile+2
 PatternGeneratorPtr = TempTile+4
-
-Functions:
-	.db Function.Initialise \ .dw Initialise
-	.db Function.PutMap \ .dw PutMap
-	.db Function.Scroll \ .dw Scroll
-	.db Function.BeginPlot \ .dw BeginPlot
-	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
-	.db Function.SelectPalette \ .dw SelectPalette
-	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
-	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
-	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
-	.db Function.End
 
 Initialise:
 

@@ -1,5 +1,11 @@
 .module MasterSystem2Colours
 
+Vectors:
+	jp Execute
+	jp PutMap
+	jp BeginPlot
+	jp SetAlignedHorizontalLineSegment
+
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1536 bytes
 FillPatterns     = $3E00 ; 32 bytes

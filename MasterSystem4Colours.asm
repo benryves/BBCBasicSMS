@@ -1,5 +1,11 @@
 .module MasterSystem4Colours
 
+Vectors:
+	jp Execute
+	jp PutMap
+	jp BeginPlot
+	jp SetAlignedHorizontalLineSegment
+
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1536 bytes
 FillPatterns     = $3E00 ; 32 bytes
@@ -12,20 +18,6 @@ MaxGraphicsTile  = 384   ; +1
 UserDefinedChars = PatternGenerator + MaxGraphicsTile * 32
 EndOfUserDefinedChars = NameTable
 UserDefinedCharCount = (EndOfUserDefinedChars - UserDefinedChars) / 8
-
-Functions:
-	.db Function.Initialise \ .dw Initialise
-	.db Function.PutMap \ .dw PutMap
-	.db Function.Scroll \ .dw Scroll
-	.db Function.BeginPlot \ .dw MasterSystem16Colours.BeginPlot
-	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
-	.db Function.SelectPalette \ .dw SelectPalette
-	.db Function.SelectDefaultPalette \ .dw SelectDefaultPalette
-	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
-	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
-	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
-	.db Function.GetUserDefinedCharacter \ .dw GetUserDefinedCharacter
-	.db Function.End
 
 Initialise:
 	

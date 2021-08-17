@@ -377,7 +377,7 @@ Plot.SelectedColour:
 
 	; Ensure the graphics mode driver is set up to plot.
 	ld a,l
-	call BeginPlot
+	call Driver.BeginPlot
 
 	; Check if the plot shape is out of bounds.
 	; Note that we must do this down here, not earlier, so the Plot handler
@@ -662,7 +662,7 @@ SetPixel:
 	cpl
 	ld l,a
 
-	jp SetAlignedHorizontalLineSegment
+	jp Driver.SetAlignedHorizontalLineSegment
 
 ; ---------------------------------------------------------
 ; PlotTransformedHorizontalSpan -> Plots a horizontal span
@@ -683,7 +683,7 @@ PlotTransformedHorizontalSpan:
 	
 	; At this point, x = (d <= h); y = e; l = number of pixels.
 	
-	ld a,(SetAlignedHorizontalLineSegment)
+	ld a,(Driver.SetAlignedHorizontalLineSegment)
 	cp $C9
 	jr z,NoSetAlignedHorizontalLineSegment
 	
@@ -728,7 +728,7 @@ PlotTransformedHorizontalSpan:
 	ld h,c
 	ld l,a
 	
-	call SetAlignedHorizontalLineSegment
+	call Driver.SetAlignedHorizontalLineSegment
 	ei
 	
 	pop hl
@@ -748,7 +748,7 @@ PlotTransformedHorizontalSpan:
 	push de
 	push bc
 	ld hl,$FF00
-	call SetAlignedHorizontalLineSegment
+	call Driver.SetAlignedHorizontalLineSegment
 	ei
 	pop bc
 	pop de
@@ -779,7 +779,7 @@ NoFullMiddleSegments:
 	ld h,c
 	ld l,a
 	
-	call SetAlignedHorizontalLineSegment
+	call Driver.SetAlignedHorizontalLineSegment
 	ei
 	pop hl
 	pop de
@@ -841,7 +841,7 @@ PutMap.Delete:
 
 PutMap.BeginPlot:
 	ld a,l
-	call BeginPlot
+	call Driver.BeginPlot
 	
 	ld b,1
 	call TransformPoints
@@ -1222,7 +1222,7 @@ PlotTransformedSprite.Loop:
 	
 	push de
 	push bc
-	call SetAlignedHorizontalLineSegment
+	call Driver.SetAlignedHorizontalLineSegment
 	pop bc
 	pop de
 	
@@ -1252,7 +1252,7 @@ PlotTransformedSprite.Loop:
 	ld a,d
 	add a,8
 	ld d,a
-	call SetAlignedHorizontalLineSegment
+	call Driver.SetAlignedHorizontalLineSegment
 	pop bc
 	pop de
 
@@ -1304,7 +1304,7 @@ Clear:
 	
 	; Load the plot mode.
 	ld a,l
-	call BeginPlot
+	call Driver.BeginPlot
 	
 	jr PlotTransformedRectangle
 

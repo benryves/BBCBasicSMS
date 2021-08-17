@@ -1,17 +1,23 @@
 .module Text
 
-Functions:
-	.db Function.Initialise \ .dw Initialise
-	.db Function.PutMap \ .dw PutMap
-	.db Function.Scroll \ .dw Scroll
-	.db Function.ResetConsoleViewport \ .dw ResetConsoleViewport
-	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
-	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
-	.db Function.SelectPalette \ .dw SelectPalette
-	.db Function.SelectDefaultPalette \ .dw SelectDefaultPalette
-	.db Function.End
+Vectors:
+	jp Execute
+	jp PutMap
+	ret \ nop \ nop ; BeginPlot - No graphics in text mode.
+	ret \ nop \ nop ; SetAlignedHorizontalLineSegment - No graphics in text mode.
 
 NameTable = $3800
+
+Execute:
+	cp Driver.Execute.Reset
+	jr z,Initialise
+	cp Driver.Execute.ScrollUp
+	jp z,Scroll
+	cp Driver.Execute.GetCursorArea
+	jp z,PreserveUnderCursor
+	cp Driver.Execute.SetCursorArea
+	jp z,RestoreUnderCursor
+	ret
 
 Initialise:
 	
@@ -67,14 +73,6 @@ Initialise:
 	jr nz,-
 	
 	
-	ret
-
-ResetConsoleViewport:
-	call DefaultResetConsoleViewport
-	ld a,39
-	ld (Console.MaxCol),a
-	ld a,40
-	ld (Console.MaxWidth),a
 	ret
 
 AMul40:
@@ -195,17 +193,21 @@ Scroll:
 	ret
 
 PreserveUnderCursor:
+	push hl
 	call GetNameTableAddressForCursor
 	call Video.SetReadAddress
 	in a,(Video.Data)
-	ld (VDU.Console.AreaUnderCursor),a
+	pop hl
+	ld (hl),a
 	ei
 	ret
 
 RestoreUnderCursor:
+	push hl
 	call GetNameTableAddressForCursor
 	call Video.SetWriteAddress
-	ld a,(VDU.Console.AreaUnderCursor)
+	pop hl
+	ld a,(hl)
 	out (Video.Data),a
 	ei
 	ret
@@ -235,12 +237,13 @@ SelectDefaultPalette:
 ; Destroys: af, hl, bc.
 ; ---------------------------------------------------------
 SelectPalette:
+	ret ; TODO
 	; Pretend we're setting the palette normally in our 2-colour palette.
 	ld a,c
 	and 1
 	ld c,a
 	ld a,b
-	call MasterSystem16Colours.SelectPalette
+;	call MasterSystem16Colours.SelectPalette
 	
 	; Convert the console colour to a TMS9918 pair.
 	ld a,(VDU.Console.Colour)

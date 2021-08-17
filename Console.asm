@@ -42,7 +42,20 @@ Reset:
 ResetViewport:
 	
 	call ClearPendingScroll
-	call ResetConsoleViewport ; Driver-specific function.
+	
+	; Set to sensible defaults.
+	xor a
+	ld (MinRow),a
+	inc a
+	ld (MinCol),a
+	ld a,23
+	ld (MaxRow),a
+	ld a,30
+	ld (MaxCol),a
+	
+	; Now invoke the driver-specific version.
+	ld a,Driver.Execute.ResetConsoleViewport
+	call Driver.Execute
 
 HomeUp:
 	ld a,(MinRow)
@@ -158,7 +171,7 @@ Clear:
 	
 -:	push bc
 	ld a,' '
-	call Console.PutMap
+	call Driver.PutMap
 	ld a,(Console.CurCol)
 	inc a
 	ld (Console.CurCol),a
@@ -195,7 +208,8 @@ FlushPendingScroll:
 	push bc
 	push de
 	push hl
-	call Scroll
+	ld a,Driver.Execute.ScrollUp
+	call Driver.Execute
 	pop hl
 	pop de
 	pop bc
@@ -341,7 +355,9 @@ BeginBlinkingCursor:
 	push hl
 	push de
 	push bc
-	call VDU.PreserveUnderCursor
+	ld hl,AreaUnderCursor
+	ld a,Driver.Execute.GetCursorArea
+	call Driver.Execute
 	pop bc
 	pop de
 	pop hl
@@ -367,7 +383,9 @@ EndBlinkingCursor:
 	push hl
 	push de
 	push bc
-	call VDU.RestoreUnderCursor
+	ld hl,AreaUnderCursor
+	ld a,Driver.Execute.SetCursorArea
+	call Driver.Execute
 	pop bc
 	pop de
 	pop hl
@@ -411,7 +429,9 @@ DrawBlinkingCursorOff:
 	push hl
 	push de
 	push bc
-	call VDU.RestoreUnderCursor
+	ld hl,AreaUnderCursor
+	ld a,Driver.Execute.SetCursorArea
+	call Driver.Execute
 	pop bc
 	pop de
 	pop hl
