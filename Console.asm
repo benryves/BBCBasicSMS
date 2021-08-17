@@ -69,7 +69,7 @@ CursorRight:
 	jr NewLine
 	
 +:	ld (CurCol),a
-	jr MarkCursorMoved
+	jp MarkCursorMoved
 	
 
 NewLine:
@@ -95,7 +95,7 @@ CursorDown:
 	ld a,(MaxRow)
 +:	ld (CurRow),a
 	
-	jr MarkCursorMoved
+	jp MarkCursorMoved
 
 CursorLeft:
 	call ClearPendingScroll
@@ -136,6 +136,44 @@ CursorUpWrapped:
 	jr MarkCursorMoved
 
 Clear:
+	ld a,(Console.MinRow)
+	ld c,a
+	ld a,(Console.MaxRow)
+	sub c
+	inc a
+	ld c,a
+
+	ld a,(Console.MinRow)
+	ld (Console.CurRow),a
+
+--:	ld a,(Console.MinCol)
+	ld b,a
+	ld a,(Console.MaxCol)
+	sub b
+	inc a
+	ld b,a
+	
+	ld a,(Console.MinCol)
+	ld (Console.CurCol),a
+	
+-:	push bc
+	ld a,' '
+	call Console.PutMap
+	ld a,(Console.CurCol)
+	inc a
+	ld (Console.CurCol),a
+	pop bc
+	
+	djnz -
+	
+	ld a,(Console.CurRow)
+	inc a
+	ld (Console.CurRow),a
+	
+	dec c
+	jr nz,--
+	
+	call Console.HomeUp
 	ret
 
 Tab:

@@ -362,7 +362,7 @@ Scroll:
 	push af
 	ld a,(Console.MaxRow)
 	ld (Console.MinRow),a
-	call VDU.DefaultClear
+	call Console.Clear
 	pop af
 	ld (Console.MinRow),a
 	

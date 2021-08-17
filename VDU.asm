@@ -18,20 +18,19 @@ FieldRate = allocVar(1)
 ; Mode driver functions.
 Function.End = 0
 Function.Initialise = 1
-Function.Clear = 2
-Function.PutMap = 3
-Function.Scroll = 4
-Function.BeginPlot = 5
-Function.SetAlignedHorizontalLineSegment = 6
-Function.SetUserDefinedCharacter = 7
-Function.GetUserDefinedCharacter = 8
-Function.ResetConsoleViewport = 9
-Function.SelectPalette = 10
-Function.SelectDefaultPalette = 11
-Function.PreserveUnderCursor = 12
-Function.RestoreUnderCursor = 13
+Function.PutMap = 2
+Function.Scroll = 3
+Function.BeginPlot = 4
+Function.SetAlignedHorizontalLineSegment = 5
+Function.SetUserDefinedCharacter = 6
+Function.GetUserDefinedCharacter = 7
+Function.ResetConsoleViewport = 8
+Function.SelectPalette = 9
+Function.SelectDefaultPalette = 10
+Function.PreserveUnderCursor = 11
+Function.RestoreUnderCursor = 12
 
-Functions.Count = 13
+Functions.Count = 12
 FunctionVectors = allocVar(Functions.Count * 3)
 
 .function VDUFunctionAddress(function)
@@ -67,7 +66,6 @@ FunctionVectors = allocVar(Functions.Count * 3)
 
 .endmodule
 
-Clear = VDUFunctionAddress(Function.Clear)
 Console.PutMap = VDUFunctionAddress(Function.PutMap)
 Scroll = VDUFunctionAddress(Function.Scroll)
 BeginPlot = VDUFunctionAddress(Function.BeginPlot)
@@ -142,7 +140,6 @@ LoadedAllFunctions:
 	ret
 
 DefaultFunctions:
-	.db Function.Clear \ .dw DefaultClear
 	.db Function.ResetConsoleViewport \ .dw DefaultResetConsoleViewport
 	.db Function.SelectDefaultPalette \ .dw DefaultSelectDefaultPalette
 	.db Function.End
@@ -541,7 +538,7 @@ CommandJumpTable:
 	.dw CursorRight             \ .db  0 ;  9 Move text cursor forwards one character.
 	.dw CursorDown              \ .db  0 ; 10 Move text cursor down a line.
 	.dw CursorUp                \ .db  0 ; 11 Move text cursor up a line.
-	.dw Clear                   \ .db  0 ; 12 Clear the text area (CLS).
+	.dw Console.Clear           \ .db  0 ; 12 Clear the text area (CLS).
 	.dw HomeLeft                \ .db  0 ; 13 Move text cursor to start of current line.
 	.dw Stub                    \ .db  0 ; 14 Enable the auto-paging mode.
 	.dw Stub                    \ .db  0 ; 15 Disable the auto-paging mode.
@@ -630,6 +627,11 @@ CursorUp:
 	bit GraphicalText,a
 	jp z,Console.CursorUp
 	jp Graphics.CursorUp
+
+; ========================================================================================
+; VDU 12                                                                             CLEAR
+; ========================================================================================
+ClearConsoleCommand = Console.Clear
 
 ; ========================================================================================
 ; VDU 13                                                                   CARRIAGE RETURN
@@ -1319,50 +1321,7 @@ PutDecimalByteSub10:
 	pop bc
 	pop af
 	ret
-
-DefaultClear:
-
-	ld a,(Console.MinRow)
-	ld c,a
-	ld a,(Console.MaxRow)
-	sub c
-	inc a
-	ld c,a
-
-	ld a,(Console.MinRow)
-	ld (Console.CurRow),a
-
---:	ld a,(Console.MinCol)
-	ld b,a
-	ld a,(Console.MaxCol)
-	sub b
-	inc a
-	ld b,a
 	
-	ld a,(Console.MinCol)
-	ld (Console.CurCol),a
-	
--:	push bc
-	ld a,' '
-	call Console.PutMap
-	ld a,(Console.CurCol)
-	inc a
-	ld (Console.CurCol),a
-	pop bc
-	
-	djnz -
-	
-	ld a,(Console.CurRow)
-	inc a
-	ld (Console.CurRow),a
-	
-	dec c
-	jr nz,--
-	
-	call Console.HomeUp
-	
-	ret
-
 DefaultResetConsoleViewport:
 	
 	xor a
