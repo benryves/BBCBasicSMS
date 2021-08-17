@@ -128,6 +128,7 @@ CursorUp:
 	pop bc
 	jr nc,+
 CursorUpWrapped:
+	pop bc
 	ld a,(MaxRow)
 +:	push af
 	ld (CurRow),a
