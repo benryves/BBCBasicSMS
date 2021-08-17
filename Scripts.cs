@@ -16,5 +16,19 @@ public class BbcBasicScripts {
 		}
 	}
 	
+	public static void BCall(Compiler compiler, string label) {
+		compiler.WriteDynamicOutput(3, delegate(Compiler.DynamicOutputData d) {
+			d.Data = new byte[3];
+			Label Target = compiler.Labels[label];
+			if (Target.Page == compiler.Labels.ProgramCounter.Page) {
+				d.Data[0] = 0xCD; // CALL NN
+			} else if (Target.Page == 2) {
+				d.Data[0] = 0xCF; // RST $08
+			}
+			d.Data[1] = (byte)(Target.NumericValue);
+			d.Data[2] = (byte)((int)(Target.NumericValue) >> 8);
+		});
+	}
+	
 	
 }

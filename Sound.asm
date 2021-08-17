@@ -94,10 +94,10 @@ PSG.Pitch = 1
 
 
 
-.if Variables > $DFF8
+.if Variables > $DFF6
 	.fail strformat("Too many sound variables! Please free up {0} bytes.", Variables - $DFF8)
 .else
-	;.echoln strformat("{0} bytes free for sound variables.", $DFF8 - Variables)
+;	.echoln strformat("{0} bytes free for sound variables.", $DFF6 - Variables)
 .endif
 
 Variables = MainVariables

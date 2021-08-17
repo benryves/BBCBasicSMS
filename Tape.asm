@@ -334,17 +334,17 @@ GetFile:
 
 	ld (GetFileName),hl
 	ld (GetFileAddress),de
-	ld (PCLink2.TempCapacity),bc
+	ld (TempCapacity),bc
 	ld bc,0
-	ld (PCLink2.TempSize),bc
+	ld (TempSize),bc
 	
 	ld a,h
 	or l
 	jr z,TapeSearchFileLoop
 	
 	ld hl,Searching
-	call VDU.PutStringWithNewLines
-	call VDU.Console.FlushPendingScroll
+	.bcall "VDU.PutStringWithNewLines"
+	.bcall "VDU.Console.FlushPendingScroll"
 
 TapeSearchFileLoop:
 	
@@ -353,25 +353,25 @@ TapeSearchFileLoop:
 	ld (GetFileExpectedBlock),hl
 	
 	ld bc,0
-	ld (PCLink2.TempSize),bc
+	ld (TempSize),bc
 	
 	; ...and always start from the beginning of the available buffer.
 	ld de,(GetFileAddress)
-	ld (PCLink2.TempPtr),de
+	ld (TempPtr),de
 
 TapeBlockLoop:
 
 	; Wait for carrier tone.
 
-	call VDU.Console.FlushPendingScroll	
-	call VDU.BeginBlinkingCursor
+	.bcall "VDU.Console.FlushPendingScroll"	
+	.bcall "VDU.BeginBlinkingCursor"
 
 TapeBlockAwaitCarrier:
 	ei
 	halt
 	call KeyboardBuffer.GetDeviceKey
 	call Host.CheckEscape
-	call VDU.DrawBlinkingCursor
+	.bcall "VDU.DrawBlinkingCursor"
 	
 	ld b,30
 -:	push bc
@@ -383,9 +383,9 @@ TapeBlockAwaitCarrier:
 	
 	; If we get this far, we just received a long string of "1" bits in a row.
 	; It's the carrier!
-	call VDU.EndBlinkingCursor
+	.bcall "VDU.EndBlinkingCursor"
 	
-	ld de,(PCLink2.TempPtr)
+	ld de,(TempPtr)
 	ld hl,GetFileHeader
 	
 	call Tape.GetBlock
@@ -395,7 +395,7 @@ TapeBlockAwaitCarrier:
 CRCError:
 
 	ld hl,DataError
-	call VDU.PutStringWithNewLines
+	.bcall "VDU.PutStringWithNewLines"
 	jr TapeBlockLoop
 	
 TapeGotBlock:
@@ -432,7 +432,7 @@ TapeGotBlock:
 TapeStartLoading:
 
 	ld hl,Loading
-	call VDU.PutStringWithNewLines
+	.bcall "VDU.PutStringWithNewLines"
 	
 	; Blank out the filename to search for to indicate we've found it.
 	ld hl,-1
@@ -440,9 +440,9 @@ TapeStartLoading:
 
 TapeNotLoading:
 	; Print the name of the received block.
-	call VDU.Console.HomeLeft
+	.bcall "VDU.Console.HomeLeft"
 	ld hl,GetFileHeader
-	call VDU.PutString
+	.bcall "VDU.PutString"
 	
 	; Pad to 11 characters.
 	ld a,GetFileHeader+12
@@ -450,12 +450,12 @@ TapeNotLoading:
 	
 	ld b,a
 -:	ld a,' '
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	djnz -
 	
 	; Display the block number in hex.
 	ld a,(ix+Tape.Header.BlockNumber+0)
-	call VDU.PutHexByte
+	.bcall "VDU.PutHexByte"
 	
 	; If we're not loading a program, we can ignore the block number check.
 	ld hl,(GetFileName)
@@ -475,7 +475,7 @@ TapeNotLoading:
 GotWrongBlock:
 	; Zut, the wrong block!
 	ld hl,BlockError
-	call VDU.PutStringWithNewLines
+	.bcall "VDU.PutStringWithNewLines"
 	jp TapeBlockLoop
 
 CorrectBlockNumber:
@@ -522,13 +522,13 @@ GotValidBlockFilename:
 	jr z,EmptyBlock
 	
 	; Increment the received size.
-	ld hl,(PCLink2.TempSize)
+	ld hl,(TempSize)
 	add hl,bc
-	ld (PCLink2.TempSize),hl
+	ld (TempSize),hl
 	
 	; Compute the CRC16.
 	push de
-	ld de,(PCLink2.TempPtr)
+	ld de,(TempPtr)
 	call Tape.CRC16
 	pop de
 	
@@ -541,20 +541,20 @@ GotValidBlockFilename:
 	
 .if 0
 	ld a,' '
-	call VDU.PutChar
-	call VDU.PutHexWord
+	.bcall "VDU.PutChar"
+	.bcall "VDU.PutHexWord"
 	ld a,'='
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	
 	ld l,(ix+Tape.Header.DataCRC+1)
 	ld h,(ix+Tape.Header.DataCRC+0)
-	call VDU.PutHexWord
+	.bcall "VDU.PutHexWord"
 	
 	ld a,'@'
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	push de
 	pop hl
-	call VDU.PutHexWord
+	.bcall "VDU.PutHexWord"
 .endif
 	
 	
@@ -566,7 +566,7 @@ EmptyBlock:
 	or c
 	jr z,+
 	ld de,(GetFileAddress)
-+:	ld (PCLink2.TempPtr),de
++:	ld (TempPtr),de
 	
 	; Is this end of the file?
 	ld a,(ix+Tape.Header.BlockFlag)
@@ -575,12 +575,12 @@ EmptyBlock:
 	
 	; Show the file size (in hex).
 	ld a,' '
-	call VDU.PutChar
-	ld hl,(PCLink2.TempSize)
-	call VDU.PutHexWord
+	.bcall "VDU.PutChar"
+	ld hl,(TempSize)
+	.bcall "VDU.PutHexWord"
 	
 	; Always move down at the end of the file.
-	call VDU.Console.NewLine
+	.bcall "VDU.Console.NewLine"
 	
 	; Is it the actual file we want?
 	ld hl,(GetFileName) ; If filename to get = 0, never return.

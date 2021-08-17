@@ -1,8 +1,13 @@
-﻿.sdsctag Program.Version, Program.Name, Program.Notes, Program.Author
-.defpage 0, kb(32), 0
+﻿.incscript "Scripts.cs"
 
-; Script
-.incscript "Scripts.cs"
+.sdsctag Program.Version, Program.Name, Program.Notes, Program.Author
+
+.defpage 0, kb(16), $0000
+.defpage 1, kb(16), $4000
+.defpage 2, kb(16), $8000
+.defpage 3, kb(16), $8000
+
+.page 0
 
 ; Resources
 .include "Tokens.inc"
@@ -11,7 +16,7 @@
 
 ; BBC BASIC's scratch memory will be in RAM ($DC00..$DEFF)
 EndOfVariables = $DC00
-Variables      = EndOfVariables - 256
+Variables      = EndOfVariables - 266
 
 HIMEM = Variables
 
@@ -22,13 +27,58 @@ HIMEM = Variables
 
 PAGE = allocVar(2)
 IOControl = allocVar(1)
-
 LastHCounter = allocVar(1)
+
+TempPtr      = allocVar(2)
+TempCapacity = allocVar(2)
+TempSize     = allocVar(2)
 
 .org $00
 	di
 	im 1
 	jp Boot
+
+BankedCallPreserveHL = allocVar(2)
+BankedCallPreserveDE = allocVar(2)
+
+.org $08
+	ld (BankedCallPreserveHL),hl
++:	ld (BankedCallPreserveDE),de
+	
+	pop hl ; Return address.
+	
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	
+	push hl ; Return past vector.
+	ld hl,+
+	push hl ; We need to return to our RAM-reenabler.
+	
+	; Disable RAM.
+	push af
+	ld a,($FFFC)
+	and ~(1 << 3)
+	ld ($FFFC),a
+	pop af
+	
+	; call (de)
+	push de
+	ld hl,(BankedCallPreserveHL)
+	ld de,(BankedCallPreserveDE)
+	ret
+
++:	; Enable RAM.
+	push af
+	ld a,($FFFC)
+	or 1 << 3
+	ld ($FFFC),a
+	pop af
+	
+	; Return properly.
+	ret
+	
 
 .org $38
 	jp Interrupt
@@ -165,7 +215,6 @@ FinishedFrameInterrupt:
 .include "Keyboard.asm"
 .include "KeyboardBuffer.asm"
 .include "UK.inc"
-.include "VDU.asm"
 .include "Serial.asm"
 .include "PCLink2.asm"
 .include "Maths.asm"
@@ -262,7 +311,7 @@ Main:
 	call Video.ClearAll
 	
 	; Reset the VDU.
-	call VDU.Reset
+	.bcall "VDU.Reset"
 	
 	; Load the keyboard layout.
 	ld hl,KeyboardLayouts.UK
@@ -276,7 +325,7 @@ Main:
 	
 	; Sign on message.
 	ld hl,SignOnMessage
-	call VDU.PutString
+	.bcall "VDU.PutString"
 
 	; How much RAM do we have?
 	ld hl,$E000 ; Top of memory
@@ -290,11 +339,11 @@ Main:
 -:	inc a
 	djnz -
 	
-	call VDU.PutDecimalByte
+	.bcall "VDU.PutDecimalByte"
 	ld a,'K'
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	ld a,'\r'
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	
 	; Jump into BASIC.
 	jp Basic.BBCBASIC_START
@@ -313,13 +362,24 @@ SignOnMessage:
 	.echoln strformat("{0} bytes free for code page page 0.", $4000 - $)
 .endif
 
-.org $4000
+.page 1
+
 .include "BBC BASIC.asm"
 .include "Sound.asm"
 .include "Host.asm"
 PCLink2.Trap = Host.TrapFileTransfers
 
-.echoln strformat("{0} bytes free for code page page 1.", $8000 - $)
+.echoln strformat("{0} bytes free for code on page 1.", $8000 - $)
+
+.page 2
+
+.include "VDU.asm"
+
+.echoln strformat("{0} bytes free for code on page 2.", $C000 - $)
+
+.page 3
+
+
 
 .if Variables > EndOfVariables
 	.fail strformat("Too many variables! Please free up {0} bytes.", Variables - EndOfVariables)

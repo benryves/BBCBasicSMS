@@ -87,7 +87,7 @@ OSINIT:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSRDCH:
-	call VDU.BeginBlinkingCursor
+	.bcall "VDU.BeginBlinkingCursor"
 	call KeyboardBuffer.CheckKeyboardByPolling
 	
 -:	call KeyboardBuffer.GetKey
@@ -97,13 +97,13 @@ OSRDCH:
 	jr OSRDCH.GotKey
 
 +:	push af
-	call VDU.DrawBlinkingCursor
+	.bcall "VDU.DrawBlinkingCursor"
 	pop af
 	jr -
 
 OSRDCH.GotKey:
 	push af
-	call VDU.EndBlinkingCursor	
+	.bcall "VDU.EndBlinkingCursor"	
 	pop af
 	ret
 
@@ -215,7 +215,7 @@ OSKEY.NoKey:
 	jr nz,OSKEY.TimedOut
 	
 	; No, so draw the flashing cursor.
-	call VDU.DrawBlinkingCursor
+	.bcall "VDU.DrawBlinkingCursor"
 	halt
 	jr OSKEY.Loop
 
@@ -226,7 +226,7 @@ OSKEY.GotKey:
 	ccf
 	
 	push af
-	call VDU.EndBlinkingCursor
+	.bcall "VDU.EndBlinkingCursor"
 	pop af
 	
 	pop de
@@ -267,7 +267,7 @@ OSLINE:
 
 +:
 	call KeyboardBuffer.CheckKeyboardByPolling
-	call VDU.BeginBlinkingCursor
+	.bcall "VDU.BeginBlinkingCursor"
 	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
 	ld d,0 ; D = index into current string.
 
@@ -282,7 +282,7 @@ OSLINE.Loop:
 +:
 	
 -:	call CheckEscape
-	call VDU.DrawBlinkingCursor
+	.bcall "VDU.DrawBlinkingCursor"
 	call KeyboardBuffer.GetKey
 	jr z,-
 	
@@ -300,7 +300,7 @@ OSLINE.Loop:
 	
 	cp 7
 	jr nz,+
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	jr OSLINE.Loop
 +:
 
@@ -330,11 +330,11 @@ OSLINE.Loop:
 	inc d
 	
 	push af
-	call VDU.EndBlinkingCursor
+	.bcall "VDU.EndBlinkingCursor"
 	pop af
 	
 	; Print the character.
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	jr OSLINE.Loop
 
 OSLINE.InsertCharacter
@@ -346,7 +346,7 @@ OSLINE.InsertCharacter
 OSLINE.EnoughSpace:	
 	
 	push af
-	call VDU.EndBlinkingCursor
+	.bcall "VDU.EndBlinkingCursor"
 	pop af
 	
 	; Move all characters after the current one right.
@@ -396,7 +396,7 @@ OSLINE.EnoughSpace:
 	dec c
 	
 	; Print the character.
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	
 	ld e,0 ; Don't draw a blank character on the end of the new line.
 
@@ -412,8 +412,9 @@ OSLINE.RepaintToEnd:
 	jr nz,+
 	ld a,127
 +:	or a
-	call nz,VDU.PutMap
-	jp OSLINE.Loop
+	jr z,+
+	.bcall "VDU.PutMap"
++	jp OSLINE.Loop
 
 OSLINE.RepaintToEnd.HasCharacters:
 
@@ -425,7 +426,7 @@ OSLINE.RepaintToEnd.HasCharacters:
 	; Redraw the rest of the characters.
 	push bc
 -:	ld a,(hl)
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	inc hl
 	djnz -
 	
@@ -434,11 +435,14 @@ OSLINE.RepaintToEnd.HasCharacters:
 	jr nz,+
 	ld a,127
 +:	or a
-	call nz,VDU.PutMap
+
+	jr z,+
+	.bcall "VDU.PutMap"
++:
 	
 	; Move the cursor back to where it should be.
 	pop bc
--:	call VDU.CursorLeft
+-:	.bcall "VDU.CursorLeft"
 	djnz -
 	
 	pop hl
@@ -450,10 +454,10 @@ OSLINE.Return:
 	; Move to the end.
 	call OSLINE.End
 	
-	call VDU.EndBlinkingCursor
+	.bcall "VDU.EndBlinkingCursor"
 	
 	ld a,'\r'
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	
 	xor a
 	ret
@@ -482,8 +486,8 @@ OSLINE.Delete:
 	cp b
 	jp z,OSLINE.Loop
 	
-	call VDU.EndBlinkingCursor
-	call VDU.CursorRight
+	.bcall "VDU.EndBlinkingCursor"
+	.bcall "VDU.CursorRight"
 	inc hl
 	inc d
 	
@@ -495,7 +499,7 @@ OSLINE.Backspace:
 	or a
 	jp z,OSLINE.Loop
 	
-	call VDU.EndBlinkingCursor
+	.bcall "VDU.EndBlinkingCursor"
 	
 	; Move all characters from the current cursor position+1 to the end of the string left one.
 	push hl
@@ -522,7 +526,7 @@ OSLINE.Backspace:
 	inc c
 	
 	; Move the cursor left.
-	call VDU.CursorLeft
+	.bcall "VDU.CursorLeft"
 	
 	dec hl
 	dec d
@@ -537,9 +541,9 @@ OSLINE.Home:
 	or a
 	jr z,+
 
-	call VDU.EndBlinkingCursor
+	.bcall "VDU.EndBlinkingCursor"
 
--:	call VDU.CursorLeft
+-:	.bcall "VDU.CursorLeft"
 	dec hl
 	dec d
 	jr nz,-
@@ -554,9 +558,9 @@ OSLINE.End:
 	cp b
 	jr z,+
 
-	call VDU.EndBlinkingCursor
+	.bcall "VDU.EndBlinkingCursor"
 
--:	call VDU.CursorRight
+-:	.bcall "VDU.CursorRight"
 	inc hl
 	inc d
 	ld a,b
@@ -574,8 +578,8 @@ OSLINE.Left:
 	or a
 	jr z,+
 	
-	call VDU.EndBlinkingCursor
-	call VDU.CursorLeft
+	.bcall "VDU.EndBlinkingCursor"
+	.bcall "VDU.CursorLeft"
 	dec hl
 	dec d
 	
@@ -591,8 +595,8 @@ OSLINE.Right:
 	cp b
 	jr z,+
 	
-	call VDU.EndBlinkingCursor
-	call VDU.CursorRight
+	.bcall "VDU.EndBlinkingCursor"
+	.bcall "VDU.CursorRight"
 	inc hl
 	inc d
 	
@@ -608,7 +612,7 @@ OSLINE.Clear:
 	jp z,OSLINE.Loop
 	
 	push af
-	call VDU.EndBlinkingCursor
+	.bcall "VDU.EndBlinkingCursor"
 	pop af
 	
 	; Move to the end of the line.
@@ -616,7 +620,7 @@ OSLINE.Clear:
 	jr z,+
 	
 -:	push af
-	call VDU.CursorRight
+	.bcall "VDU.CursorRight"
 	inc hl
 	inc d
 	pop af
@@ -630,7 +634,7 @@ OSLINE.Clear:
 	inc c
 	ld (hl),'\r'
 	ld a,127
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	djnz -
 	
 	jp OSLINE.Loop
@@ -660,14 +664,14 @@ OSLINE.Clear:
 ;------------------------------------------------------------------------------- 
 OSLINE.Prefilled:
 	call KeyboardBuffer.CheckKeyboardByPolling
-	call VDU.BeginBlinkingCursor
+	.bcall "VDU.BeginBlinkingCursor"
 	ld bc,255
 	ld d,0
 -:	ld a,(hl)
 	cp '\r'
 	jp z,OSLINE.Loop
-	call VDU.PutLiteralChar ; In case there are any control codes embedded in the line.
-	call VDU.Console.FlushPendingScroll
+	.bcall "VDU.PutLiteralChar" ; In case there are any control codes embedded in the line.
+	.bcall "VDU.Console.FlushPendingScroll"
 	inc d
 	inc hl
 	inc b
@@ -689,7 +693,7 @@ OSLINE.Prefilled:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSASCI:
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	ei
 	ret
 
@@ -754,7 +758,7 @@ OSWRCH.NoOverride:
 	pop af
 	pop hl
 	
-	call VDU.WriteByte
+	.bcall "VDU.WriteByte"
 	ei
 	ret
 
@@ -836,7 +840,7 @@ TRAP.Escape:
 	res EscapeError,a
 	ld (Flags),a
 	
-	call VDU.Console.EndBlinkingCursor
+	.bcall "VDU.Console.EndBlinkingCursor"
 	
 	ld a,17 ; Escape
 	call Basic.BBCBASIC_EXTERR
@@ -846,7 +850,7 @@ TrapFileTransfers:
 	ei
 	
 	call KeyboardBuffer.CheckKeyboardWithInterrupt
-	call VDU.DrawBlinkingCursor
+	.bcall "VDU.DrawBlinkingCursor"
 	
 	; Is Escape pressed?
 -:	ld a,(Flags)
@@ -945,10 +949,10 @@ OSLOAD:
 	jr nz,OSLOAD.Tape
 	
 OSLOAD.PCLink:
-	call VDU.BeginBlinkingCursor
+	.bcall "VDU.BeginBlinkingCursor"
 	call PCLink2.GetFile
 	push af
-	call VDU.EndBlinkingCursor
+	.bcall "VDU.EndBlinkingCursor"
 	pop af
 	jr +
 
@@ -1066,10 +1070,10 @@ WriteEOF:
 ;@doc:end
 ;------------------------------------------------------------------------------- 
 OSSAVE:
-	call VDU.BeginBlinkingCursor
+	.bcall "VDU.BeginBlinkingCursor"
 	call PCLink2.SendFile
 	push af
-	call VDU.EndBlinkingCursor
+	.bcall "VDU.EndBlinkingCursor"
 	pop af
 	jp nz,DeviceFault
 	jp c,TRAP.Escape
@@ -1174,7 +1178,7 @@ MODE:
     exx
 	ld h,l
 	ld l,22
-	call VDU.WriteWord
+	.bcall "VDU.WriteWord"
 	jp Basic.BBCBASIC_XEQ
 
 ;------------------------------------------------------------------------------- 
@@ -1211,10 +1215,10 @@ PUTCSR:
 	push hl
 	
 	ld a,31
-	call VDU.WriteByte
+	.bcall "VDU.WriteByte"
 	
 	pop hl
-	call VDU.WriteWord
+	.bcall "VDU.WriteWord"
 	ret
 
 ;------------------------------------------------------------------------------- 
@@ -1315,7 +1319,8 @@ GETIME:
 ;------------------------------------------------------------------------------- 
 CLRSCN:
 	ld a,12
-	jp VDU.WriteByte
+	.bcall "VDU.WriteByte"
+	ret
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -1576,11 +1581,11 @@ COLOUR.AtLeastThreeArguments
 	ld h,l
 	ld l,19 ; hl = 19,L
 	
-	call VDU.WriteWord
+	.bcall "VDU.WriteWord"
 	ld l,e \ ld h,d
-	call VDU.WriteWord
+	.bcall "VDU.WriteWord"
 	ld l,c \ ld h,b
-	call VDU.WriteWord
+	.bcall "VDU.WriteWord"
 		
 	jp Basic.BBCBASIC_XEQ
 
@@ -1592,12 +1597,12 @@ COLOUR.TwoArguments:
 	ld h,e
 	
 	ld a,19
-	call VDU.WriteByte
-	call VDU.WriteWord
+	.bcall "VDU.WriteByte"
+	.bcall "VDU.WriteWord"
 	
 	ld b,3
 -:	xor a
-	call VDU.WriteByte
+	.bcall "VDU.WriteByte"
 	djnz -
 	jp Basic.BBCBASIC_XEQ
 	
@@ -1608,7 +1613,7 @@ COLOUR.SingleArgument:
 	ld h,l
 	ld l,17
 	
-	call VDU.WriteWord
+	.bcall "VDU.WriteWord"
 	jp Basic.BBCBASIC_XEQ
 
 ;------------------------------------------------------------------------------- 
@@ -1622,7 +1627,7 @@ COLOUR.SingleArgument:
 ;------------------------------------------------------------------------------- 
 CLG:
 	ld a,16
-	call VDU.WriteByte
+	.bcall "VDU.WriteByte"
 	jp Basic.BBCBASIC_XEQ
 
 ;------------------------------------------------------------------------------- 
@@ -1669,11 +1674,11 @@ GCOLWithComma:
 FoundGCOL:
 	push af
 	ld a,18
-	call VDU.WriteByte
+	.bcall "VDU.WriteByte"
 	pop af
-	call VDU.WriteByte
+	.bcall "VDU.WriteByte"
 	ld a,l
-	call VDU.WriteByte
+	.bcall "VDU.WriteByte"
 	jp Basic.BBCBASIC_XEQ
 
 ;------------------------------------------------------------------------------- 
@@ -1768,13 +1773,13 @@ PLOT.CommandInHL:
 	
 	ld h,l
 	ld l,25 ; PLOT
-	call VDU.WriteWord
+	.bcall "VDU.WriteWord"
 	
 	ld hl,(VDUQ(1, 5)) ; X
-	call VDU.WriteWord
+	.bcall "VDU.WriteWord"
 	
 	ld hl,(VDUQ(3, 5)) ; Y
-	call VDU.WriteWord
+	.bcall "VDU.WriteWord"
 	
 	jp Basic.BBCBASIC_XEQ
 
@@ -2070,8 +2075,8 @@ OSBYTE.KeyboardAutoRepeatDelay:
 	jr nz,OSBYTE.SendNewKeyboardRate
 	
 	; Convert HL's time in centiseconds to time in 1/4 seconds.
-	call VDU.Graphics.DivideBy5
-	call VDU.Graphics.DivideBy5
+	.bcall "VDU.Graphics.DivideBy5"
+	.bcall "VDU.Graphics.DivideBy5"
 	ld a,l
 	or a
 	jr z,+

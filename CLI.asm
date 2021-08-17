@@ -1,7 +1,4 @@
 .module CLI
-
-TempPtr = PCLink2.TempPtr
-
 ; ---------------------------------------------------------
 ; Execute -> Executes the *COMMAND.
 ; ---------------------------------------------------------
@@ -260,9 +257,9 @@ GetDecimalByte:
 Terminal:
 	call CheckCommandEnd
 	ld hl,SerialTerminal
-	call VDU.PutString
+	.bcall "VDU.PutString"
 	
-	call VDU.Console.BeginBlinkingCursor
+	.bcall "VDU.Console.BeginBlinkingCursor"
 
 Terminal.Loop:
 	call Serial.GetByte
@@ -273,7 +270,7 @@ Terminal.Loop:
 	call Host.TrapFileTransfers
 	jr c,Terminal.Loop
 	
-	call VDU.Console.EndBlinkingCursor
+	.bcall "VDU.Console.EndBlinkingCursor"
 	scf
 	ret
 
@@ -284,7 +281,7 @@ Terminal.GotByte:
 	pop af
 	
 	push af
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	pop af
 	
 	cp '\r'
@@ -350,7 +347,8 @@ Catalogue.FoundArgument:
 Catalogue.PrintStartOfDirectoryName:
 	call Catalogue.PrintStartOfItem
 	ld a,'['
-	jp VDU.PutChar
+	.bcall "VDU.PutChar"
+	ret
 
 Catalogue.PrintDirectoryName:
 	cp PCLink2.ListItems.StartOfItem
@@ -367,7 +365,8 @@ Catalogue.PrintFileName:
 	jr z,Catalogue.PrintEndOfList
 	
 	; It must be a regular character.
-	jp VDU.PutChar
+	.bcall "VDU.PutChar"
+	ret
 
 Catalogue.PrintStartOfItem:
 	ld a,(VDU.Console.MinCol)
@@ -392,7 +391,7 @@ Catalogue.PrintStartOfItem:
 	cp c
 	jr c,-
 	; We've moved back to the left column, so trigger a newline.
-	call VDU.Console.NewLine
+	.bcall "VDU.Console.NewLine"
 	xor a
 +:	
 	; A = our new desired cursor column relative to the viewport.
@@ -404,14 +403,14 @@ Catalogue.PrintStartOfItem:
 	pop bc
 	
 	ld a,' '
-	call VDU.PutChar
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
+	.bcall "VDU.PutChar"
 	
 	ret
 	
 Catalogue.PrintEndOfDirectoryName:
 	ld a,']'
-	call VDU.PutChar
+	.bcall "VDU.PutChar"
 	; Fall-through.
 Catalogue.PrintEndOfItem:
 	ret
@@ -445,7 +444,7 @@ Edit:
 	pop hl
 	
 	; Scrolling uses BASIC's free memory, so ensure that we're not about to scroll.
-	call VDU.Console.FlushPendingScroll
+	.bcall "VDU.Console.FlushPendingScroll"
 	
 	; Store the *EDIT line number in BASIC's free memory.
 	ld de,(TempPtr)

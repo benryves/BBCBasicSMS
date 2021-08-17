@@ -1,9 +1,5 @@
 .module PCLink2
 
-TempPtr = VDU.Graphics.TransformedPoint0X
-TempCapacity = VDU.Graphics.TransformedPoint0Y
-TempSize = VDU.Graphics.TransformedPoint1X
-
 ListItems.StartOfItem = 2 ; STX
 ListItems.EndOfItem   = 3 ; ETX
 ListItems.EndOfList   = 4 ; EOF
