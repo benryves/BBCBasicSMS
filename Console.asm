@@ -449,6 +449,6 @@ DrawBlinkingCursorOn:
 	ld a,'_' ; Insert mode cursor
 	jr z,+
 	ld a,127 ; Overwrite mode cursor 
-+:	jp PutMap
++:	jp Driver.PutMap
 
 .endmodule

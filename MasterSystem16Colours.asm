@@ -155,7 +155,6 @@ PutMap:
 
 	call GetNameTableAddressForCursor
 	call Video.SetWriteAddress
-	ei
 	
 	pop af
 	add a,FontCharOffset

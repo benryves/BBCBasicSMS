@@ -105,6 +105,8 @@ GetDeviceKeyExtended:
 	ld a,(VDU.Console.Flags)
 	xor 1 << VDU.Console.Overwrite
 	ld (VDU.Console.Flags),a
+	pop af
+	
 	jr GetDeviceKey.Skip
 
 GetDeviceKeyNotInsert:
