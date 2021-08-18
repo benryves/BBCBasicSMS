@@ -53,6 +53,11 @@ ResetViewport:
 	ld a,30
 	ld (MaxCol),a
 	
+	ld a,32
+	ld (MaxWidth),a
+	ld a,24
+	ld (MaxHeight),a
+	
 	; Now invoke the driver-specific version.
 	ld a,Driver.Execute.ResetConsoleViewport
 	call Driver.Execute
