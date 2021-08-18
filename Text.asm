@@ -17,6 +17,8 @@ Execute:
 	jp z,PreserveUnderCursor
 	cp Driver.Execute.SetCursorArea
 	jp z,RestoreUnderCursor
+	cp Driver.Execute.ResetConsoleViewport
+	jp z,ResetConsoleViewport
 	ret
 
 Initialise:
@@ -253,5 +255,14 @@ SelectPalette:
 	; Set the text colour.
 	ld b,$07
 	jp Video.SetRegister
+	
+ResetConsoleViewport:
+	xor a
+	ld (Console.MinCol),a
+	ld a,39
+	ld (Console.MaxCol),a
+	inc a
+	ld (Console.MaxWidth),a
+	ret
 
 .endmodule
