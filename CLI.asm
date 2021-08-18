@@ -612,12 +612,110 @@ FXGotArguments:
 	ret
 
 Tape:
-	call CheckCommandEnd
 	ld a,(Host.Flags)
 	or 1<<Host.TapeFS
 	ld (Host.Flags),a
+	
+	
+	ld a,(hl)
+	or a
+	jr z,+
+	cp '\r'
+	jr z,+
+	
+	ld de,TapeSubCommands
+	call DispatchCommand
+	
+	call CheckCommandEnd
+	
++:	scf
+	ret
+
+Tape300:
+Tape1200:
+	jp Host.Sorry
+
+TapeTest:
+	ld de,0
+	
+	ld a,(hl)
+	cp '+'
+	jr nz,+
+	inc hl
+	ld d,1<<Tape.InputBit
+	ld e,0
+	ld a,(hl)
++:
+	cp '-'
+	jr nz,+
+	inc hl
+	ld d,1<<Tape.InputBit
+	ld e,d
+	ld a,(hl)
++:
+	
+	call CheckCommandEnd
+	push hl
+	
+	ld hl,Basic.BBCBASIC_ACC$
+	
+-:	ld a,(Host.Flags)
+	bit Host.EscapeError,a
+	jr nz,+
+	call Tape.GetHalfWaveLength
+	jr z,-
+	
+-:	ld a,(Host.Flags)
+	bit Host.EscapeError,a
+	jr nz,+
+	
+	in a,(Tape.InputPort)
+	and d
+	cp e
+	jr nz,-
+	
+	call Tape.GetHalfWaveLength
+	jr z,-
+	
+	ld (hl),b
+	inc l
+	jr nz,-
+	
+	ld hl,Basic.BBCBASIC_ACC$
+	
+-:	ld a,(VDU.Console.MaxCol)
+	sub 3
+	ld b,a
+	ld a,(VDU.Console.CurCol)
+	cp b
+	jr c,+
+	.bcall "VDU.Console.NewLine"
++:
+	
+	ld a,(hl)
+	cp 100
+	jr nc,+
+	ld a,' '
+	.bcall "VDU.PutChar"
+	ld a,(hl)
++:	.bcall "VDU.PutDecimalByte"
+	inc l
+	jr nz,-
+	
+	.bcall "VDU.Console.NewLine"
+	
++:	pop hl
 	scf
 	ret
+
+TapeSubcommands:
+	osclicommand("3", Tape300)
+	osclicommand("12", Tape1200)
+	osclicommand("TEST", TapeTest)
+	.db 0
+
+
+
 	
 PCLink2:
 	ld a,(Host.Flags)
