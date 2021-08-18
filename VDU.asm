@@ -57,24 +57,23 @@ Stub:
 
 	.include "Text.asm"
 	.include "TextDoubleHeight.asm"
-;	.include "GraphicsII.asm"
+	.include "GraphicsII.asm"
 	.include "MasterSystem16Colours.asm"
 	.include "MasterSystem4Colours.asm"
 	.include "MasterSystem2Colours.asm"
 
-	Count = 7
+	Count = 8
 	
 	Vectors:
-		.dw Text.Vectors                     ; MODE 0
+		.dw Text.Vectors                   ; MODE 0
 		.dw MasterSystem4Colours.Vectors   ; MODE 1
-		.dw MasterSystem16Colours.Vectors    ; MODE 2
-;		.dw GraphicsII.Functions             ; MODE 3
+		.dw MasterSystem16Colours.Vectors  ; MODE 2
+		.dw GraphicsII.Vectors             ; MODE 3
 		.dw MasterSystem2Colours.Vectors   ; MODE 4
-		.dw MasterSystem4Colours.Vectors    ; MODE 5
+		.dw MasterSystem4Colours.Vectors   ; MODE 5
 		.dw Text.Vectors                   ; MODE 6
 		.dw TextDoubleHeight.Vectors       ; MODE 7
-
-
+		
 .endmodule
 
 ; Font data

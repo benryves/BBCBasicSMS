@@ -1,17 +1,10 @@
 .module GraphicsII
 
-Functions:
-	.db Function.Initialise \ .dw Initialise
-	.db Function.PutMap \ .dw PutMap
-	.db Function.Scroll \ .dw Scroll
-	.db Function.BeginPlot \ .dw BeginPlot
-	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
-	.db Function.GetUserDefinedCharacter \ .dw GetUserDefinedCharacter
-	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
-	.db Function.SelectPalette \ .dw MasterSystem16Colours.SelectPalette
-	.db Function.PreserveUnderCursor \ .dw PreserveUnderCursor
-	.db Function.RestoreUnderCursor \ .dw RestoreUnderCursor
-	.db Function.End
+Vectors:
+	jp Execute
+	jp PutMap
+	jp BeginPlot
+	jp SetAlignedHorizontalLineSegment
 
 PatternGenerator = $0000 ; 6KB
 ColourTable      = $2000 ; 6KB
@@ -28,6 +21,22 @@ TopOfMemory      = $4000 ; 16KB
 .if PatternGenerator % kb(8)
 .echoln "Bad address for Graphics II Pattern Generator"
 .endif
+
+Execute:
+	or a \ jr z,Initialise
+	dec a \ ret z
+	dec a \ ret z
+	dec a \ ret z
+	dec a \ jp z,Scroll
+	dec a \ ret z
+	dec a \ jp z,SetUserDefinedCharacter
+	dec a \ jp z,PreserveUnderCursor
+	dec a \ jp z,RestoreUnderCursor
+	dec a \ jp z,MasterSystem16Colours.SelectPalette
+	dec a \ ret z
+	dec a \ ret z
+	dec a \ ret z
+	ret
 
 Initialise:
 
@@ -90,10 +99,10 @@ Initialise:
 	
 	; Set up my own vectors!
 	ld a,$C3 ; JP
-	ld (ManipulatePixelColour),a
+	ld (Driver.ManipulatePixelColour),a
 	
 	ld a,$C9 ; RET
-	ld (ManipulatePixelBitmask+1),a
+	ld (Driver.ManipulatePixelBitmask+1),a
 	ret
 
 ; ---------------------------------------------------------
@@ -286,23 +295,23 @@ BeginPlot:
 
 SetBackgroundPixel:
 	ld hl,ManipulatePixelColour.SetBackground
-	ld (ManipulatePixelColour+1),hl
+	ld (Driver.ManipulatePixelColour+1),hl
 	ld a,$A1 ; AND C
-	ld (ManipulatePixelBitmask+0),a
+	ld (Driver.ManipulatePixelBitmask+0),a
 	ret
 
 InvertPixel:
 	ld hl,ManipulatePixelColour.Invert
-	ld (ManipulatePixelColour+1),hl
+	ld (Driver.ManipulatePixelColour+1),hl
 	ld a,$A8 ; XOR B
-	ld (ManipulatePixelBitmask+0),a
+	ld (Driver.ManipulatePixelBitmask+0),a
 	ret
 
 SetForegroundPixel:
 	ld hl,ManipulatePixelColour.SetForeground
-	ld (ManipulatePixelColour+1),hl
+	ld (Driver.ManipulatePixelColour+1),hl
 	ld a,$B0 ; OR B
-	ld (ManipulatePixelBitmask+0),a
+	ld (Driver.ManipulatePixelBitmask+0),a
 	ret
 
 SetAlignedHorizontalLineSegment:
@@ -358,7 +367,7 @@ SetAlignedHorizontalLineSegment:
 	call Video.SetReadAddress
 	in a,(Video.Data)
 
-	call ManipulatePixelBitmask
+	call Driver.ManipulatePixelBitmask
 	
 	call Video.SetWriteAddress
 	out (Video.Data),a
@@ -375,7 +384,7 @@ SetAlignedHorizontalLineSegment:
 	call Video.SetReadAddress
 	in a,(Video.Data)
 	
-	call ManipulatePixelColour
+	call Driver.ManipulatePixelColour
 	
 	call Video.SetWriteAddress
 	out (Video.Data),a
@@ -428,6 +437,7 @@ GetUserDefinedCharacterAddress:
 	ret
 
 SetUserDefinedCharacter:
+	ld a,c
 	push hl
 	call GetUserDefinedCharacterAddress
 	pop de
@@ -445,6 +455,7 @@ SetUserDefinedCharacter:
 	ret
 	
 GetUserDefinedCharacter:
+	ld a,c
 	call GetUserDefinedCharacterAddress
 	ret nc
 		
