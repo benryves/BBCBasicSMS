@@ -1,17 +1,17 @@
 .module TextDoubleHeight
 
-Functions:
-	.db Function.Initialise \ .dw Initialise
-	.db Function.PutMap \ .dw PutMap
-	.db Function.Scroll \ .dw Text.Scroll
-	.db Function.ResetConsoleViewport \ .dw Text.ResetConsoleViewport
-	.db Function.PreserveUnderCursor \ .dw Text.PreserveUnderCursor
-	.db Function.RestoreUnderCursor \ .dw Text.RestoreUnderCursor
-	.db Function.SelectPalette \ .dw Text.SelectPalette
-	.db Function.SelectDefaultPalette \ .dw Text.SelectDefaultPalette
-	.db Function.End
+Vectors:
+	jp Execute
+	jp PutMap
+	ret \ nop \ nop ; BeginPlot - No graphics in text mode.
+	ret \ nop \ nop ; SetAlignedHorizontalLineSegment - No graphics in text mode.
 
 NameTable = $3800
+
+Execute:
+	or a
+	jr z,Initialise
+	jp Text.Execute
 
 Initialise:
 	
