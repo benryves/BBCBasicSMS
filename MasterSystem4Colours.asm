@@ -3,8 +3,22 @@
 Vectors:
 	jp Execute
 	jp PutMap
-	jp BeginPlot
+	jp MasterSystem16Colours.BeginPlot
 	jp SetAlignedHorizontalLineSegment
+
+Execute:
+	or a \ jr z,Initialise
+	dec a \ ret z
+	dec a \ ret z
+	dec a \ ret z
+	dec a \ jp z,Scroll
+	dec a \ ret z
+	dec a \ jp z,SetUserDefinedCharacter
+	dec a \ jp z,PreserveUnderCursor
+	dec a \ jp z,RestoreUnderCursor
+	dec a \ jp z,SelectPalette
+	dec a \ jp z,SelectDefaultPalette
+	jp MasterSystem16Colours.Execute
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1536 bytes
@@ -43,8 +57,8 @@ Initialise:
 	
 	; Callback jumps.
 	ld a,$C3
-	ld (ManipulatePixelColour),a
-	ld (ManipulatePixelBitmask),a
+	ld (Driver.ManipulatePixelColour),a
+	ld (Driver.ManipulatePixelBitmask),a
 	
 	ret
 
@@ -366,35 +380,37 @@ Scroll:
 ; ---------------------------------------------------------
 ; SelectPalette -> Selects the palette.
 ; ---------------------------------------------------------
-; Inputs:   a = "physical" colour (from BBC BASIC palette).
-;           b = "physical" colour.
+; Inputs:   b = "physical" colour (from BBC BASIC palette).
 ;           c = logical colour.
 ;           hl = pointer to RGB colour (if applicable).
 ; Destroys: af, hl, bc.
 ; ---------------------------------------------------------
 SelectPalette:
-	ld b,c
 	push bc
 	call MasterSystem16Colours.ParsePaletteCommand
-	ld c,a
-	pop af
+	pop bc
 	; Fall-through...
 
 ; ---------------------------------------------------------
 ; WritePaletteEntry -> Updates a particular palette entry.
 ; ---------------------------------------------------------
-; Inputs:   a = logical palette index (0..3).
-;           c = colour to set (6-bit BGR).
+; Inputs:   c = logical palette index (0..3).
+;           a = colour to set (6-bit BGR).
 ; Destroys: af, hl, b.
 ; ---------------------------------------------------------
 WritePaletteEntry:
 	
+	ld l,a
+	
+	ld a,c
 	and %11
 	ld h,a
 	
+	ld c,l
+	
 	ld b,4
 -:	ld a,h
-	call Video.SetPalette
+	call Video.SetPalette ; palette[a] = c
 	inc h
 	inc h
 	inc h
@@ -431,8 +447,8 @@ SelectDefaultPalette:
 	ld bc,4<<8
 -:	push bc
 	push hl
-	ld a,c
-	ld c,(hl)
+	ld b,c
+	ld a,(hl)
 	call WritePaletteEntry
 	pop hl
 	pop bc
@@ -554,7 +570,7 @@ PatternFill:
 	
 	; The filler only does a single bitplane at a time.
 	in a,(Video.Data)
-	call ManipulatePixelBitmask
+	call Driver.ManipulatePixelBitmask
 	ld (hl),a
 	inc hl
 	
@@ -587,7 +603,7 @@ SolidColour:
 	ld a,(Graphics.PlotColour)
 	ld c,a
 	ld b,2
-	call ManipulatePixelBitmask
+	call Driver.ManipulatePixelBitmask
 
 GeneratedTileRow:
 	
@@ -690,7 +706,8 @@ GetUserDefinedCharacterAddress:
 	ret
 
 SetUserDefinedCharacter:
-
+	ld a,c
+	
 	cp 11
 	jp z,SetDefaultFillPatterns
 	
@@ -777,6 +794,7 @@ SetPattern:
 
 
 GetUserDefinedCharacter:
+	ld a,c
 	call GetUserDefinedCharacterAddress
 	ret nc
 		
