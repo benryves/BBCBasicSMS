@@ -28,7 +28,7 @@ Execute:
 	dec a \ ret z
 	dec a \ ret z
 	dec a \ jp z,Scroll
-	dec a \ ret z
+	dec a \ jp z,GetUserDefinedCharacter
 	dec a \ jp z,SetUserDefinedCharacter
 	dec a \ jp z,PreserveUnderCursor
 	dec a \ jp z,RestoreUnderCursor
@@ -168,10 +168,14 @@ PutMap:
 	jr c,ROMFont
 	
 	; Yes, so read back the user-defined character.
+	ld hl,8
+	call Host.GetSafeScratchMemoryHL
+	jr c,+
 	call GetUserDefinedCharacter
 	ex de,hl
-	
 	jr WriteFontData
+	
++:	ld a,' '
 
 ROMFont:
 	
@@ -455,16 +459,19 @@ SetUserDefinedCharacter:
 	ret
 	
 GetUserDefinedCharacter:
+	push hl
 	ld a,c
 	call GetUserDefinedCharacterAddress
-	ret nc
+	jr c,+
+	pop hl
+	ret
 		
-	call Video.SetReadAddress
-	ld hl,8
-	call Host.GetSafeScratchMemoryHL
-	push hl
-	ld b,8
++:	call Video.SetReadAddress
 	
+	pop hl
+	push hl
+	
+	ld b,8
 -:	in a,(Video.Data)   ; 11
 	ld (hl),a           ; 7
 	inc hl              ; 6
