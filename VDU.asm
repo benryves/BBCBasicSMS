@@ -1287,7 +1287,6 @@ GetCharacterData:
 	call Driver.Execute
 	
 	jr c,GotCharacterData
-	jr GotCharacterData
 	
 +:	pop af
 	inc a
@@ -1300,7 +1299,10 @@ GetCharacterData:
 	jr nc,DefinedCharacterData
 
 UndefinedCharacterData:
-	ld a,'?'
+	and $7F
+	cp 32
+	jr nc,DefinedCharacterData
+	ld a,' '
 
 DefinedCharacterData:
 	add a,FontCharOffset

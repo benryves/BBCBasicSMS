@@ -31,7 +31,7 @@ Execute:
 	dec a \ ret z
 	dec a \ ret z
 	dec a \ jp z,Scroll
-	dec a \ ret z
+	dec a \ jp z,GetUserDefinedCharacter
 	dec a \ jp z,SetUserDefinedCharacter
 	dec a \ jp z,PreserveUnderCursor
 	dec a \ jp z,RestoreUnderCursor
@@ -794,6 +794,11 @@ SetFillPattern:
 	djnz -              ; 13 = 37 clocks
 	
 	ei
+	ret
+	
+
+GetUserDefinedCharacter:
+	or a
 	ret
 
 .endmodule
