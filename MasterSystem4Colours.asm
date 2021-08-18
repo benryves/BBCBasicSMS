@@ -12,7 +12,7 @@ Execute:
 	dec a \ ret z
 	dec a \ ret z
 	dec a \ jp z,Scroll
-	dec a \ ret z
+	dec a \ jp z,GetUserDefinedCharacter
 	dec a \ jp z,SetUserDefinedCharacter
 	dec a \ jp z,PreserveUnderCursor
 	dec a \ jp z,RestoreUnderCursor
@@ -121,10 +121,15 @@ PutMap:
 	cp $80
 	jr c,ROMFont
 	
+	ld hl,8
+	call Host.GetSafeScratchMemoryHL
+	jr c,+
 	call GetUserDefinedCharacter
 	ex de,hl
 	
 	jr WriteFontData
++:
+	ld a,' '
 
 ROMFont:
 	
@@ -794,15 +799,20 @@ SetPattern:
 
 
 GetUserDefinedCharacter:
-	ld a,c
-	call GetUserDefinedCharacterAddress
-	ret nc
-		
-	call Video.SetReadAddress
-	ld hl,8
-	call Host.GetSafeScratchMemoryHL
 	push hl
+	ld a,c
+	
+	call GetUserDefinedCharacterAddress
+	
+	jr c,+
+	pop hl
+	ret
+		
++:	call Video.SetReadAddress
 	ld b,8
+	
+	pop hl
+	push hl
 	
 -:	in a,(Video.Data)   ; 11
 	ld (hl),a           ; 7

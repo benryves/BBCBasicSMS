@@ -1272,14 +1272,24 @@ PutDecimalByteSub10:
 ; ---------------------------------------------------------
 GetCharacterData:
 	push de
+	push bc
 	push af
 	
-	ld c,a
-	ld a,Driver.Execute.GetUserDefinedCharacter
-	call Driver.Execute
-	jr c,GotCharacterData
+	ld hl,8
+	call Host.GetSafeScratchMemoryHL
+	jr c,+
 	
 	pop af
+	push af
+	ld c,a
+	
+	ld a,Driver.Execute.GetUserDefinedCharacter
+	call Driver.Execute
+	
+	jr c,GotCharacterData
+	jr GotCharacterData
+	
++:	pop af
 	inc a
 	jr nz,+
 	ld a,128
@@ -1290,7 +1300,7 @@ GetCharacterData:
 	jr nc,DefinedCharacterData
 
 UndefinedCharacterData:
-	ld a,'.'
+	ld a,'?'
 
 DefinedCharacterData:
 	add a,FontCharOffset
@@ -1303,11 +1313,13 @@ DefinedCharacterData:
 	add hl,hl
 	ld de,VDU.Fonts.Font8x8
 	add hl,de
+	pop bc
 	pop de
 	ret
 	
 GotCharacterData:
 	pop af
+	pop bc
 	pop de
 	ret
 	
