@@ -60,16 +60,16 @@ Stub:
 ;	.include "GraphicsII.asm"
 	.include "MasterSystem16Colours.asm"
 	.include "MasterSystem4Colours.asm"
-;	.include "MasterSystem2Colours.asm"
+	.include "MasterSystem2Colours.asm"
 
-	Count = 3
+	Count = 4
 	
 	Vectors:
 		.dw Text.Vectors                     ; MODE 0
 ;		.dw MasterSystem4Colours.Functions   ; MODE 1
 		.dw MasterSystem16Colours.Vectors    ; MODE 2
 ;		.dw GraphicsII.Functions             ; MODE 3
-;		.dw MasterSystem2Colours.Functions   ; MODE 4
+		.dw MasterSystem2Colours.Vectors   ; MODE 4
 		.dw MasterSystem4Colours.Vectors    ; MODE 5
 ;		.dw Text.Functions                   ; MODE 6
 ;		.dw TextDoubleHeight.Functions       ; MODE 7

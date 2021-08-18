@@ -2,9 +2,16 @@
 
 Vectors:
 	jp Execute
-	jp PutMap
-	jp BeginPlot
+	jp MasterSystem4Colours.PutMap
+	jp MasterSystem16Colours.BeginPlot
 	jp SetAlignedHorizontalLineSegment
+
+Execute:
+	or a \ jr z,Initialise
+	cp Driver.Execute.SetUserDefinedCharacter \ jp z,SetUserDefinedCharacter
+	cp Driver.Execute.SelectPalette \ jp z,SelectPalette
+	cp Driver.Execute.ResetPalette \ jp z,SelectDefaultPalette
+	jp MasterSystem4Colours.Execute
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1536 bytes
@@ -19,22 +26,7 @@ UserDefinedChars = PatternGenerator + MaxGraphicsTile * 32
 EndOfUserDefinedChars = NameTable
 UserDefinedCharCount = (EndOfUserDefinedChars - UserDefinedChars) / 8
 
-Functions:
-	.db Function.Initialise \ .dw Initialise
-	.db Function.PutMap \ .dw MasterSystem4Colours.PutMap
-	.db Function.Scroll \ .dw MasterSystem4Colours.Scroll
-	.db Function.BeginPlot \ .dw MasterSystem16Colours.BeginPlot
-	.db Function.SetAlignedHorizontalLineSegment \ .dw SetAlignedHorizontalLineSegment
-	.db Function.SelectPalette \ .dw SelectPalette
-	.db Function.SelectDefaultPalette \ .dw SelectDefaultPalette
-	.db Function.PreserveUnderCursor \ .dw MasterSystem4Colours.PreserveUnderCursor
-	.db Function.RestoreUnderCursor \ .dw MasterSystem4Colours.RestoreUnderCursor
-	.db Function.SetUserDefinedCharacter \ .dw SetUserDefinedCharacter
-	.db Function.GetUserDefinedCharacter \ .dw MasterSystem4Colours.GetUserDefinedCharacter
-	.db Function.End
-
 Initialise:
-	
 	call MasterSystem4Colours.Initialise
 
 	; Load the pattern fill data.
@@ -69,35 +61,37 @@ DefaultPatterns:
 ; ---------------------------------------------------------
 ; SelectPalette -> Selects the palette.
 ; ---------------------------------------------------------
-; Inputs:   a = "physical" colour (from BBC BASIC palette).
-;           b = "physical" colour.
+; Inputs:   b = "physical" colour (from BBC BASIC palette).
 ;           c = logical colour.
 ;           hl = pointer to RGB colour (if applicable).
 ; Destroys: af, hl, bc.
 ; ---------------------------------------------------------
 SelectPalette:
-	ld b,c
 	push bc
 	call MasterSystem16Colours.ParsePaletteCommand
-	ld c,a
-	pop af
+	pop bc
 	; Fall-through...
 
 ; ---------------------------------------------------------
 ; WritePaletteEntry -> Updates a particular palette entry.
 ; ---------------------------------------------------------
-; Inputs:   a = logical palette index (0..1).
-;           c = colour to set (6-bit BGR).
+; Inputs:   c = logical palette index (0..1).
+;           a = colour to set (6-bit BGR).
 ; Destroys: af, hl, b.
 ; ---------------------------------------------------------
 WritePaletteEntry:
 	
+	ld l,a
+	
+	ld a,c
 	and %1
 	ld h,a
 	
+	ld c,l
+	
 	ld b,8
 -:	ld a,h
-	call Video.SetPalette
+	call Video.SetPalette ; palette[a] = c
 	inc h
 	inc h
 	djnz -
@@ -138,8 +132,8 @@ SelectDefaultPalette:
 	xor a
 	ld c,a
 	call WritePaletteEntry
-	ld c,%00111111
-	ld a,c
+	ld a,%00111111
+	ld c,a
 	jr WritePaletteEntry
 
 ; ---------------------------------------------------------
@@ -236,7 +230,7 @@ PatternFill:
 	
 	; The filler only does a single bitplane at a time.
 	in a,(Video.Data)
-	call ManipulatePixelBitmask
+	call Driver.ManipulatePixelBitmask
 	ld (hl),a
 	
 	pop de
@@ -257,7 +251,7 @@ SolidColour:
 	ld a,(Graphics.PlotColour)
 	ld c,a
 	ld b,1
-	call ManipulatePixelBitmask
+	call Driver.ManipulatePixelBitmask
 
 GeneratedTileRow:
 	
@@ -273,6 +267,7 @@ GeneratedTileRow:
 	ret
 
 SetUserDefinedCharacter:
+	ld a,c
 
 	cp 11
 	jp z,SetDefaultFillPatterns
