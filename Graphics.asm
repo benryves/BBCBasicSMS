@@ -79,13 +79,13 @@ Reset:
 ResetViewport:
 	; Set default graphics bounds
 	xor a
-	ld (MinX),a
 	ld (MinY),a
-	dec a
+	ld a,8
+	ld (MinX),a
+	ld a,255-8
 	ld (MaxX),a
 	ld a,191
 	ld (MaxY),a
-	
 	ret
 	
 
@@ -211,6 +211,36 @@ MultiplyBy5:
 	pop de
 	ret
 
+; ==========================================================================
+; DivideBy5T
+; --------------------------------------------------------------------------
+; Divides by HL five and a third.
+; --------------------------------------------------------------------------
+; Inputs:    HL: Value to divide by five and a third.
+; Outputs:   HL: Value divided by five and a third.
+; Destroyed: None.
+; ==========================================================================
+DivideBy5T:
+	push af
+	push de
+	
+	ld d,h
+	ld e,l
+	
+	add hl,hl
+	sbc a,a
+	add hl,de
+	adc a,0
+	
+	sra h \ rr l
+	sra h \ rr l
+	sra h \ rr l
+	sra h \ rr l
+	
+	pop de
+	pop af
+	ret
+
 ; ---------------------------------------------------------
 ; SortDEHL -> Sort DE <= HL.
 ; ---------------------------------------------------------
@@ -323,14 +353,16 @@ TransformPoints:
 TransformPoint:
 	push bc
 	ex de,hl
-	call DivideBy5
+	call DivideBy5T
 	ld c,l
 	ld b,h
 	ld hl,191
 	or a
 	sbc hl,bc
 	ex de,hl
-	call DivideBy5
+	call DivideBy5T
+	ld bc,8
+	add hl,bc
 	pop bc
 	ret
 
