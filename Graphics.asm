@@ -214,7 +214,10 @@ MultiplyBy5:
 ; ==========================================================================
 ; DivideBy5T
 ; --------------------------------------------------------------------------
-; Divides by HL five and a third.
+; Divides HL by five and a third.
+; --------------------------------------------------------------------------
+; This actually multiplies by three then divides by sixteen, which is a much
+; easier calculation.
 ; --------------------------------------------------------------------------
 ; Inputs:    HL: Value to divide by five and a third.
 ; Outputs:   HL: Value divided by five and a third.
@@ -236,6 +239,80 @@ DivideBy5T:
 	sra h \ rr l
 	sra h \ rr l
 	sra h \ rr l
+	
+	pop de
+	pop af
+	ret
+
+; ==========================================================================
+; MultiplyBy5T
+; --------------------------------------------------------------------------
+; Multiplies HL by five and a third.
+; --------------------------------------------------------------------------
+; Inputs:    HL: Value to multiply by five and a third.
+; Outputs:   HL: Value multiplied by five and a third.
+; Destroyed: None.
+; ==========================================================================
+MultiplyBy5T:
+	push af
+	push de
+	
+	bit 7,h
+	jr z,MultiplyBy5TP
+	
+	ld a,h \ cpl \ ld h,a
+	ld a,l \ cpl \ ld l,a
+	inc hl
+	
+	call MultiplyBy5T
+	
+	ld a,h \ cpl \ ld h,a
+	ld a,l \ cpl \ ld l,a
+	inc hl
+	
+	pop de
+	pop af
+	ret
+
+MultiplyBy5TP:
+
+	; Store the accumlator in EHL
+	xor a
+	ld e,a
+	
+	; Multiply by 16
+	add hl,hl
+	sbc a,a
+	add hl,hl
+	adc a,e
+	add hl,hl
+	adc a,e
+	add hl,hl
+	adc a,e
+	ld e,a
+	
+	; Divide by 3
+	xor	a
+	ld d,3
+	
+	.rept 24
+	
+	add	hl,hl
+	rl e
+	rla
+	jr c,$+5
+	cp d
+	jr c,$+4
+
+	sub	d
+	inc	l
+
+	.loop
+	
+	or a
+	jr z,+
+	inc hl
++:
 	
 	pop de
 	pop af
@@ -836,8 +913,6 @@ NoSetAlignedHorizontalLineSegment:
 	ei
 	ret
 
-
-
 ; ---------------------------------------------------------
 ; PutMap -> Draws a character at the graphics cursor.
 ; ---------------------------------------------------------
@@ -1018,7 +1093,97 @@ PutMap.ReturnNoPrint:
 	pop af
 	or a
 	jr -
+
+GetCursorMinXHL:
+	ld hl,(MinX)
+	ld h,0
+	call SubHL8
+	ret
+
+GetCursorMaxXHL:
+	ld hl,(MaxX)
+	ld h,0
+	inc hl
+	call SubHL8
+	ret
+
+SubHL8:
+	push af
+	ld a,l
+	sub 8
+	ld l,a
+	jr nc,+
+	dec h
++:	pop af
+	ret
 	
+GetCursorMinYHL:
+	ld hl,(MaxY)
+	ld h,0
+	call Sub191HL
+	dec hl
+	ret
+
+GetCursorMaxYHL:
+	ld hl,(MinY)
+	ld h,0
+	call Sub191HL
+	ret
+
+Sub191HL:
+	push de
+	ex de,hl
+	ld hl,191
+	or a
+	sbc hl,de
+	pop de
+	ret
+
+GetCursorMinXBC:
+	ld bc,(MinX)
+	ld b,0
+	call SubBC8
+	ret
+
+GetCursorMaxXBC:
+	ld bc,(MaxX)
+	ld b,0
+	inc bc
+	call SubBC8
+	ret
+
+SubBC8:
+	push af
+	ld a,c
+	sub 8
+	ld c,a
+	jr nc,+
+	dec b
++:	pop af
+	ret
+
+GetCursorMinYBC:
+	ld bc,(MaxY)
+	ld b,0
+	call Sub191BC
+	dec bc
+	ret
+
+GetCursorMaxYBC:
+	ld bc,(MinY)
+	ld b,0
+	call Sub191BC
+	ret
+
+Sub191BC:
+	push hl
+	ld hl,191
+	or a
+	sbc hl,bc
+	ld b,h
+	ld c,l
+	pop hl
+	ret
 
 ; ---------------------------------------------------------
 ; PutChar -> Draws a character at the graphics cursor and
@@ -1038,25 +1203,24 @@ CursorRight:
 	push bc
 	
 	ld hl,(VisitedPoint0X)
-	ld bc,8*5
+	call DivideBy5T
+	
+	ld bc,8
 	add hl,bc
 	
-	push hl
-	call DivideBy5
-	ld bc,(MaxX)
-	ld b,0
+	call GetCursorMaxXBC
 	call SignedCPHLBC
-	pop hl
 	
 	jr c,CursorRightNoWrap
 	
 	; Cursor home.
-	ld hl,(MinX)
-	ld h,0
-	call MultiplyBy5
+	call GetCursorMinXHL
+	call MultiplyBy5T
 	jr CursorDown.FromCursorRight
 	
 CursorRightNoWrap:
+
+	call MultiplyBy5T
 
 	ld de,(VisitedPoint0Y)
 	call VisitPointAbsolute
@@ -1081,34 +1245,26 @@ CursorDown.FromCursorRight:
 	ex de,hl
 	
 	ld hl,(VisitedPoint0Y)
-	ld bc,-8*5
+	
+	call DivideBy5T
+	
+	ld bc,-8
 	add hl,bc
 	
-	push hl
-	
-	call DivideBy5
-	
-	ld a,(MaxY)
-	neg
-	add a,192
-	ld c,a
-	ld b,0
+	call GetCursorMinYBC
 	call SignedCPHLBC
-	pop hl
 	
+	jr z,+
 	jr nc,CursorDownNoWrap
-
-	ld a,(MinY)
-	neg
-	add a,192
-	ld l,a
-	ld h,0
-	call MultiplyBy5
-	dec hl
++:
+	call GetCursorMaxYHL
 
 CursorDownNoWrap:
+
+	call MultiplyBy5T
 	
 	ex de,hl
+	
 	call VisitPointAbsolute
 	
 	pop bc
@@ -1125,27 +1281,27 @@ CursorLeft:
 	push bc
 	
 	ld hl,(VisitedPoint0X)
-	ld bc,-8*5
+	call DivideBy5T
+	ld bc,-8
 	add hl,bc
 	
-	push hl
-	call DivideBy5
-	ld bc,(MinX)
-	ld b,0
+	call GetCursorMinXBC
 	call SignedCPHLBC
-	pop hl
 	
 	jr nc,CursorLeftNoWrap
 	
 	; Cursor to right edge.
-	ld hl,(MaxX)
-	ld h,0
+	call GetCursorMaxXHL
 	ld bc,-8
 	add hl,bc
-	call MultiplyBy5
+	
+	call MultiplyBy5T
+	
 	jr CursorUp.FromCursorLeft
 	
 CursorLeftNoWrap:
+
+	call MultiplyBy5T
 
 	ld de,(VisitedPoint0Y)
 	call VisitPointAbsolute
@@ -1171,32 +1327,23 @@ CursorUp.FromCursorLeft:
 	ex de,hl
 	
 	ld hl,(VisitedPoint0Y)
-	ld bc,8*5
+	call DivideBy5T
+	ld bc,8
 	add hl,bc
 	
-	push hl
-	
-	call DivideBy5
-	
-	ld a,(MinY)
-	neg
-	add a,191
-	ld c,a
-	ld b,0
+	call GetCursorMaxYBC
 	call SignedCPHLBC
-	pop hl
 	
-	jr c,CursorDownNoWrap
+	jr c,CursorUpNoWrap
 
-	ld a,(MinY)
-	neg
-	add a,192
-	ld l,a
-	ld h,0
-	call MultiplyBy5
-	dec hl
+	; Cursor to bottom edge.
+	call GetCursorMinYHL
+	ld bc,8
+	add hl,bc
 
-CursorDownNoWrap:
+CursorUpNoWrap:
+	
+	call MultiplyBy5T
 	
 	ex de,hl
 	call VisitPointAbsolute
@@ -1212,9 +1359,8 @@ CursorDownNoWrap:
 HomeLeft:
 	push hl
 	push de
-	ld hl,(MinX)
-	ld h,0
-	call MultiplyBy5
+	call GetCursorMinXHL
+	call MultiplyBy5T
 	ld de,(VisitedPoint0Y)
 	call VisitPointAbsolute
 	pop de
