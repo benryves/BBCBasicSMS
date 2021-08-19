@@ -108,7 +108,7 @@ GetBit.1: ; 2x 2400Hz
 ; ---------------------------------------------------------
 GetByte:
 	
-	ld b,20
+	ld b,0
 	
 -:	push bc
 	call GetHalfWaveLength
