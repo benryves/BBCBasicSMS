@@ -7,16 +7,25 @@ EndOfEllipseVars = g_finishEllipseX + 2
 MainVariables = Variables
 Variables = EllipseVars
 
+TriangleFlags = allocVar(1)
+LongEdgeShallow = 0
+ShortEdgeShallow = 1
+
+TriangleMinX = allocVar(2)
+TriangleMaxX = allocVar(2)
+
 EdgeY = allocVar(2)
 EdgeCounter = allocVar(2)
 
 LongEdgeX = allocVar(2)
+LongEdgeEndX = allocVar(2)
 LongEdgeDX = allocVar(2)
 LongEdgeError = allocVar(2)
 LongEdgeErrorDX = allocVar(2)
 LongEdgeErrorDY = allocVar(2)
 
 ShortEdgeX = allocVar(2)
+ShortEdgeEndX = allocVar(2)
 ShortEdgeDX = allocVar(2)
 ShortEdgeError = allocVar(2)
 ShortEdgeErrorDX = allocVar(2)
@@ -82,6 +91,10 @@ PointsSorted:
 	
 	; We now have a "long" edge (point 0 to point 2) and two "short" edges (point 0 to 1, point 1 to 2).
 	
+	; Reset flags.
+	xor a
+	ld (TriangleFlags),a
+	
 	; We'll have the same Y variable regardless of which edge we're filling.
 	ld hl,(TransformedPoint0Y)
 	ld (EdgeY),hl
@@ -93,6 +106,7 @@ PointsSorted:
 	
 	; Calculate the long edge error DX and actual DX.
 	ld hl,(TransformedPoint2X)
+	ld (LongEdgeEndX),hl
 	or a
 	sbc hl,de
 	ld de,+1
@@ -115,20 +129,24 @@ PointsSorted:
 	; Initial error = -max(|DY|,|DX|)/2
 	ld hl,(LongEdgeErrorDX)
 	ld de,(LongEdgeErrorDY)
+	ld a,(TriangleFlags)
 	or a
 	sbc hl,de
 	jr c,+
 	ld de,(LongEdgeErrorDX)
+	or 1 << LongEdgeShallow
 +:	srl d \ rr e
 	or a
 	ld hl,0
 	sbc hl,de
 	ld (LongEdgeError),hl
+	ld (TriangleFlags),a
 	
 	; Calculate the short edge
 	ld de,(TransformedPoint0X)
 	
 	ld hl,(TransformedPoint1X)
+	ld (ShortEdgeEndX),hl
 	or a
 	sbc hl,de
 	ld de,+1
@@ -148,19 +166,11 @@ PointsSorted:
 	sbc hl,de
 	ld (ShortEdgeErrorDY),hl
 	
-	; As we'll be going from 0->1 then 1->2 we want to skip one row.
-	; Otherwise the line corresponding to Y=1Y will be drawn twice.
-	jr z,SkipTopHalf
-	dec hl
-	ld a,h
-	or l
 	jr z,SkipTopHalf
 	
 	;  We'll be filling in the top edge.
+	dec hl
 	ld (EdgeCounter),hl
-	inc hl
-
-	ld a,1
 	call FillHalf
 
 SkipTopHalf:
@@ -171,6 +181,7 @@ SkipTopHalf:
 	ld de,(TransformedPoint1X)
 	ld (ShortEdgeX),de
 	ld hl,(TransformedPoint2X)
+	ld (ShortEdgeEndX),hl
 	or a
 	sbc hl,de
 	ld de,+1
@@ -192,112 +203,189 @@ SkipTopHalf:
 	
 	;  We'll be filling in the bottom half.
 	ld (EdgeCounter),hl
-	
-	ld a,2
 	call FillHalf
 	
 	ret
 
 FillHalf:
 
+	; Is the triangle zero height?
+	ld hl,(TransformedPoint2Y)
+	ld de,(TransformedPoint0Y)
+	or a
+	sbc hl,de
+	jr nz,NonZeroTriangle
+	
+	ld de,(TransformedPoint0X)
+	ld hl,(TransformedPoint1X)
+	call SortDEHL
+	ld hl,(TransformedPoint2X)
+	call SortDEHL
+	ld (TriangleMinX),de
+	
+	ld de,(TransformedPoint0X)
+	ld hl,(TransformedPoint1X)
+	call SortDEHL
+	ld de,(TransformedPoint2X)
+	call SortDEHL
+	ld (TriangleMaxX),hl
+	
+	jp SkipTriangleTrace
+	
+
+NonZeroTriangle:
+
 	; Get the error for the short edge.
 	ld hl,(ShortEdgeErrorDX)
 	ld de,(ShortEdgeErrorDY)
+	ld a,(TriangleFlags)
+	and ~(1 << ShortEdgeShallow)
 	or a
 	sbc hl,de
 	jr c,+
 	ld de,(ShortEdgeErrorDX)
+	or 1 << ShortEdgeShallow
 +:	srl d \ rr e
 	or a
 	ld hl,0
 	sbc hl,de
 	ld (ShortEdgeError),hl
+	ld (TriangleFlags),a
 	
-	dec a
-	jp nz,FillHalfLoop
-	
-	; If we're filling the top half (A=1) of the triangle,
-	; pre-advance any shallow edges.
-	
-	ld hl,(ShortEdgeErrorDY)
-	ld de,(ShortEdgeErrorDX)
-	or a
-	sbc hl,de
-	jr nc,ShortEdgeNotShallow
-	
-	ld hl,(ShortEdgeError)
-	ld de,(ShortEdgeErrorDX)
-	add hl,de
-	jr nc,NoShortEdgeError
-	
--:	push hl
-	ld hl,(ShortEdgeX)
-	ld de,(ShortEdgeDX)
-	add hl,de
-	ld (ShortEdgeX),hl
-	pop hl
-	
-	ld de,(ShortEdgeErrorDY)
-	ld a,d
-	or e
-	jr z,+
-	sbc hl,de
-	jr nc,-
-	
-	; Back one pixel if we've already advanced.
-+:	push hl
-	ld hl,(ShortEdgeX)
-	ld de,(ShortEdgeDX)
-	or a
-	sbc hl,de
-	ld (ShortEdgeX),hl
-	pop hl
-	
-NoShortEdgeError:
-	ld (ShortEdgeError),hl
+FillHalfLoop:
 
-ShortEdgeNotShallow:
+	; Get the minimum and maximum X.
+	ld de,(LongEdgeX)
+	ld hl,(ShortEdgeX)
+	call SortDEHL
+	ld (TriangleMinX),de
+	ld (TriangleMaxX),hl
 
-	ld hl,(LongEdgeErrorDY)
-	ld de,(LongEdgeErrorDX)
-	or a
-	sbc hl,de
-	jr nc,LongEdgeNotShallow
+	; We'll need to know which of our edges is shallow.
+	ld a,(TriangleFlags)
+
+LongEdgeMinMaxLoop:
+
+	; Advance the long edge.
+	ld de,(TriangleMinX)
+	ld hl,(LongEdgeX)
+	call SortDEHL
+	ld (TriangleMinX),de
 	
+	ld hl,(TriangleMaxX)
+	ld de,(LongEdgeX)
+	call SortDEHL
+	ld (TriangleMaxX),hl
+	
+	bit LongEdgeShallow,a
+	jr nz,LongEdgeIsShallow
+
+LongEdgeIsSteep:
+
 	ld hl,(LongEdgeError)
 	ld de,(LongEdgeErrorDX)
 	add hl,de
-	jr nc,NoLongEdgeError
-	
--:	push hl
+	jr nc,+
+	ld de,(LongEdgeErrorDY)
+	or a
+	sbc hl,de
+	push hl
 	ld hl,(LongEdgeX)
 	ld de,(LongEdgeDX)
 	add hl,de
 	ld (LongEdgeX),hl
 	pop hl
-	
-	ld de,(LongEdgeErrorDY)
-	ld a,d
-	or e
-	jr z,+
-	sbc hl,de
-	jr nc,-
-+:	
-	; Back one pixel if we've already advanced.
-	push hl
-	ld hl,(LongEdgeX)
-	ld de,(LongEdgeDX)
++:	ld (LongEdgeError),hl
+	jr FinishedLongEdge
+
+LongEdgeIsShallow:
+
+	ld de,(LongEdgeX)
+	ld hl,(LongEdgeEndX)
 	or a
 	sbc hl,de
+	jr z,FinishedLongEdge
+	ld hl,(LongEdgeDX)
+	add hl,de
 	ld (LongEdgeX),hl
-	pop hl
 	
-NoLongEdgeError:
+	ld hl,(LongEdgeError)
+	ld de,(LongEdgeErrorDY)
+	add hl,de
+	jr c,+
+
 	ld (LongEdgeError),hl
+	jr LongEdgeMinMaxLoop
 
-LongEdgeNotShallow:
++:	ld de,(LongEdgeErrorDX)
+	or a
+	sbc hl,de
+	ld (LongEdgeError),hl
+	
+FinishedLongEdge:
 
-FillHalfLoop:
+ShortEdgeMinMaxLoop:
+
+	; Advance the short edge.
+	ld de,(TriangleMinX)
+	ld hl,(ShortEdgeX)
+	call SortDEHL
+	ld (TriangleMinX),de
+	
+	ld hl,(TriangleMaxX)
+	ld de,(ShortEdgeX)
+	call SortDEHL
+	ld (TriangleMaxX),hl
+	
+	bit ShortEdgeShallow,a
+	jr nz,ShortEdgeIsShallow
+
+ShortEdgeIsSteep:
+
+	ld hl,(ShortEdgeError)
+	ld de,(ShortEdgeErrorDX)
+	add hl,de
+	jr nc,+
+	ld de,(ShortEdgeErrorDY)
+	or a
+	sbc hl,de
+	push hl
+	ld hl,(ShortEdgeX)
+	ld de,(ShortEdgeDX)
+	add hl,de
+	ld (ShortEdgeX),hl
+	pop hl
++:	ld (ShortEdgeError),hl
+	jr FinishedShortEdge
+
+ShortEdgeIsShallow:
+
+	ld de,(ShortEdgeX)
+	ld hl,(ShortEdgeEndX)
+	or a
+	sbc hl,de
+	jr z,FinishedShortEdge
+	ld hl,(ShortEdgeDX)
+	add hl,de
+	ld (ShortEdgeX),hl
+	
+	ld hl,(ShortEdgeError)
+	ld de,(ShortEdgeErrorDY)
+	add hl,de
+	jr c,+
+
+	ld (ShortEdgeError),hl
+	jr ShortEdgeMinMaxLoop
+
++:	ld de,(ShortEdgeErrorDX)
+	or a
+	sbc hl,de
+	ld (ShortEdgeError),hl
+	
+FinishedShortEdge:
+
+SkipTriangleTrace:
+
 	; Clip the span.
 	
 	; Start with Y and a quick range check (Y<0 or Y>255, it's definitely off-screen!)
@@ -317,14 +405,13 @@ FillHalfLoop:
 	cp c
 	jr c,SpanOffScreen
 	
-	; Y is OK. 
+	; Y is OK.
 	
 	; Now clip/cull X.
 	
 	; Sort DE <= HL
-	ld de,(LongEdgeX)
-	ld hl,(ShortEdgeX)
-	call SortDEHL
+	ld de,(TriangleMinX)
+	ld hl,(TriangleMaxX)
 	
 	; Is left edge > right viewport bound?
 	bit 7,d
@@ -383,28 +470,6 @@ SpanOffScreen:
 	inc hl
 	ld (EdgeY),hl
 
-	; Do we need to advance the long edge's X?
-	ld hl,(LongEdgeError)
-	ld de,(LongEdgeErrorDX)
-	add hl,de
-	jr nc,+
-	
--:	push hl
-	ld hl,(LongEdgeX)
-	ld de,(LongEdgeDX)
-	add hl,de
-	ld (LongEdgeX),hl
-	pop hl
-	
-	ld de,(LongEdgeErrorDY)
-	ld a,d
-	or e
-	jr z,+
-	sbc hl,de
-	jr nc,-
-	
-+:	ld (LongEdgeError),hl
-
 	; Is there more of the half to draw?
 	ld hl,(EdgeCounter)
 	ld a,h
@@ -412,30 +477,6 @@ SpanOffScreen:
 	ret z
 	dec hl
 	ld (EdgeCounter),hl
-	
-	; Do we need to advance the short edge's X?
-	; We only run this now as zero-height short sections can cause infinite loops here.
-	ld hl,(ShortEdgeError)
-	ld de,(ShortEdgeErrorDX)
-	add hl,de
-	jr nc,+
-	
--:	push hl
-	ld hl,(ShortEdgeX)
-	ld de,(ShortEdgeDX)
-	add hl,de
-	ld (ShortEdgeX),hl
-	pop hl
-	
-	ld de,(ShortEdgeErrorDY)
-	ld a,d
-	or e
-	jr z,+
-	sbc hl,de
-	jr nc,-
-	
-+:	ld (ShortEdgeError),hl
-	
 	jp FillHalfLoop
 
 .endmodule
