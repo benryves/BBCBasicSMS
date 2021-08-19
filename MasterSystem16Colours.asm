@@ -721,7 +721,7 @@ SetUserDefinedCharacter:
 	cp 12
 	ret c
 	
-	cp 15
+	cp 16
 	ret nc
 	
 	; Fill a simpler pattern.
