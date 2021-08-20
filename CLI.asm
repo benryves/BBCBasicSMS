@@ -638,7 +638,11 @@ Tape1200:
 TapeTest:
 	ld de,0
 	
+	
 	ld a,(hl)
+	cp '~'
+	jr z,FullWaveTest
+	
 	cp '+'
 	jr nz,+
 	inc hl
@@ -661,13 +665,13 @@ TapeTest:
 	
 -:	ld a,(Host.Flags)
 	bit Host.EscapeError,a
-	jr nz,+
+	jr nz,TapeTestExit
 	call Tape.GetHalfWaveLength
 	jr z,-
 	
 -:	ld a,(Host.Flags)
 	bit Host.EscapeError,a
-	jr nz,+
+	jr nz,TapeTestExit
 	
 	in a,(Tape.InputPort)
 	and d
@@ -680,7 +684,9 @@ TapeTest:
 	ld (hl),b
 	inc l
 	jr nz,-
-	
+
+TapeTestPrintResults:
+
 	ld hl,Basic.BBCBASIC_ACC$
 	
 -:	ld a,(VDU.Console.MaxCol)
@@ -701,12 +707,32 @@ TapeTest:
 +:	.bcall "VDU.PutDecimalByte"
 	inc l
 	jr nz,-
+
+TapeTestExit:
 	
 	.bcall "VDU.Console.NewLine"
 	
-+:	pop hl
+	pop hl
 	scf
 	ret
+	
+
+FullWaveTest:
+
+	inc hl
+	call CheckCommandEnd
+	push hl
+	
+	ld hl,Basic.BBCBASIC_ACC$
+	
+-:	call Tape.GetFullWaveLength
+	jr z,-
+	
+	ld (hl),b
+	inc l
+	jr nz,-
+
+	jp TapeTestPrintResults
 
 TapeSubcommands:
 	osclicommand("3", Tape300)

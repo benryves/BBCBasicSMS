@@ -11,6 +11,7 @@ InputPort = $DD
 InputBit  = 3
 
 HalfWaveLengthThreshold = 18
+FullWaveLengthThreshold = 45
 
 .define GetFileName          Basic.BBCBASIC_BUFFER+207 ; Pointer to the filename to retrieve.
 .define GetFileAddress       Basic.BBCBASIC_BUFFER+209 ; Pointer to the start address to store the actual file.
@@ -54,6 +55,74 @@ GetHalfWaveLength:
 	scf
 	ret
 
+
+; ---------------------------------------------------------
+; GetFullWaveLength -> Gets the length of a wave cycle.
+; ---------------------------------------------------------
+; Inputs:   None.
+; Outputs:  b = length of the half wave.
+;           z set if the bit timed out. 
+;           c set if it was a short wave, cleared if it was
+;           long.
+; Destroys: af, bc.
+; ---------------------------------------------------------
+GetFullWaveLength:
+	di
+	ld b,0
+	
+	; Remember the initial state of the input port.
+-:	in a,(InputPort)
+	bit InputBit,a
+	jr z,+
+	inc b
+	jr nz,-
+	
+	; Time out.
+	ret
+	
++:	ld c,a
+	ld b,0
+	
+	; Get the first half of the wave.
+	
+-:	in a,(InputPort)
+	xor c
+	and 1 << InputBit
+	jr nz,+
+	inc b
+	jr nz,-
+	
+	; Time out.
+	ret
+	
++:
+	
+	; Get the second half of the wave.
+	
+	ld a,c
+	cpl
+	ld c,a
+
+-:	in a,(InputPort)
+	xor c
+	and 1 << InputBit
+	jr nz,+
+	inc b
+	jr nz,-
+	
+	; Time out.
+	ret
+	
++:
+	
+	; Convert bit length to bit value.
+	ld a,b
+	cp FullWaveLengthThreshold
+	ret nz
+	
+	inc a ; Force NZ if Z before.
+	ret
+
 ; ---------------------------------------------------------
 ; GetBit -> Gets a bit from the tape.
 ; ---------------------------------------------------------
@@ -63,41 +132,12 @@ GetHalfWaveLength:
 ; Destroys: af, bc.
 ; ---------------------------------------------------------
 GetBit:
-	call GetHalfWaveLength
-	ret z ; Time out.
-	
-	ld a,b
-	cp HalfWaveLengthThreshold
-	jr c,GetBit.1
 
-GetBit.0: ; 1x 1200Hz
-	
-	call GetHalfWaveLength
-	
-	scf
-	ccf
-	ret
-
-
-GetBit.1: ; 2x 2400Hz
-	
-	call GetHalfWaveLength
+	call GetFullWaveLength
 	ret z
-	
-	; The initial bit might have been a trailing 2400Hz half-wave.
-	; If we now receive a 1200Hz half-wave, we should ignore the previous 2400Hz half-wave.
-	ld a,b
-	cp HalfWaveLengthThreshold
-	jr nc,GetBit.0
-	
-	call GetHalfWaveLength
-	ret z
-	
-	call GetHalfWaveLength
-	
-	scf
+	ret nc ; If it's a 0 bit, it's 1x 1200Hz.
+	call GetFullWaveLength
 	ret
-
 
 ; ---------------------------------------------------------
 ; GetByte -> Gets a byte from the tape.
@@ -111,34 +151,17 @@ GetByte:
 	ld b,0
 	
 -:	push bc
-	call GetHalfWaveLength
-	ld a,b
+	call GetBit
 	pop bc
 	
-	jr nz,+
-	djnz -
+	ret z ; No bit
 	
-	xor a
-	ret
-	
-+:	cp HalfWaveLengthThreshold
-	jr nc,+
-
-	djnz -
-	xor a
-	ret
-
-
-+:	call GetHalfWaveLength
-	ret z
-	
-	ld a,b
-	cp HalfWaveLengthThreshold
 	jr nc,GotStartBit
 	
-	xor a
-	ret
-	
+	inc b
+	ret z
+	jr -
+
 GotStartBit:
 
 	; Fetch 8 data bits.
