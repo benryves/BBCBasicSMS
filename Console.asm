@@ -1,8 +1,8 @@
-; =========================================================
-; Module: Console
-; =========================================================
+; ==========================================================================
+; Console
+; --------------------------------------------------------------------------
 ; Handles outputting text to the screen.
-; =========================================================
+; ==========================================================================
 .module Console
 
 CurRow = allocVar(1)
@@ -31,13 +31,28 @@ CursorBlinkTimer = allocVar(1)
 
 AreaUnderCursor = allocVar(16)
 
+; ==========================================================================
+; Reset
+; --------------------------------------------------------------------------
+; Resets all console settings to their intial values for the current mode.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; ==========================================================================
 Reset:
 	
 	xor a
 	ld (Flags),a
 	ld a,$0F
 	ld (Colour),a
+	; Fall-through to ResetViewport
 
+; ==========================================================================
+; ResetViewport
+; --------------------------------------------------------------------------
+; Resets the viewport to the appropriate settings for the current mode.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; ==========================================================================
 ResetViewport:
 	
 	; Set to sensible defaults.
@@ -59,17 +74,40 @@ ResetViewport:
 	; Now invoke the driver-specific version.
 	ld a,Driver.Execute.ResetConsoleViewport
 	call Driver.Execute
+	; Fall-through to HomeUp
 
+; ==========================================================================
+; HomeUp
+; --------------------------------------------------------------------------
+; Moves the cursor to the top left corner of the viewport.
+; --------------------------------------------------------------------------
+; Destroyed:  A.
+; ==========================================================================
 HomeUp:
 	ld a,(MinRow)
 	ld (CurRow),a
 	; Fall-through to HomeLeft
-	
+
+; ==========================================================================
+; HomeLeft
+; --------------------------------------------------------------------------
+; Moves the cursor to the left edge of the viewport.
+; --------------------------------------------------------------------------
+; Destroyed:  A.
+; ==========================================================================
 HomeLeft:
 	ld a,(MinCol)
 	ld (CurCol),a
 	ret
 
+; ==========================================================================
+; CursorRight
+; --------------------------------------------------------------------------
+; Moves the cursor right one character.
+; --------------------------------------------------------------------------
+; Outputs:    F: Carry set if this caused the screen to scroll.
+; Destroyed:  AF.
+; ==========================================================================
 CursorRight:
 	ld a,(CurCol)
 	inc a
@@ -84,14 +122,31 @@ CursorRight:
 	jr NewLine
 	
 +:	ld (CurCol),a
+	or a
 	ret
 	
 
+; ==========================================================================
+; NewLine
+; --------------------------------------------------------------------------
+; Moves the cursor down one row and into the leftmost column.
+; --------------------------------------------------------------------------
+; Outputs:    F: Carry set if this caused the screen to scroll.
+; Destroyed:  AF.
+; ==========================================================================
 NewLine:
 	ld a,(MinCol)
 	ld (CurCol),a
 	; Fall-through to CursorDown
 
+; ==========================================================================
+; CursorDown
+; --------------------------------------------------------------------------
+; Moves the cursor down one row.
+; --------------------------------------------------------------------------
+; Outputs:    F: Carry set if this caused the screen to scroll.
+; Destroyed:  AF.
+; ==========================================================================
 CursorDown:
 
 	ld a,(CurRow)
@@ -105,11 +160,22 @@ CursorDown:
 	
 	call ScrollUp
 	ld a,(MaxRow)
+	ld (CurRow),a
+	scf
+	ret
 	
 +:	ld (CurRow),a
-	
+	or a
 	ret
 
+; ==========================================================================
+; CursorLeft
+; --------------------------------------------------------------------------
+; Moves the cursor left one column.
+; --------------------------------------------------------------------------
+; Outputs:    F: Carry set if this caused the screen to scroll.
+; Destroyed:  AF.
+; ==========================================================================
 CursorLeft:
 	ld a,(CurCol)
 	or a
@@ -127,8 +193,16 @@ CursorLeftWrapped:
 	ld (CurCol),a
 	pop af
 	ret nc
-+:
++:	; Fall-through to CursorUp.
 
+; ==========================================================================
+; CursorUp
+; --------------------------------------------------------------------------
+; Moves the cursor up one row.
+; --------------------------------------------------------------------------
+; Outputs:    F: Carry set if this caused the screen to scroll.
+; Destroyed:  AF.
+; ==========================================================================
 CursorUp:
 	ld a,(CurRow)
 	push bc
@@ -139,15 +213,26 @@ CursorUp:
 	cp c
 	pop bc
 	jr nc,+
+
 CursorUpWrapped:
 	call ScrollDown
 	pop bc
 	ld a,(MinRow)
-+:	push af
 	ld (CurRow),a
-	pop af
+	scf
+	ret
+	
++:	ld (CurRow),a
+	or a
 	ret
 
+; ==========================================================================
+; Clear
+; --------------------------------------------------------------------------
+; Clears the console viewport.
+; --------------------------------------------------------------------------
+; Destroyed:  AF, BC.
+; ==========================================================================
 Clear:
 	ld a,(Console.MinRow)
 	ld c,a
@@ -188,10 +273,6 @@ Clear:
 	
 	call Console.HomeUp
 	ret
-
-Tab:
-	ret
-
 
 DriverExecute:
 	push bc

@@ -549,9 +549,12 @@ OSLINE.Home:
 
 	.bcall "VDU.EndBlinkingCursor"
 
--:	.bcall "VDU.CursorLeft"
-	dec hl
+-:	dec hl
 	dec d
+	.bcall "VDU.CursorLeft"
+	call c,OSLINE.RepaintTopLine
+	ld a,d
+	or a
 	jr nz,-
 	
 +:	pop af
@@ -566,9 +569,12 @@ OSLINE.End:
 
 	.bcall "VDU.EndBlinkingCursor"
 
--:	.bcall "VDU.CursorRight"
-	inc hl
+-:	inc hl
 	inc d
+	
+	.bcall "VDU.CursorRight"
+	call c,OSLINE.RepaintBottomLine
+	
 	ld a,b
 	cp d
 	jr nz,-
@@ -585,10 +591,12 @@ OSLINE.Left:
 	jr z,+
 	
 	.bcall "VDU.EndBlinkingCursor"
-	.bcall "VDU.CursorLeft"
+	
 	dec hl
 	dec d
 	
+	.bcall "VDU.CursorLeft"
+	call c,OSLINE.RepaintTopLine
 	
 +:	pop af
 	ret
@@ -602,10 +610,12 @@ OSLINE.Right:
 	jr z,+
 	
 	.bcall "VDU.EndBlinkingCursor"
-	.bcall "VDU.CursorRight"
+	
 	inc hl
 	inc d
 	
+	.bcall "VDU.CursorRight"
+	call c,OSLINE.RepaintBottomLine
 	
 +:	pop af
 	ret
@@ -628,7 +638,6 @@ OSLINE.Up:
 	jr OSLINE.Home
 	
 +:	.bcall "VDU.EndBlinkingCursor"
-	.bcall "VDU.CursorUp"
 	
 	push de
 	ld d,0
@@ -638,6 +647,8 @@ OSLINE.Up:
 	sub e
 	ld d,a
 	
+	.bcall "VDU.CursorUp"
+	call c,OSLINE.RepaintTopLine
 	
 	pop af
 	ret
@@ -663,7 +674,6 @@ OSLINE.Down:
 	jr OSLINE.End
 	
 +:	.bcall "VDU.EndBlinkingCursor"
-	.bcall "VDU.CursorDown"
 	
 	push de
 	ld d,0
@@ -671,6 +681,9 @@ OSLINE.Down:
 	pop af
 	add a,e
 	ld d,a
+
+	.bcall "VDU.CursorDown"
+	call c,OSLINE.RepaintBottomLine
 	
 	pop af
 	ret
@@ -709,6 +722,78 @@ OSLINE.Clear:
 	djnz -
 	
 	jp OSLINE.Loop
+
+OSLINE.RepaintTopLine:
+OSLINE.RepaintBottomLine:
+OSLINE.RepaintCurrentLine:
+	; Preserve editor and cursor state.
+	ld a,(VDU.Console.CurCol)
+	push af
+	push bc
+	push de
+	push hl
+	
+	; Work backwards to the start of the line.
+	
+	; Are we already at the start of the line?
+	ld a,d
+	or a
+	jr z,OSLINE.RepaintAtLeftEdge
+	
+	; Are we already in the leftmost column?
+	ld a,(VDU.Console.MinCol)
+	ld e,a
+	ld a,(VDU.Console.CurCol)
+	sub e
+	jr z,OSLINE.RepaintAtLeftEdge
+	ld e,a
+	; e = distance from left edge.
+	
+-:	dec hl
+	.bcall "VDU.Console.CursorLeft"
+	dec d
+	jr z,OSLINE.RepaintAtLeftEdge
+	dec e
+	jr z,OSLINE.RepaintAtLeftEdge
+	jr -
+
+OSLINE.RepaintAtLeftEdge:
+	
+	; We are now at the left most edge.
+	
+	; Get the distance to the end of the line.
+	ld a,b
+	sub d
+	inc a
+	ld d,a
+	
+	; Get the distance to the right of the viewport.
+	ld a,(VDU.Console.CurCol)
+	ld e,a
+	ld a,(VDU.Console.MaxCol)
+	sub e
+	inc a
+	ld e,a
+
+-:	ld a,(hl)
+	.bcall "VDU.PutMap"
+	inc hl
+	dec d
+	jr z,OSLINE.RepaintAtRightEdge
+	dec e
+	jr z,OSLINE.RepaintAtRightEdge
+	.bcall "VDU.COnsole.CursorRight"
+	jr -
+
+OSLINE.RepaintAtRightEdge:
+
+	; Restore editor and cursor state.
+	pop hl
+	pop de
+	pop bc
+	pop af
+	ld (VDU.Console.CurCol),a
+	ret
 
 ;------------------------------------------------------------------------------- 
 ;@doc:routine 
@@ -2355,11 +2440,11 @@ GETEXT:
 ; --------------------------------------------------------------------------
 ; Gets a safe pointer to a free block of memory for temporary usage.
 ; --------------------------------------------------------------------------
-; Inputs:    BC: Amount of memory required.
-; Outputs:   F: Carry set if there's not enough space.
-;            HL: Address of allocated memory.
-; Destroyed: AF, BC HL.
-; Interupts: Enabled.
+; Inputs:     BC: Amount of memory required.
+; Outputs:    F: Carry set if there's not enough space.
+;             HL: Address of allocated memory.
+; Destroyed:  AF, BC HL.
+; Interrupts: Enabled.
 ; ==========================================================================
 GetSafeScratchMemory:
 	push de
@@ -2397,11 +2482,11 @@ GetSafeScratchMemory:
 ; is similar to GetSafeScratchMemory but takes the amount of free memory
 ; in HL.
 ; --------------------------------------------------------------------------
-; Inputs:    HL: Amount of memory required.
-; Outputs:   F: Carry set if there's not enough space.
-;            HL: Address of allocated memory.
-; Destroyed: AF, HL.
-; Interupts: Enabled.
+; Inputs:     HL: Amount of memory required.
+; Outputs:    F: Carry set if there's not enough space.
+;             HL: Address of allocated memory.
+; Destroyed:  AF, HL.
+; Interrupts: Enabled.
 ; ==========================================================================
 GetSafeScratchMemoryHL:
 	push bc
@@ -2418,11 +2503,11 @@ GetSafeScratchMemoryHL:
 ; is similar to GetSafeScratchMemory but takes the amount of free memory
 ; in DE and returns the address in DE.
 ; --------------------------------------------------------------------------
-; Inputs:    DE: Amount of memory required.
-; Outputs:   F: Carry set if there's not enough space.
-;            DE: Address of allocated memory.
-; Destroyed: AF, HL.
-; Interupts: Enabled.
+; Inputs:     DE: Amount of memory required.
+; Outputs:    F: Carry set if there's not enough space.
+;             DE: Address of allocated memory.
+; Destroyed:  AF, HL.
+; Interrupts: Enabled.
 ; ==========================================================================
 GetSafeScratchMemoryDE:
 	ex de,hl
