@@ -12,7 +12,9 @@ Execute:
 	cp Driver.Execute.Reset
 	jr z,Initialise
 	cp Driver.Execute.ScrollUp
-	jp z,Scroll
+	jp z,ScrollUp
+	cp Driver.Execute.ScrollDown
+	jp z,ScrollDown
 	cp Driver.Execute.GetCursorArea
 	jp z,PreserveUnderCursor
 	cp Driver.Execute.SetCursorArea
@@ -149,7 +151,7 @@ PutMap:
 	ei
 	ret
 
-Scroll:
+ScrollUp:
 	push bc
 	push de
 	push hl
@@ -185,6 +187,51 @@ Scroll:
 	
 	; We'll be moving row by row.
 	ld de,40
+	
+	call Console.ScrollBlock
+	
+	pop hl
+	pop de
+	pop bc
+	ei
+	ret
+
+ScrollDown:
+	push bc
+	push de
+	push hl
+	
+	; Get the pointer to the bottom left corner.
+	ld a,(Console.MaxRow)
+	call AMul40
+	ld a,(Console.MinCol)
+	ld e,a
+	ld d,0
+	add hl,de
+	
+.if NameTable != 0
+	ld de,NameTable
+	add hl,de
+.endif
+	
+	; How many columns will we need to move?
+	ld a,(Console.MinCol)
+	ld c,a
+	ld a,(Console.MaxCol)
+	sub c
+	inc a
+	ld c,a
+	
+	; How many rows will we need to move?
+	ld a,(Console.MinRow)
+	ld b,a
+	ld a,(Console.MaxRow)
+	sub b
+	inc a
+	ld b,a
+	
+	; We'll be moving row by row.
+	ld de,-40
 	
 	call Console.ScrollBlock
 	
@@ -259,6 +306,7 @@ SelectPalette:
 ResetConsoleViewport:
 	xor a
 	ld (Console.MinCol),a
+	ld (Console.OriginX),a
 	ld a,39
 	ld (Console.MaxCol),a
 	inc a

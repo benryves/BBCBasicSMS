@@ -426,8 +426,6 @@ PutLiteralChar:
 	ret
 
 PutMap:
-	call Console.FlushPendingScroll
-	
 	push hl
 	ld l,a
 	ld a,(Flags)
@@ -931,11 +929,11 @@ ConsoleViewportCommand:
 	
 	; New text viewport is between bottom left (h,l) and top right (d,e).
 	
-	ld a,h
-	inc a
+	ld a,(Console.OriginX)
+	add a,h
 	ld (Console.MinCol),a
-	ld a,d
-	inc a
+	ld a,(Console.OriginX)
+	add a,d
 	ld (Console.MaxCol),a
 	
 	ld a,e
@@ -984,8 +982,7 @@ SetOriginCommand:
 ; VDU 31,<X>,<Y>                                                               MOVE CURSOR
 ; ========================================================================================
 TabCommand:
-	call Console.ClearPendingScroll
-
+	
 	ld de,(VDUQ(0,2))
 	ld hl,(VDUQ(1,2))
 
@@ -1017,7 +1014,6 @@ TabCommand:
 ; VDU 127                                                                           DELETE
 ; ========================================================================================
 Delete:
-	call Console.FlushPendingScroll
 	call Console.CursorLeft
 	ld a,127
 	jp PutMap

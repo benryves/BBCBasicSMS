@@ -220,6 +220,7 @@ FinishedFrameInterrupt:
 .include "Maths.asm"
 .include "CLI.asm"
 .include "Tape.asm"
+.include "Sound.asm"
 
 Boot:
 	; Make sure SP points somewhere sensible.
@@ -365,7 +366,6 @@ SignOnMessage:
 .page 1
 
 .include "BBC BASIC.asm"
-.include "Sound.asm"
 .include "Host.asm"
 PCLink2.Trap = Host.TrapFileTransfers
 

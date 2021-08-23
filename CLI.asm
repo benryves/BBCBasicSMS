@@ -443,9 +443,6 @@ Edit:
 	call CheckCommandEnd
 	pop hl
 	
-	; Scrolling uses BASIC's free memory, so ensure that we're not about to scroll.
-	.bcall "VDU.Console.FlushPendingScroll"
-	
 	; Store the *EDIT line number in BASIC's free memory.
 	ld de,(TempPtr)
 -:	ld a,(hl)

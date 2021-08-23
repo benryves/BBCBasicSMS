@@ -476,6 +476,12 @@ OSLINE.ExtendedKey:
 	cp Keyboard.KeyCode.Right
 	call z,OSLINE.Right
 	
+	cp Keyboard.KeyCode.Up
+	call z,OSLINE.Up
+	
+	cp Keyboard.KeyCode.Down
+	call z,OSLINE.Down
+	
 	jp OSLINE.Loop
 
 OSLINE.Delete:
@@ -604,6 +610,71 @@ OSLINE.Right:
 +:	pop af
 	ret
 
+OSLINE.Up:
+	push af
+	
+	ld a,(VDU.Console.MinCol)
+	ld e,a
+	ld a,(VDU.Console.MaxCol)
+	sub e
+	inc a
+	
+	; a = number of characters to move left.
+	ld e,a
+	cp d
+	jr c,+
+	
+	pop af
+	jr OSLINE.Home
+	
++:	.bcall "VDU.EndBlinkingCursor"
+	.bcall "VDU.CursorUp"
+	
+	push de
+	ld d,0
+	or a
+	sbc hl,de
+	pop af
+	sub e
+	ld d,a
+	
+	
+	pop af
+	ret
+	
+
+OSLINE.Down:
+	push af
+	
+	ld a,(VDU.Console.MinCol)
+	ld e,a
+	ld a,(VDU.Console.MaxCol)
+	sub e
+	inc a
+	
+	; a = number of characters to move right.
+	ld e,a
+	ld a,b
+	sub d
+	cp e
+	jr nc,+
+	
+	pop af
+	jr OSLINE.End
+	
++:	.bcall "VDU.EndBlinkingCursor"
+	.bcall "VDU.CursorDown"
+	
+	push de
+	ld d,0
+	add hl,de
+	pop af
+	add a,e
+	ld d,a
+	
+	pop af
+	ret
+
 OSLINE.Clear:
 	
 	; Is the line already clear?
@@ -671,7 +742,6 @@ OSLINE.Prefilled:
 	cp '\r'
 	jp z,OSLINE.Loop
 	.bcall "VDU.PutLiteralChar" ; In case there are any control codes embedded in the line.
-	.bcall "VDU.Console.FlushPendingScroll"
 	inc d
 	inc hl
 	inc b

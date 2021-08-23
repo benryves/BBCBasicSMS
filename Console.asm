@@ -13,15 +13,14 @@ MaxRow = allocVar(1)
 MinCol = allocVar(1)
 MaxCol = allocVar(1)
 
+OriginX = allocVar(1)
 MaxWidth = allocVar(1)
 MaxHeight = allocVar(1)
 
 Colour = allocVar(1)
 
 global.VDU.Console.Flags = allocVar(1) ;; HACK for broken name resolution
-PendingScroll = 0
 PageMode = 1
-CursorMoved = 2
 CursorHidden = 3
 CursorBlinking = 4
 CursorBlinkOn = 5
@@ -41,13 +40,12 @@ Reset:
 
 ResetViewport:
 	
-	call ClearPendingScroll
-	
 	; Set to sensible defaults.
 	xor a
 	ld (MinRow),a
 	inc a
 	ld (MinCol),a
+	ld (OriginX),a
 	ld a,23
 	ld (MaxRow),a
 	ld a,30
@@ -65,7 +63,6 @@ ResetViewport:
 HomeUp:
 	ld a,(MinRow)
 	ld (CurRow),a
-	call ClearPendingScroll
 	; Fall-through to HomeLeft
 	
 HomeLeft:
@@ -87,7 +84,7 @@ CursorRight:
 	jr NewLine
 	
 +:	ld (CurCol),a
-	jp MarkCursorMoved
+	ret
 	
 
 NewLine:
@@ -96,8 +93,6 @@ NewLine:
 	; Fall-through to CursorDown
 
 CursorDown:
-
-	call FlushPendingScroll
 
 	ld a,(CurRow)
 	inc a
@@ -108,15 +103,14 @@ CursorDown:
 	jr z,+
 	jr c,+
 	
-	call SetPendingScroll
-	
+	call ScrollUp
 	ld a,(MaxRow)
+	
 +:	ld (CurRow),a
 	
-	jp MarkCursorMoved
+	ret
 
 CursorLeft:
-	call ClearPendingScroll
 	ld a,(CurCol)
 	or a
 	jr z,CursorLeftWrapped
@@ -132,7 +126,7 @@ CursorLeftWrapped:
 +:	push af
 	ld (CurCol),a
 	pop af
-	jr nc,MarkCursorMoved
+	ret nc
 +:
 
 CursorUp:
@@ -146,12 +140,13 @@ CursorUp:
 	pop bc
 	jr nc,+
 CursorUpWrapped:
+	call ScrollDown
 	pop bc
-	ld a,(MaxRow)
+	ld a,(MinRow)
 +:	push af
 	ld (CurRow),a
 	pop af
-	jr MarkCursorMoved
+	ret
 
 Clear:
 	ld a,(Console.MinRow)
@@ -197,46 +192,24 @@ Clear:
 Tab:
 	ret
 
-MarkCursorMoved:
-	ld a,(Flags)
-	set CursorMoved,a
-	ld (Flags),a
-	ret
 
-FlushPendingScroll:
-	push af
-	ld a,(Flags)
-	bit PendingScroll,a
-	res PendingScroll,a
-	ld (Flags),a
-	jr z,+
+DriverExecute:
 	push bc
 	push de
 	push hl
-	ld a,Driver.Execute.ScrollUp
 	call Driver.Execute
 	pop hl
 	pop de
 	pop bc
-+:	pop af
-	ei
-	ret
-	
-ClearPendingScroll:
-	push af
-	ld a,(Flags)
-	res PendingScroll,a
-	ld (Flags),a
-	pop af
 	ret
 
-SetPendingScroll:
-	push af
-	ld a,(Flags)
-	set PendingScroll,a
-	ld (Flags),a
-	pop af
-	ret
+ScrollUp:
+	ld a,Driver.Execute.ScrollUp
+	jr DriverExecute
+	
+ScrollDown:
+	ld a,Driver.Execute.ScrollDown
+	jr DriverExecute
 
 ; ---------------------------------------------------------
 ; ScrollBlockNoClear -> Scrolls a block of characters but
@@ -406,8 +379,6 @@ DrawBlinkingCursor:
 	ld a,(Flags)
 	bit CursorHidden,a
 	ret nz
-
-	call FlushPendingScroll
 
 	; Is the cursor set up to blink?
 	bit CursorBlinking,a

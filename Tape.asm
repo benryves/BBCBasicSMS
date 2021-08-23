@@ -367,7 +367,6 @@ GetFile:
 	
 	ld hl,Searching
 	.bcall "VDU.PutStringWithNewLines"
-	.bcall "VDU.Console.FlushPendingScroll"
 
 TapeSearchFileLoop:
 	
@@ -385,8 +384,6 @@ TapeSearchFileLoop:
 TapeBlockLoop:
 
 	; Wait for carrier tone.
-
-	.bcall "VDU.Console.FlushPendingScroll"	
 	.bcall "VDU.BeginBlinkingCursor"
 
 TapeBlockAwaitCarrier:
