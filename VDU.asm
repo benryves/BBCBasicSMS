@@ -717,7 +717,7 @@ UserCommand:
 	ret
 
 CRTC:
-	; VDU 23;8202;0;0;0 = VDU 23,0,10,32,0,0,0,0,0,0
+	; VDU 23;8202;0;0;0; = VDU 23,0,10,32,0,0,0,0,0,0
 	ld a,(VDUQ(1, 9))
 	cp 10  ; We only support the cursor start register.
 	ret nz
