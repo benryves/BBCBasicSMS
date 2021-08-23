@@ -53,7 +53,7 @@ ResetViewport:
 	ld a,30
 	ld (MaxCol),a
 	
-	ld a,32
+	ld a,30
 	ld (MaxWidth),a
 	ld a,24
 	ld (MaxHeight),a

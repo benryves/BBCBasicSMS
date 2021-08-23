@@ -932,8 +932,10 @@ ConsoleViewportCommand:
 	; New text viewport is between bottom left (h,l) and top right (d,e).
 	
 	ld a,h
+	inc a
 	ld (Console.MinCol),a
 	ld a,d
+	inc a
 	ld (Console.MaxCol),a
 	
 	ld a,e
