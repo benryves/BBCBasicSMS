@@ -421,15 +421,36 @@ OSLINE.RepaintToEnd.HasCharacters:
 	; We need to repaint...
 	push bc
 	push hl
-	ld b,a
+	
+	ld bc,(VDU.Console.CurRow)
+	push bc
 	
 	; Redraw the rest of the characters.
-	push bc
+	ld b,a
+
 -:	ld a,(hl)
-	.bcall "VDU.PutChar"
+	.bcall "VDU.PutMap"
 	inc hl
-	djnz -
 	
+	; Are we about to run off the bottom right of the screen?
+	ld a,(VDU.Console.CurCol)
+	ld c,a
+	ld a,(VDU.Console.MaxCol)
+	cp c
+	jr nz,+
+	
+	ld a,(VDU.Console.CurRow)
+	ld c,a
+	ld a,(VDU.Console.MaxRow)
+	cp c
+	jr z,OSLINE.RepaintToEnd.HitBottomRight
+	
++:	.bcall "VDU.Console.CursorRight"
+	djnz -
+
+
+OSLINE.RepaintToEnd.HitEndOfLine:
+
 	ld a,e
 	cp '\r'
 	jr nz,+
@@ -439,11 +460,12 @@ OSLINE.RepaintToEnd.HasCharacters:
 	jr z,+
 	.bcall "VDU.PutMap"
 +:
-	
+
+OSLINE.RepaintToEnd.HitBottomRight:
+
 	; Move the cursor back to where it should be.
 	pop bc
--:	.bcall "VDU.CursorLeft"
-	djnz -
+	ld (VDU.Console.CurRow),bc
 	
 	pop hl
 	pop bc
