@@ -849,8 +849,8 @@ NotPlotBy:
 ; VDU 26                                                                   RESET VIEWPORTS
 ; ========================================================================================
 ResetViewports:
-	call Graphics.Reset
-	call Console.Reset
+	call Graphics.ResetViewport
+	call Console.ResetViewport
 	ret
 
 ; ========================================================================================
