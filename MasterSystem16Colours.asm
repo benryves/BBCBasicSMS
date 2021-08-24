@@ -29,8 +29,8 @@ Execute:
 	or a \ jr z,Initialise
 	dec a \ ret z
 	dec a \ ret z
-	dec a \ ret z
-	dec a \ jp z,Scroll
+	dec a \ jp z,ScrollDown
+	dec a \ jp z,ScrollUp
 	dec a \ jp z,GetUserDefinedCharacter
 	dec a \ jp z,SetUserDefinedCharacter
 	dec a \ jp z,PreserveUnderCursor
@@ -171,25 +171,44 @@ PutMap:
 	ei
 	ret
 
-Scroll:
+ScrollDown:
 	push bc
 	push de
 	push hl
 	
+	; Each row is 64 bytes long.
+	ld de,-64
+	
+	; Get the pointer to the bottom left corner.
+	ld a,(Console.MaxRow)
+	jr ScrollFromRow
+	
+	
+ScrollUp:
+	push bc
+	push de
+	push hl
+	
+	; Each row is 64 bytes long.
+	ld de,64
+	
 	; Get the pointer to the top left corner.
 	ld a,(Console.MinRow)
+	
+ScrollFromRow:
 	call AMul64
 	ld a,(Console.MinCol)
 	add a,a
 	
-	ld e,a
-	ld d,0
-	add hl,de
+	ld c,a
+	ld b,0
+	add hl,bc
 	
 .if NameTable != 0
-	ld de,NameTable
-	add hl,de
+	ld bc,NameTable
+	add hl,bc
 .endif
+	
 	
 	; How many columns will we need to move?
 	ld a,(Console.MinCol)
@@ -207,9 +226,6 @@ Scroll:
 	sub b
 	inc a
 	ld b,a
-	
-	; We'll be moving row by row.
-	ld de,64
 	
 	call Console.ScrollBlock
 	
