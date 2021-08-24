@@ -141,7 +141,7 @@ OSKEY:
 	
 	ld a,l
 	or a
-	ld a,'?'
+	ld a,'P'
 	jr z,OSKEY.ReturnValue
 	
 	call KeyboardBuffer.GetDeviceKey
@@ -2126,6 +2126,8 @@ OSBYTE:
 	; New Value = (<old value> AND H) EOR L
 	; Return old value in L.
 
+	or a
+	jp z,OSBYTE.ReadHostOS
 	cp 4
 	jp z,OSBYTE.CursorEditing
 	cp 11
@@ -2192,6 +2194,19 @@ OSBYTE.NotSoundBell:
 	cp 229
 	jr z,OSByte.EscapeKeyDisable
 
+	ret
+
+OSBYTE.ReadHostOS:	
+	ld a,l
+	or a
+	jr nz,+
+	
+	ld a,247
+	call Basic.BBCBASIC_EXTERR
+	.db "OS SEGA 0.01", 0
+	
++:	ld l,8
+	xor a
 	ret
 
 OSBYTE.CursorEditing:
