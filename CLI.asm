@@ -1,10 +1,12 @@
 .module CLI
-; ---------------------------------------------------------
-; Execute -> Executes the *COMMAND.
-; ---------------------------------------------------------
-; Inputs:   hl = pointer to command line.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; Execute
+; --------------------------------------------------------------------------
+; Executes the *COMMAND.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to command line.
+; Destroyed:  Everything.
+; ==========================================================================
 Execute:
 	call SkipWhitespace
 	ld a,(hl)
@@ -26,14 +28,16 @@ NoRoom:
 	call Basic.BBCBASIC_EXTERR
 	.db Tokens.No, "room", 0
 
-; ---------------------------------------------------------
-; SkipWhitespace -> Skip past the whitespace in a command.
-; ---------------------------------------------------------
-; Inputs:   hl = pointer to command line.
-; Outputs:  hl = pointer to next character.
-;           z = if at end of the command, nz if not.
-; Destroys: af.
-; ---------------------------------------------------------
+; ==========================================================================
+; SkipWhitespace
+; --------------------------------------------------------------------------
+; Skip past the whitespace in a command.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to command line.
+; Outputs:    HL: Pointer to next character.
+;             F: Z = if at end of the command, NZ if not.
+; Destroyed:  AF.
+; ==========================================================================
 SkipWhitespace:
 	ld a,(hl)
 	or a
@@ -48,30 +52,34 @@ SkipWhitespace:
 +:	inc hl
 	jr SkipWhitespace
 
-; ---------------------------------------------------------
-; SkipWhitespaceAndComma -> Skip past whitespace and a
-; single optional comma in a command. This is useful for
-; *FX for example as arguments can take the form
-; *FX 1,2 or *FX 1 2.
-; ---------------------------------------------------------
-; Inputs:   hl = pointer to command line.
-; Outputs:  hl = pointer to next character.
-;           z = if at end of the command, nz if not.
-; Destroys: af.
-; ---------------------------------------------------------
+; ==========================================================================
+; SkipWhitespaceAndComma
+; --------------------------------------------------------------------------
+; Skip past whitespace and a single optional comma in a command.
+; This is useful for *FX for example as arguments can take the form *FX 1,2
+; or *FX 1 2.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to command line.
+; Outputs:    HL: Pointer to next character.
+;             F: Z = if at end of the command, NZ if not.
+; Destroyed:  AF.
+; ==========================================================================
 SkipWhitespaceAndComma:
 	call SkipWhitespace
 	ret z
-	; Fall-through
+	; Fall-through to SkipComma
 
-; ---------------------------------------------------------
-; SkipComma -> Skip past a single comma in a command.
-; ---------------------------------------------------------
-; Inputs:   hl = pointer to command line.
-; Outputs:  hl = pointer to next character.
-;           nz = set.
-; Destroys: af.
-; ---------------------------------------------------------
+; ==========================================================================
+; SkipComma
+; --------------------------------------------------------------------------
+; Skip past a single comma in a command.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to command line.
+; Outputs:    HL: Pointer to next character.
+;             F: NZ set.
+; Destroyed:  AF.
+; ==========================================================================
+SkipComma:
 	ld a,(hl)
 	cp ','
 	ret nz
@@ -79,13 +87,14 @@ SkipWhitespaceAndComma:
 	or a ; Ensure NZ as we're not at the end of the statement.
 	ret
 
-; ---------------------------------------------------------
-; CheckCommandEnd -> Ensure we've reached the end of the
-;                    command, raise an error if not.
-; ---------------------------------------------------------
-; Inputs:   hl = pointer to command line.
-; Destroys: af.
-; ---------------------------------------------------------
+; ==========================================================================
+; CheckCommandEnd
+; --------------------------------------------------------------------------
+; Ensure we've reached the end of the command, raise an error if not.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to command line.
+; Destroyed:  AF.
+; ==========================================================================
 CheckCommandEnd:
 	call SkipWhitespace
 	or a
@@ -96,28 +105,31 @@ CheckCommandEnd:
 	ret z
 	jp BadCommand
 
-; ---------------------------------------------------------
-; CheckCommandInteractive -> Check that the command is
-;     being run interactively and not as part of a BASIC
-;     program.
-; ---------------------------------------------------------
-; Inputs:   iy = Program pointer.
-; Destroys: af.
-; ---------------------------------------------------------
+; ==========================================================================
+; CheckCommandInteractive
+; --------------------------------------------------------------------------
+; Check that the command is being run interactively and not as part of a
+; BASIC program.
+; --------------------------------------------------------------------------
+; Inputs:     IY: Program pointer.
+; Destroyed:  AF.
+; ==========================================================================
 CheckCommandInteractive:
 	ld a,iyh
 	cp Basic.BBCBASIC_BUFFER >> 8
 	ret z
 	jp BadCommand
 	
-; ---------------------------------------------------------
-; DispatchCommand -> Execute a command based on its name.
-; ---------------------------------------------------------
-; Inputs:   hl = pointer to command line.
-;           de = pointer to command table.
-; Outputs:  hl = pointer to next character in the command.
-; Destroys: af.
-; ---------------------------------------------------------
+; ==========================================================================
+; DispatchCommand
+; --------------------------------------------------------------------------
+; Execute a command based on its name.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to command line.
+;             DE: Pointer to command table.
+; Outputs:    HL: Pointer to next character in the command.
+; Destroyed:  AF.
+; ==========================================================================
 DispatchCommand:
 	; Have we reached the end of the command?
 	ld a,(de)
@@ -170,14 +182,16 @@ DispatchCommandNoMatch:
 	.dw target
 .endfunction
 
-; ---------------------------------------------------------
-; GetDecimalWord -> Gets a value between 0..65565.
-; ---------------------------------------------------------
-; Inputs:   hl = pointer to command line.
-; Outputs:  hl = pointer to next character in the command.
-;           de = parsed value.
-; Destroys: af, de.
-; ---------------------------------------------------------
+; ==========================================================================
+; GetDecimalWord
+; --------------------------------------------------------------------------
+; Gets a value between 0..65565.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to command line.
+; Outputs:    HL: Pointer to next character in the command.
+;             DE: Parsed value.
+; Destroyed:  AF.
+; ==========================================================================
 GetDecimalWord:
 	ld de,0
 	call SkipWhitespace
@@ -236,14 +250,16 @@ GetDecimalWord:
 	
 	jr -
 
-; ---------------------------------------------------------
-; GetDecimalWord -> Gets a value between 0..255
-; ---------------------------------------------------------
-; Inputs:   hl = pointer to command line.
-; Outputs:  hl = pointer to next character in the command.
-;           a  = parsed value.
-; Destroys: af.
-; ---------------------------------------------------------
+; ==========================================================================
+; GetDecimalWord
+; --------------------------------------------------------------------------
+; Gets a value between 0..6556255.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to command line.
+; Outputs:    HL: Pointer to next character in the command.
+;             A: Parsed value.
+; Destroyed:  AF.
+; ==========================================================================
 GetDecimalByte:
 	push de
 	call GetDecimalWord
@@ -252,6 +268,44 @@ GetDecimalByte:
 	jp nz,TooBig
 	ld a,e
 	pop de
+	ret
+
+; ==========================================================================
+; GetOnOff
+; --------------------------------------------------------------------------
+; Gets a value that is either "ON" or "OFF".
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to command line.
+; Outputs:    HL: Pointer to next character in the command.
+;             F: Carry set if "on", carry reset if  "off".
+; Destroyed:  AF.
+; ==========================================================================
+GetOnOff:
+	call SkipWhitespace
+	ld a,(hl)
+	inc hl
+	and %11011111
+	cp 'O'
+	jp nz,BadCommand
+	ld a,(hl)
+	inc hl
+	and %11011111
+	cp 'F'
+	jr z,GetOnOff.Off
+	cp 'N'
+	jp nz,BadCommand
+
+GetOnOff.On:
+	scf
+	ret
+
+GetOnOff.Off:
+	ld a,(hl)
+	inc hl
+	and %11011111
+	cp 'F'
+	jp nz,BadCommand
+	or a
 	ret
 
 Terminal:
@@ -747,6 +801,34 @@ PCLink2:
 	scf
 	ret
 
+Escape:
+	call SkipWhitespace
+	ld a,(hl)
+	or a
+	jr z,Escape.NoOnOff
+	cp '\r'
+	jr z,Escape.NoOnOff
+	
+	call GetOnOff
+	jr Escape.GotOnOff
+	
+Escape.NoOnOff:
+	scf
+Escape.GotOnOff:
+
+	push af
+	call CheckCommandEnd
+	pop af
+
+	ld a,1
+	sbc a,0
+	ld l,a
+	ld h,%11111110
+	ld a,200
+	call Host.OSBYTE
+	scf
+	ret
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
@@ -758,6 +840,7 @@ Commands:
 	osclicommand("FX", FX)
 	osclicommand("TAPE", Tape)
 	osclicommand("PCLINK", PCLink2)
+	osclicommand("ESC", Escape)
 	.db 0
 
 .endmodule
