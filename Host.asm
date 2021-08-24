@@ -25,26 +25,25 @@ TapeFS = 5
 OSLINE.Override = allocVar(2)
 OSWRCH.Override = allocVar(2)
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSINIT ===
-;
-;   Initialise operating system and filing system.
-;
-; OUTPUTS:
-;   REGISTERS
-;   * DE - initial value of HIMEM.
-;   * HL - initial value of PAGE.
-;   * F  - Zero flag set = don't boot.
-;        - Zero flag reset = CHAIN file named in string accumulator.
-;
-; DESTROYED:
-;   REGISTERS:
-;   * AF, BC, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; Subroutine environment
+; --------------------------------------------------------------------------
+; Subroutines are called in a conventional fashion, with the processor's
+; stack containing the return address. Control should be returned to BASIC
+; with a RET instruction.
+; ==========================================================================
+
+; ==========================================================================
+; OSINIT
+; --------------------------------------------------------------------------
+; Initialise operating system and filing system.
+; --------------------------------------------------------------------------
+; Outputs:    DE: initial value of HIMEM
+;             HL: initial value of PAGE
+;             F: Z set (Z) = don't boot,
+;                Z reset (NZ) = CHAIN file named in string accumulator.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 OSINIT:
 	
 	; Reset the clock.
@@ -69,23 +68,14 @@ OSINIT:
 	scf ; don't boot
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSRDCH ===
-;
-;   Wait for a keypress at the console keyboard.
-;
-; OUTPUTS:
-;   REGISTERS
-;   * A  - ASCII code of key pressed.
-;
-; DESTROYED:
-;   REGISTERS:
-;   * AF
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; OSRDCH
+; --------------------------------------------------------------------------
+; Wait for a keypress at the console keyboard.
+; --------------------------------------------------------------------------
+; Outputs:    A: ASCII code of key pressed.
+; Destroyed:  AF.
+; ==========================================================================
 OSRDCH:
 	.bcall "VDU.BeginBlinkingCursor"
 	call KeyboardBuffer.CheckKeyboardByPolling
@@ -107,28 +97,16 @@ OSRDCH.GotKey:
 	pop af
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSKEY ===
-;
-;   Wait a specified maximum time for a keypress at the console.
-;
-; INPUTS:
-;   REGISTERS
-;   * HL - time limit (centiseconds). If HL = 0 return immediately.
-;
-; OUTPUTS:
-;   REGISTERS
-;   * F  - Carry flag reset on time-out, set if a key was detected.
-;   * A  - ASCII code of key pressed.
-;
-; DESTROYED:
-;   REGISTERS:
-;   * AF, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; OSKEY
+; --------------------------------------------------------------------------
+; Wait a specified maximum time for a keypress at the console.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Time limit (centiseconds).
+; Outputs:    F: If time-out occurred, reset carry flag (NC).
+;             A: ASCII code of key pressed.
+; Destroyed:  AF.
+; ==========================================================================
 OSKEY:
 	push bc
 	push de
@@ -234,28 +212,18 @@ OSKEY.GotKey:
 	ei
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSLINE ===
-;
-;   Read a line, terminated by RETURN, from the console.
-;
-; INPUTS:
-;   REGISTERS
-;   * HL - pointer to destination RAM for entered line. A maximum of 256 bytes
-;          are available for the line, including the CR terminator.
-;
-; OUTPUTS:
-;   REGISTERS
-;   * A  - Must be zero.
-;
-; DESTROYED:
-;   REGISTERS:
-;   * AF, BC, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; OSLINE
+; --------------------------------------------------------------------------
+; Read a line, terminated by RETURN, from the console.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Addresses destination RAM for entered line.
+;                 A maximum of 256 bytes are available for the line,
+;                 including the CR terminator. L will always be zero
+;                 (i.e. the buffer lies on a page boundary).
+; Outputs:    A: Must be zero.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 OSLINE:
 
 	ld bc,(OSLINE.Override)
@@ -817,29 +785,19 @@ OSLINE.RepaintAtRightEdge:
 	ld (VDU.Console.CurCol),a
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSLINE.Prefilled ===
-;
-;   Read a line, terminated by RETURN, from the console.
-;   The input buffer pointed to by HL may be pre-filled.
-;
-; INPUTS:
-;   REGISTERS
-;   * HL - pointer to destination RAM for entered line. A maximum of 256 bytes
-;          are available for the line, including the CR terminator.
-;
-; OUTPUTS:
-;   REGISTERS
-;   * A  - Must be zero.
-;
-; DESTROYED:
-;   REGISTERS:
-;   * AF, BC, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; OSLINE.Prefilled
+; --------------------------------------------------------------------------
+; Read a line, terminated by RETURN, from the console.
+; The input buffer pointed to by HL may be pre-filled.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Addresses destination RAM for entered line.
+;                 A maximum of 256 bytes are available for the line,
+;                 including the CR terminator. L will always be zero
+;                 (i.e. the buffer lies on a page boundary).
+; Outputs:    A: Must be zero.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 OSLINE.Prefilled:
 	call KeyboardBuffer.CheckKeyboardByPolling
 	.bcall "VDU.BeginBlinkingCursor"
@@ -855,59 +813,40 @@ OSLINE.Prefilled:
 	dec c
 	jr -
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSASCI ===
-;
-;   Outputs a character using OSWRCH.
-;   ASCII CR (13) is converted to a LF, CR sequence (13, 10).
-;
-; INPUTS:
-;   REGISTERS
-;   * A  - character to output.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; OSASCI
+; --------------------------------------------------------------------------
+; Sends a character to the console output device (screen),
+; converting CR to a LF CR pair.
+; --------------------------------------------------------------------------
+; Inputs:     A: Character to output.
+; Destroyed:  Nothing.
+; ==========================================================================
 OSASCI:
 	.bcall "VDU.PutChar"
 	ei
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.PROMPT ===
-;
-;   Print the normal BASIC prompt character.
-;
-; INPUTS:
-;   REGISTERS
-;   * F  - Carry reset for "long" prompt, set for "short" prompt.
-;
-; DESTROYED:
-;   REGISTERS:
-;   * AF, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; PROMPT
+; --------------------------------------------------------------------------
+; Print the normal BASIC prompt character.
+; --------------------------------------------------------------------------
+; Inputs:     F: Carry reset for "long" prompt, set for "short" prompt.
+; Destroyed:  AF, DE, HL.
+; ==========================================================================
 PROMPT:
 	ld a,'>'
 	; Fall-through to OSWRCH
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSWRCH ===
-;
-;   Send a character to the console output device (screen).
-;
-; INPUTS:
-;   REGISTERS
-;   * A  - character to output.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; OSWRCH
+; --------------------------------------------------------------------------
+; Sends a character to the console output device (screen).
+; --------------------------------------------------------------------------
+; Inputs:     A: Character to output.
+; Destroyed:  Nothing.
+; ==========================================================================
 OSWRCH:
 	push hl
 	push af
@@ -939,33 +878,24 @@ OSWRCH.NoOverride:
 	ei
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.LTRAP ===
-;
-;   Test for an operator abort when LISTing (ESCape).
-;
-; DESTROYS:
-;   REGISTERS
-;   * AF
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; LTRAP
+; --------------------------------------------------------------------------
+; Test for an operator abort when LISTing (ESCape).
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; ==========================================================================
 LTRAP:
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.TRAP ===
-;
-;   Test for an operator abort when running a program (ESCape).
-;
-; DESTROYS:
-;   REGISTERS
-;   * AF, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+	; Fall-through to TRAP.
+	
+; ==========================================================================
+; TRAP
+; --------------------------------------------------------------------------
+; Test for an operator abort when running a program (ESCape).
+; --------------------------------------------------------------------------
+; Inputs:     A: Character to output.
+; Destroyed:  AF, HL.
+; ==========================================================================
 TRAP:
 	ei
 	
@@ -1047,19 +977,13 @@ TrapFileTransfers.Trap:
 	or a ; Don't carry on.
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.RESET ===
-;
-;   Reset system prior to outputting an error message.
-;
-; DESTROYED:
-;   REGISTERS:
-;   * AF
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; RESET
+; --------------------------------------------------------------------------
+; Reset system prior to outputting an error message.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; ==========================================================================
 RESET:
 
 	push hl
@@ -1094,29 +1018,19 @@ RESET:
 	pop hl
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSLOAD ===
-;
-;   Load a program file into RAM.
-;
-; INPUTS:
-;   REGISTERS
-;   * HL - points to a filename terminated by CR.
-;   * DE - address in RAM to load file to.
-;   * BC - maximum file size that can be loaded.
-;
-; OUTPUTS:
-;   REGISTERS
-;   * F  - Carry reset for insufficient room error.
-;
-; DESTROYED:
-;   REGISTERS:
-;   * AF, BC, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; OSLOAD
+; --------------------------------------------------------------------------
+; Load a program file into RAM.
+; --------------------------------------------------------------------------
+; Inputs:     HL: addresses a file descriptor (filename) terminated by CR.
+;             DE: the address in RAM at which the file should be loaded.
+;             BC: the maximum file size for which RAM is available (bytes).
+; Ouptuts:    F: If the carry flag is RESET (NC) this indicates that there
+;                was insufficient space to load the entire file, BASIC
+;                issues the "No room" error.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 OSLOAD:
 	push de
 	
@@ -1226,26 +1140,16 @@ WriteEOF:
 	xor a
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSSAVE ===
-;
-;   Save an area of RAM to a program file.
-;
-; INPUTS:
-;   REGISTERS
-;   * HL - points to a filename terminated by CR.
-;   * DE - address in RAM at which the data to save starts.
-;   * BC - length of the data to save (bytes).
-;
-;
-; DESTROYED:
-;   REGISTERS:
-;   * AF, BC, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; OSSAVE
+; --------------------------------------------------------------------------
+; Save an area of RAM to a program file.
+; --------------------------------------------------------------------------
+; Inputs:     HL: addresses a file descriptor (filename) terminated by CR.
+;             DE: the address in RAM at which the data to save starts.
+;             BC: the length of the data to save (bytes).
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 OSSAVE:
 	.bcall "VDU.BeginBlinkingCursor"
 	call PCLink2.SendFile
@@ -1256,126 +1160,133 @@ OSSAVE:
 	jp c,TRAP.Escape
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSCALL ===
-; 
-;   Intercept a CALL or USR to &FFxx.
-;
-; INPUTS:
-;   REGISTERS
-;   * IY     - contains destination address of CALL or USR (=&FFxx)
-;   * IX     - IX addresses "static" variables, i.e. A%=(IX+4), X%=(IX+96) etc.
-;   * (SP+2) - "return address" if interception carried out
-;
-; OUTPUTS:
-;   REGISTERS
-;   * HLHL' - 32-bit integer result (USR only).
-;
-; DESTROYED:
-;   REGISTERS
-;   * Everything.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-OSCALL:
-	pop hl ; Dud
-	
-	ld h,(ix+4*('A'-'@'))
-	ld l,(ix+4*('F'-'@'))
-	
-	push hl
-	pop af
-	
-	ld b,(ix+4*('B'-'@'))
-	ld c,(ix+4*('C'-'@'))
-	ld d,(ix+4*('D'-'@'))
-	ld e,(ix+4*('E'-'@'))
-	ld h,(ix+4*('H'-'@'))
-	ld l,(ix+4*('L'-'@'))
+; ==========================================================================
+; OSOPEN
+; --------------------------------------------------------------------------
+; Open a file for reading or writing.
+; --------------------------------------------------------------------------
+; Inputs:     HL: addresses a file descriptor (filename) terminated by CR.
+;             AF: -1, NZ, NC = OPENOUT
+;                  0,  Z,  C = OPENIN
+;                  1, NZ,  C = OPENUP
+; Outputs:    A: the file "handle" (channel number) allocated. This may be 
+;                any value from 1 to 255. If a value 0 is returned, the file
+;                could not be opened. Normal practice is to return with A=0
+;                if the file  specified in OPENIN or OPENUP was not found
+;                but to abort with an appropriate message (e.g.
+;                "Directory full") in the event of other errors.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+OSOPEN:
+	jp Sorry
 
-	ld iyh,$40
-	jp (iy)
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSSHUT ===
-; 
-;   Close a file previously opened with OSOPEN.
-;
-; INPUTS:
-;   REGISTERS
-;   * E  - file handle (channel number) to close.
-;        - If E is zero, then all open files (if any) are closed.
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, BC, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; OSSHUT
+; --------------------------------------------------------------------------
+; Close a file previously opened with OSOPEN.
+; --------------------------------------------------------------------------
+; Inputs:     E: The file handle (channel number) to close.
+;                If E is 0 then all open files (if any) are closed.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 OSSHUT:
 	ld a,e
 	or a
 	ret z
 	jp SORRY
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.OSCLI ===
-; 
-;   Execute a "star" command.
-;
-; INPUTS:
-;   REGISTERS
-;   * HL - addresses the "star" command in RAM, terminated by CR.
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, BC, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; OSBGET
+; --------------------------------------------------------------------------
+; Read a single byte from an open file.
+; --------------------------------------------------------------------------
+; Inputs:     E: The file handle (channel number).
+; Outputs:    A: The byte read from the file.
+; Destroyed:  AF, BC.
+; ==========================================================================
+OSBGET:
+	jp SORRY
+
+; ==========================================================================
+; OSBPUT
+; --------------------------------------------------------------------------
+; Write a single byte to an open file.
+; --------------------------------------------------------------------------
+; Inputs:     E: The file handle (channel number).
+;             A: The value to write to the file.
+; Destroyed:  AF, BC.
+; ==========================================================================
+OSBPUT:
+	jp SORRY
+
+; ==========================================================================
+; OSSTAT
+; --------------------------------------------------------------------------
+; Read the status of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     E: The file handle (channel number).
+; Outputs:    F: If at the end-of-file, return Z.
+;                If not at end-of file, return NZ.
+; Destroyed:  AF, DE, HL.
+; ==========================================================================
+OSSTAT:
+	jp SORRY
+
+; ==========================================================================
+; GETPTR
+; --------------------------------------------------------------------------
+; Read the sequential pointer of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     E: The file handle (channel number).
+; Outputs:    DEHL: the 32-bit pointer.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+GETPTR:
+	jp SORRY
+
+; ==========================================================================
+; PUTPTR
+; --------------------------------------------------------------------------
+; Update the sequential pointer of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     A: The file handle (channel number).
+;             DEHL: The new file pointer.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+PUTPTR:
+	jp SORRY
+
+; ==========================================================================
+; GETEXT
+; --------------------------------------------------------------------------
+; Return the length of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     E: The file handle (channel number).
+; Outputs:    DEHL: File size (bytes).
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+GETEXT:
+	jp SORRY
+
+; ==========================================================================
+; OSCLI
+; --------------------------------------------------------------------------
+; Execute a "star" command.
+; --------------------------------------------------------------------------
+; Inputs:     HL: addresses the "star" command in RAM, terminated by CR.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 OSCLI = CLI.Execute
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.MODE ===
-; 
-;   Change screen mode.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-MODE:
-	call Basic.BBCBASIC_EXPRI
-    exx
-	ld h,l
-	ld l,22
-	.bcall "VDU.WriteWord"
-	jp Basic.BBCBASIC_XEQ
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.PUTSCR ===
-; 
-;   Move the text cursor to a given location.
-;
-; INPUTS:
-;   REGISTERS
-;   * DE - horizontal position of cursor (0 is the left-hand column)
-;   * HL - vertical position of cursor (0 is the top row)
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; PUTCSR
+; --------------------------------------------------------------------------
+; Move the text cursor to a given location.
+; --------------------------------------------------------------------------
+; Inputs:     DE: Horizontal position of cursor (0 is the left-hand column).
+;             HL: Vertical position of cursor (0 is the top row).
+; Destroyed:  AF, DE, HL.
+; ==========================================================================
 PUTCSR:
 	; Quick 16-bit bounds check
 	ld a,d
@@ -1398,23 +1309,15 @@ PUTCSR:
 	.bcall "VDU.WriteWord"
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.GETCSR ===
-; 
-;   Return the current text cursor coordinates.
-;
-; OUTPUTS:
-;   REGISTERS
-;   * DE - horizontal position of cursor (0 is the left-hand column)
-;   * HL - vertical position of cursor (0 is the top row)
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, DE, HL
-;
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; GETCSR
+; --------------------------------------------------------------------------
+; Return the current text cursor coordinates.
+; --------------------------------------------------------------------------
+; Outputs:    DE: Horizontal position of cursor (0 is the left-hand column).
+;             HL: Vertical position of cursor (0 is the top row).
+; Destroyed:  AF, DE, HL.
+; ==========================================================================
 GETCSR:
 	ld a,(VDU.Console.MinCol)
 	ld e,a
@@ -1432,23 +1335,14 @@ GETCSR:
 	
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.PUTIME ===
-; 
-;   Update the elapsed time clock.
-;
-; INPUTS:
-;   REGISTERS
-;   * DEHL - time to load (centiseconds).
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; PUTIME
+; --------------------------------------------------------------------------
+; Update the elapsed time clock.
+; --------------------------------------------------------------------------
+; Inputs:     DEHL: Time to load (centiseconds)
+; Destroyed:  AF, DE, HL.
+; ==========================================================================
 PUTIME:
 	di
 	ld (TIME+0),hl
@@ -1456,24 +1350,14 @@ PUTIME:
 	ei
 	ret
 
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.GETIME ===
-; 
-;   Read the elapsed time clock.
-;
-; OUTPUTS:
-;   REGISTERS
-;   * DEHL - current value of elapsed time (centiseconds).
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; GETIME
+; --------------------------------------------------------------------------
+; Read the elapsed time clock.
+; --------------------------------------------------------------------------
+; Outputs:    DEHL: Current value of elapsed time (centiseconds)
+; Destroyed:  AF, DE, HL.
+; ==========================================================================
 GETIME:
 	di
 	ld hl,(TIME+0)
@@ -1481,33 +1365,92 @@ GETIME:
 	ei
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.CLRSCN ===
-; 
-;   Clears the screen.
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; PUTIMS
+; --------------------------------------------------------------------------
+; Update the real-time clock.
+; --------------------------------------------------------------------------
+; Inputs:     Time string stored in string accumulator.
+;             DE: addresses byte following last byte of string
+;             (i.e. E = string length)
+; Destroyed:  AF, DE, HL.
+; ==========================================================================
+PUTIMS
+	jp SORRY
+
+; ==========================================================================
+; GETIMS
+; --------------------------------------------------------------------------
+; Read the real-time clock.
+; --------------------------------------------------------------------------
+; Outputs:    Time string stored in string accumulator
+;             DE addresses byte following last byte of string
+;             (i.e. E = string length)
+; Destroyed:  AF, DE, HL.
+; ==========================================================================
+GETIMS
+	jp SORRY
+
+; ==========================================================================
+; CLRSCN
+; --------------------------------------------------------------------------
+; Clear the screen.
+; --------------------------------------------------------------------------
+; Destroyed:  AF, DE, HL.
+; ==========================================================================
 CLRSCN:
 	ld a,12
 	.bcall "VDU.WriteByte"
 	ret
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.ADVAL ===
-; 
-;   Analogue-to-digital conversion.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; OSCALL
+; --------------------------------------------------------------------------
+; Intercept a CALL or USR to &FFxx
+; --------------------------------------------------------------------------
+; Inputs:     IY: Contains destination address of CALL or USR (=&FFxx).
+;             IX: Addresses "static" variables, i.e. A%=(IX+4), X%=(IX+96).
+;             (SP+2): "return address" if interception carried out.
+; Outputs:    HLH'L' contains 32-bit integer result
+; Destroyed:  Everything.
+; ==========================================================================
+OSCALL:
+	pop hl ; Dud
+	
+	ld h,(ix+4*('A'-'@'))
+	ld l,(ix+4*('F'-'@'))
+	
+	push hl
+	pop af
+	
+	ld b,(ix+4*('B'-'@'))
+	ld c,(ix+4*('C'-'@'))
+	ld d,(ix+4*('D'-'@'))
+	ld e,(ix+4*('E'-'@'))
+	ld h,(ix+4*('H'-'@'))
+	ld l,(ix+4*('L'-'@'))
+
+	ld iyh,$40
+	jp (iy)
+
+; ==========================================================================
+; BASIC functions
+; --------------------------------------------------------------------------
+; On input IY points to the program text immediately following the function 
+; token (note that the token for POINT includes the opening  parenthesis). 
+; Functions should exit with a RET instruction, with the following registers
+; loaded:
+;            A = 0  (indicates numeric value)
+;            C = 0  (indicates integer value)
+;       HLH'L' = 32-bit integer value returned
+;           IY = program text pointer
+; ==========================================================================
+
+; ==========================================================================
+; ADVAL
+; --------------------------------------------------------------------------
+; Read analogue-digital convertor etc.
+; ==========================================================================
 ADVAL:
 	call Basic.BBCBASIC_ITEMI
 	bit 7,h
@@ -1682,27 +1625,38 @@ ADVAL.SoundBuffer:
 	ld h,0
 	jr ADVAL.Return
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.POINT ===
-;
-;   Read the colour of a screen pixel.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; POINT
+; --------------------------------------------------------------------------
+; Read the colour of a screen pixel.
+; ==========================================================================
 POINT:
 	jp SORRY
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.COLOUR ===
-; 
-;   Change text foreground or background colour.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; BASIC statements
+; --------------------------------------------------------------------------
+; On completion, statements must jump to XEQ with IY pointing to the program 
+; text (i.e. just past the statement). The stack pointer (SP) should be
+; unchanged from when the statement was entered. All other registers may be 
+; destroyed.
+; ==========================================================================
+
+; ==========================================================================
+; CLG
+; --------------------------------------------------------------------------
+; Clear graphics window to graphics background colour.
+; ==========================================================================
+CLG:
+	ld a,16
+	.bcall "VDU.WriteByte"
+	jp Basic.BBCBASIC_XEQ
+
+; ==========================================================================
+; COLOUR
+; --------------------------------------------------------------------------
+; Change text foreground or background colour.
+; ==========================================================================
 COLOUR:
 	; Get the first argument.
 	call Basic.BBCBASIC_EXPRI
@@ -1793,42 +1747,56 @@ COLOUR.SingleArgument:
 	.bcall "VDU.WriteWord"
 	jp Basic.BBCBASIC_XEQ
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.CLG ===
-; 
-;   Clear graphics window to graphics background colour.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-CLG:
-	ld a,16
-	.bcall "VDU.WriteByte"
-	jp Basic.BBCBASIC_XEQ
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.DRAW ===
-; 
-;   Draw a line.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; DRAW
+; --------------------------------------------------------------------------
+; Draw a line.
+; ==========================================================================
 DRAW:
 	ld hl,5
 	jp PLOT.CommandInHL
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.GCOL ===
-; 
-;   Change graphics colour and plotting action
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; ENVEL
+; --------------------------------------------------------------------------
+; Define a pitch and amplitude envelope.
+; ==========================================================================
+ENVEL:
+	call Basic.BBCBASIC_EXPRI ;Get first parameter (envelope number)
+	exx
+	
+	; Is it in range?
+	ld a,l
+	dec a
+	cp Sound.EnvelopeCount
+	jp nc,Sorry
+	
+	di
+	
+	call Sound.GetEnvelopeAddressOffset
+	ld ix,Sound.Envelopes
+	add ix,de
+
+	ld b,13
+-:	push bc
+	push ix
+	call Basic.BBCBASIC_COMMA
+	call Basic.BBCBASIC_EXPRI
+	exx
+	pop ix
+	pop bc
+	ld (ix),l
+	inc ix
+	djnz -
+	
+	ei
+	jp Basic.BBCBASIC_XEQ
+	
+; ==========================================================================
+; GCOL
+; --------------------------------------------------------------------------
+; Change graphics colour and plotting action.
+; ==========================================================================
 GCOL:
 	call Basic.BBCBASIC_EXPRI
 	exx
@@ -1858,73 +1826,34 @@ FoundGCOL:
 	.bcall "VDU.WriteByte"
 	jp Basic.BBCBASIC_XEQ
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.PUTIMS ===
-; 
-;   Read the real-time clock.
-;
-; INPUTS:
-;   MEMORY
-;   * ACC$ - Time string stored in string accumulator
-;   REGISTERS
-;   * DE - the address of the byte following the last byte of the string.
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-PUTIMS
-	jp SORRY
+; ==========================================================================
+; MODE
+; --------------------------------------------------------------------------
+; Change screen mode.
+; ==========================================================================
+MODE:
+	call Basic.BBCBASIC_EXPRI
+    exx
+	ld h,l
+	ld l,22
+	.bcall "VDU.WriteWord"
+	jp Basic.BBCBASIC_XEQ
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.GETIMS ===
-; 
-;   Read the real-time clock.
-;
-; OUTPUTS:
-;   MEMORY
-;   * ACC$ - Time string stored in string accumulator
-;   REGISTERS
-;   * DE - the address of the byte following the last byte of the string.
-;
-; DESTROYED:
-;   REGISTERS
-;   * AF, DE, HL
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-GETIMS
-	jp SORRY
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.MOVE ===
-; 
-;   Move graphics cursor.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; MOVE
+; --------------------------------------------------------------------------
+; Move graphics cursor.
+; ==========================================================================
 MOVE:
 	ld hl,4
 	jp PLOT.CommandInHL
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.PLOT ===
-; 
-;   Plot a shape.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-PLOT
+; ==========================================================================
+; PLOT
+; --------------------------------------------------------------------------
+; Plot a graphics shape.
+; ==========================================================================
+PLOT:
 	call Basic.BBCBASIC_EXPRI
 	exx
 	call Basic.BBCBASIC_COMMA
@@ -1960,55 +1889,11 @@ PLOT.CommandInHL:
 	
 	jp Basic.BBCBASIC_XEQ
 
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.ENVEL ===
-; 
-;   Define a pitch and amplitude envelope.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
-ENVEL:
-	call Basic.BBCBASIC_EXPRI ;Get first parameter (envelope number)
-	exx
-	
-	; Is it in range?
-	ld a,l
-	dec a
-	cp Sound.EnvelopeCount
-	jp nc,Sorry
-	
-	di
-	
-	call Sound.GetEnvelopeAddressOffset
-	ld ix,Sound.Envelopes
-	add ix,de
-
-	ld b,13
--:	push bc
-	push ix
-	call Basic.BBCBASIC_COMMA
-	call Basic.BBCBASIC_EXPRI
-	exx
-	pop ix
-	pop bc
-	ld (ix),l
-	inc ix
-	djnz -
-	
-	ei
-	jp Basic.BBCBASIC_XEQ
-
-;------------------------------------------------------------------------------- 
-;@doc:routine 
-; 
-; === Host.SOUND ===
-; 
-;   Make a sound.
-;
-;@doc:end
-;------------------------------------------------------------------------------- 
+; ==========================================================================
+; SOUND
+; --------------------------------------------------------------------------
+; Make a sound.
+; ==========================================================================
 SOUND:
 	
 	call Basic.BBCBASIC_EXPRI ;Get first parameter (channel)
@@ -2017,7 +1902,7 @@ SOUND:
 	ld a,h
 	
 	cp $20
-	jr z,Sorry ; &20xx, word, library, 0 = Watford Speech
+	jp z,Sorry ; &20xx, word, library, 0 = Watford Speech
 	
 	and $F0
 	jr z,SOUND.Internal
@@ -2027,7 +1912,7 @@ SOUND:
 	ld a,h
 	
 	inc a
-	jr z,Sorry ; &FFxx, command, 0, 0 = Speech system
+	jp z,Sorry ; &FFxx, command, 0, 0 = Speech system
 	
 	inc a
 	jr z,SOUND.MIDI ; &FExx, command, note, velocity = MIDI control
@@ -2100,22 +1985,22 @@ Sound.MIDI:
 	
 	jp Basic.BBCBASIC_XEQ
 
-SORRY:
-	xor a
-	call Basic.BBCBASIC_EXTERR
-	.db "Sorry",0
+; ==========================================================================
+; Operating System calls
+; --------------------------------------------------------------------------
+; Additional routines not covered above that are provided for compatibility
+; with programs written for other platforms.
+; ==========================================================================
 
-DeviceFault:
-	ld a,202
-	call Basic.BBCBASIC_EXTERR
-	.db "Device fault", 0
-
-ReportError
-	ld a,(hl)
-	inc hl
-	push hl
-	jp Basic.BBCBASIC_EXTERR
-
+; ==========================================================================
+; OSBYTE
+; --------------------------------------------------------------------------
+; Various OS routines with parameters passed in L and H.
+; --------------------------------------------------------------------------
+; Inputs:     A: OSBYTE routine number.
+;             L: OSBYTE parameter (X)
+;             H: OSBYTE parameter (Y)
+; ==========================================================================
 OSBYTE:
 
 	; A = OSBYTE routine
@@ -2364,20 +2249,19 @@ TypematicRates:
 	.db round(47.61904762)
 	.db round(50)
 
-
-; ---------------------------------------------------------
-; OSBYTE.ModifyMemory -> Modifies memory based on OSBYTE
-; routine number and H,L values.
-; ---------------------------------------------------------
-; Inputs:   de = pointer to memory to modify MINUS the
-;                routine number.
-;           a = OSBYTE routine number.
-;           l = new value to EOR over value in memory.
-;           h = mask to AND over the existing value.
-; Outputs:  l = old value.
-;           h = value of next value in memory.
-; Destroys: None.
-; ---------------------------------------------------------
+; ==========================================================================
+; OSBYTE.ModifyMemory
+; --------------------------------------------------------------------------
+; Modifies memory based on OSBYTE routine number and H,L values.
+; --------------------------------------------------------------------------
+; Inputs:     DE: Pointer to memory to modify minus the routine number.
+;             A: OSBYTE routine number.
+;             L: New value to EOR over the value in memory.
+;             H: Mask to AND over the existing value.
+; Outputs:    L: The old value (X)
+;             H: The next value in memory.
+; Destroyed:  None.
+; ==========================================================================
 OSBYTE.ModifyMemory:
 	push af
 	push bc
@@ -2407,16 +2291,20 @@ OSBYTE.ModifyMemory:
 	pop af
 	ret
 
-; ---------------------------------------------------------
-; OSBYTE.ModifyFlag -> Modifies a single flag value.
-; ---------------------------------------------------------
-; Inputs:   de = address of the flag.
-;           c = bitmask of the flag.
-;           l = new value to EOR over value in memory.
-;           h = mask to AND over the existing value.
-; Outputs:  l = old value.
-; Destroys: None.
-; ---------------------------------------------------------
+; ==========================================================================
+; OSBYTE.ModifyFlag
+; --------------------------------------------------------------------------
+; Modifies a single flag value.
+; --------------------------------------------------------------------------
+; Inputs:     DE: Address of the flag in memory.
+;             C: Bitmask of the flag.
+;             A: OSBYTE routine number.
+;             L: New value to EOR over the value in memory.
+;             H: Mask to AND over the existing value.
+; Outputs:    L: The old value (X)
+; Destroyed:  None.
+; ==========================================================================
+
 OSBYTE.ModifyFlag:
 	push af
 	push bc
@@ -2452,6 +2340,14 @@ OSBYTE.ModifyFlag:
 	pop af
 	ret
 
+; ==========================================================================
+; OSWORD
+; --------------------------------------------------------------------------
+; Various OS routines with parameters pointed to by HL.
+; --------------------------------------------------------------------------
+; Inputs:     A: OSWORD routine number.
+;             HL: Pointer to parameters.
+; ==========================================================================
 OSWORD:
 	ret
 
@@ -2459,18 +2355,9 @@ OSWORD:
 OSFSC:
 OSFIND:
 OSGBPB:
-OSOPEN:
 OSARGS:
 OSFILE:
-OSBGET:
-OSBPUT:
-OSSTAT:
-GETPTR:
-PUTPTR:
-GETEXT:
-	jp SORRY
-
-
+	jp Sorry
 
 ; ==========================================================================
 ; GetSafeScratchMemory
@@ -2551,5 +2438,25 @@ GetSafeScratchMemoryDE:
 	call GetSafeScratchMemoryHL
 	ex de,hl
 	ret
+
+; ==========================================================================
+; Sorry
+; --------------------------------------------------------------------------
+; Triggers the "Sorry" error.
+; ==========================================================================
+Sorry:
+	xor a
+	call Basic.BBCBASIC_EXTERR
+	.db "Sorry",0
+
+; ==========================================================================
+; DeviceFault
+; --------------------------------------------------------------------------
+; Triggers the "Device fault" error.
+; ==========================================================================
+DeviceFault:
+	ld a,202
+	call Basic.BBCBASIC_EXTERR
+	.db "Device fault", 0
 
 .endmodule
