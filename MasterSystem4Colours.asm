@@ -10,8 +10,8 @@ Execute:
 	or a \ jr z,Initialise
 	dec a \ ret z
 	dec a \ ret z
-	dec a \ ret z
-	dec a \ jp z,Scroll
+	dec a \ jp z,ScrollDown
+	dec a \ jp z,ScrollUp
 	dec a \ jp z,GetUserDefinedCharacter
 	dec a \ jp z,SetUserDefinedCharacter
 	dec a \ jp z,PreserveUnderCursor
@@ -135,7 +135,9 @@ ROMFont:
 	
 	; Load the font pointer.
 	add a,FontCharOffset
-	ld l,a
+	jr c,+
+	xor a
++:	ld l,a
 	ld h,0
 	add hl,hl
 	add hl,hl
@@ -285,15 +287,48 @@ GetPatternGeneratorAddressForTile:
 	add hl,de
 .endif
 	ret
+
+ScrollDown:
+	push bc
+	push de
+	push hl
 	
-Scroll:
+	; We'll be clearing the top row.
+	ld bc,(Console.CurRow)
+	push bc
+	ld a,(Console.MinRow)
+	ld (Console.CurRow),a
+	
+	; Get the pointer to the bottom left corner.
+	ld a,(Console.MaxRow)
+	
+	; 64 bytes per row.
+	ld de,-64
+	jr ScrollFromRow
+	
+ScrollUp:
 	
 	push bc
 	push de
 	push hl
 	
+	; We'll be clearing the bottom row.
+	ld bc,(Console.CurRow)
+	push bc
+	ld a,(Console.MaxRow)
+	ld (Console.CurRow),a
+
 	; Get the pointer to the top left corner.
 	ld a,(Console.MinRow)
+	
+	; 64 bytes per row.
+	ld de,64
+
+ScrollFromRow:
+	
+	ld (TempSize),de
+	
+	
 	call MasterSystem16Colours.AMul64
 	
 	ld a,(Console.MinCol)
@@ -351,7 +386,7 @@ Scroll:
 	pop bc
 	
 	; We'll be moving row by row.
-	ld de,64
+	ld de,(TempSize)
 	
 	call Console.ScrollBlockNoClear
 	
@@ -369,13 +404,19 @@ Scroll:
 	djnz -
 	
 	; Now, the slow bit: clear the bottom row.
-	ld a,(Console.MinRow)
-	push af
-	ld a,(Console.MaxRow)
+	ld bc,(Console.MinRow)
+	push bc
+	
+	ld a,(Console.CurRow)
 	ld (Console.MinRow),a
+	ld (Console.MaxRow),a
 	call Console.Clear
-	pop af
-	ld (Console.MinRow),a
+	
+	pop bc
+	ld (Console.MinRow),bc
+	
+	pop bc
+	ld (Console.CurRow),bc
 	
 	pop hl
 	pop de
