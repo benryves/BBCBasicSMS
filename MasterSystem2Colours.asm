@@ -11,6 +11,7 @@ Execute:
 	cp Driver.Execute.SetUserDefinedCharacter \ jp z,SetUserDefinedCharacter
 	cp Driver.Execute.SelectPalette \ jp z,SelectPalette
 	cp Driver.Execute.ResetPalette \ jp z,SelectDefaultPalette
+	cp Driver.Execute.GetPixel \ jp z,GetPixel
 	jp MasterSystem4Colours.Execute
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
@@ -336,5 +337,14 @@ SetUserDefinedCharacter:
 	sub 10
 
 	jp MasterSystem4Colours.SetPattern
+
+GetPixel:
+	call MasterSystem4Colours.GetPixel
+	bit 7,c
+	ret nz
+	ld a,c
+	and 1
+	ld c,a
+	ret
 
 .endmodule

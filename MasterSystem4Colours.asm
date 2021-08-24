@@ -18,6 +18,9 @@ Execute:
 	dec a \ jp z,RestoreUnderCursor
 	dec a \ jp z,SelectPalette
 	dec a \ jp z,SelectDefaultPalette
+	dec a \ ret z ; reset console viewport
+	dec a \ ret z ; reset graphics viewport
+	dec a \ jp z,GetPixel
 	ret
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
@@ -862,6 +865,72 @@ GetUserDefinedCharacter:
 	
 	pop hl
 	scf
+	ei
+	ret
+
+GetPixel:
+	
+	push de
+	
+	srl d
+	srl d
+	srl d
+	
+	srl e
+	srl e
+	srl e
+	
+	ld a,e
+	ld e,d
+	
+	; (E,A)
+	call GetPatternGeneratorAddressForTile
+	
+	pop de
+	
+	; DE = pixel (X,Y)
+	; We need to advance 4 bytes for Y & 7
+	
+	ld a,e
+	and %111
+	ld e,a
+	add a,a
+	add a,a
+	ld c,a
+	ld b,0
+	add hl,bc
+	
+	call Video.SetReadAddress
+	
+	; Construct the pixel mask
+	
+	; Get the bitmask for the pixel being read.
+	
+	ld e,%10000000
+	ld a,d
+	and 7
+	or a
+	jr z,+
+	
+	ld b,a
+-:	srl e
+	djnz -
++:
+	
+	
+	ld bc,2*256 ; Four bit planes, store result in C.
+	
+-:	in a,(Video.Data) ; 11
+	and e             ; 4
+	jr z,+            ; 12/7
+	scf               ; 4
++:	rr c              ; 8
+	djnz -            ; 13/8 <- 47
+	
+	; Move the two bits from the MSB->LSB
+	rlc c
+	rlc c
+	
 	ei
 	ret
 
