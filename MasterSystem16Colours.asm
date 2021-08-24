@@ -36,9 +36,10 @@ Execute:
 	dec a \ jp z,PreserveUnderCursor
 	dec a \ jp z,RestoreUnderCursor
 	dec a \ jp z,SelectPalette
-	dec a \ ret z
-	dec a \ ret z
-	dec a \ ret z
+	dec a \ jp z,VDU.ResetMasterSystemPalette
+	dec a \ ret z ; reset console viewport
+	dec a \ ret z ; reset graphics viewport
+	dec a \ jp z,GetPixel
 	ret
 
 Initialise:
@@ -815,6 +816,102 @@ SetFillPattern:
 
 GetUserDefinedCharacter:
 	or a
+	ret
+
+GetPixel:
+
+	; Get the address of the nametable tile from the (X,Y)
+	ld a,e
+	srl a
+	srl a
+	srl a
+	ld l,a
+	ld h,0
+
+	; *32
+	ld b,5
+-:	add hl,hl
+	djnz -
+	
+	; Add X/8
+	ld a,d
+	srl a
+	srl a
+	srl a
+	ld c,a
+	ld b,0
+	add hl,bc
+	
+	; 2 bytes per nametable entry
+	add hl,hl
+	ld bc,NameTable
+	add hl,bc
+
+	; We'll need to	read the nametable entry.
+	call Video.SetReadAddress
+	
+	in a,(Video.Data) ; 11
+	ld l,a            ; 4
+	srl a             ; 8
+	nop               ; 4
+	srl a             ; 8
+	in a,(Video.Data) ; 11 <- 35
+	and 1
+	ld h,a
+	
+	; *32
+	ld b,5
+-:	add hl,hl
+	djnz -
+	
+	.if PatternGenerator != 0
+	ld bc,PatternGenerator
+	add hl,bc
+	.endif
+	
+	; Offset the pattern generator address by the Y coordinate inside the tile.
+	; That's & 7, * 4 -> or * 4, & (7 * 4)
+	
+	ld a,e
+	rlca
+	rlca
+	and %00011100
+	ld c,a
+	ld b,0
+	add hl,bc
+	
+	; HL -> pattern generator address for where we need to read from.
+	call Video.SetReadAddress
+	
+	; Get the bitmask for the pixel being read.
+	
+	ld e,%10000000
+	ld a,d
+	and 7
+	or a
+	jr z,+
+	
+	ld b,a
+-:	srl e
+	djnz -
++:
+	
+	
+	ld bc,4*256 ; Four bit planes, store result in C.
+	
+-:	in a,(Video.Data) ; 11
+	and e             ; 4
+	jr z,+            ; 12/7
+	scf               ; 4
++:	rr c              ; 8
+	djnz -            ; 13/8 <- 47
+	
+	srl c
+	srl c
+	srl c
+	srl c
+	
+	ei
 	ret
 
 .endmodule

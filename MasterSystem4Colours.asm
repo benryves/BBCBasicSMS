@@ -18,7 +18,7 @@ Execute:
 	dec a \ jp z,RestoreUnderCursor
 	dec a \ jp z,SelectPalette
 	dec a \ jp z,SelectDefaultPalette
-	jp MasterSystem16Colours.Execute
+	ret
 
 PatternGenerator = $0000 ; 14KB, 448 tiles total.
 NameTable        = $3800 ; 1536 bytes

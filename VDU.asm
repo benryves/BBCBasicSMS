@@ -48,6 +48,7 @@ Driver.Execute.SelectPalette = 9
 Driver.Execute.ResetPalette = 10
 Driver.Execute.ResetConsoleViewport = 11
 Driver.Execute.ResetGraphicsViewport = 12
+Driver.Execute.GetPixel = 13
 
 Stub:
 	ret
@@ -224,18 +225,7 @@ SetMode:
 	; Reset all video settings to their defaults.
 	call Video.Reset
 	
-	; Initialise the default Sega Master System palette.
-	ld de,2
---:	ld hl,VDU.Palettes.SegaMasterSystem
-	ld b,16
--:	ld a,d
-	ld c,(hl)
-	call Video.SetPalette
-	inc hl
-	inc d
-	djnz -
-	dec e
-	jr nz,--
+	call ResetMasterSystemPalette
 
 	; Set up a dummy field rate to avoid interrupts hanging.
 	ld a,(FieldRate)
@@ -284,6 +274,37 @@ SetMode:
 	call Video.GetFieldRate
 	ld (FieldRate),a
 	
+	ei
+	ret
+
+; ==========================================================================
+; ResetMasterSystemPalette
+; --------------------------------------------------------------------------
+; Resets the palette to the default Master System one.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; Interrupts: Enabled.
+; ==========================================================================
+ResetMasterSystemPalette:
+	push hl
+	push de
+	push bc
+	
+	ld de,2
+--:	ld hl,VDU.Palettes.SegaMasterSystem
+	ld b,16
+-:	ld a,d
+	ld c,(hl)
+	call Video.SetPalette
+	inc hl
+	inc d
+	djnz -
+	dec e
+	jr nz,--
+	
+	pop bc
+	pop de
+	pop hl
 	ei
 	ret
 
@@ -1366,7 +1387,6 @@ EndBlinkingCursor:
 ; --------------------------------------------------------------------------
 ; Draws the blinking cursor.
 ; --------------------------------------------------------------------------
-; Inputs:     HL: Word to write, writing L before H.
 ; Destroyed:  AF.
 ; ==========================================================================
 DrawBlinkingCursor
@@ -1374,5 +1394,57 @@ DrawBlinkingCursor
 	bit GraphicalText,a
 	jp z,Console.DrawBlinkingCursor
 	ret
+
+; ==========================================================================
+; GetPixel
+; --------------------------------------------------------------------------
+; Gets the logical colour value of a pixel
+; --------------------------------------------------------------------------
+; Inputs:     HL: X coordinate of the pixel.
+;             DE: Y coordinate of the pixel.
+; Outputs:    A: Logical pixel colour value, or -1 if outside the viewport.
+; Destroyed:  AF, HL, DE.
+; ==========================================================================
+GetPixel:
+	
+	; Map to screen coordinates.
+	call Graphics.TransformPointAroundOrigin
+	
+	; Quick check for <0 or >255 out-of-bounds
+	ld a,h
+	or d
+	jr nz,GetPixel.OutOfBounds
+	
+	; Are we within the viewport?
+	ld a,(Graphics.MinX)
+	cp l
+	jr z,+
+	jr nc,GetPixel.OutOfBounds
++:	ld a,(Graphics.MaxX)
+	cp l
+	jr c,GetPixel.OutOfBounds
+	
+	ld a,(Graphics.MinY)
+	cp e
+	jr z,+
+	jr nc,GetPixel.OutOfBounds
++:	ld a,(Graphics.MaxY)
+	cp e
+	jr c,GetPixel.OutOfBounds
+	
+	; Call the driver-specific "GetPixel" routine.
+	push bc
+	ld c,-1
+	ld a,Driver.Execute.GetPixel
+	ld d,l
+	call Driver.Execute
+	ld a,c
+	pop bc
+	ret
+
+GetPixel.OutOfBounds:
+	ld a,-1
+	ret	
+	
 
 .endmodule

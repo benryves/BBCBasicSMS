@@ -1631,7 +1631,31 @@ ADVAL.SoundBuffer:
 ; Read the colour of a screen pixel.
 ; ==========================================================================
 POINT:
-	jp SORRY
+	call Basic.BBCBASIC_EXPRI
+	exx
+	push hl
+	call Basic.BBCBASIC_COMMA
+	call Basic.BBCBASIC_EXPRI
+	exx
+	pop de
+	call Basic.BBCBASIC_BRAKET
+	
+	ex de,hl
+	
+	.bcall "VDU.GetPixel"
+	
+	ld l,a
+	add a,a
+	sbc a,a
+	ld h,a
+	exx
+	ld h,a
+	ld l,a
+
+	xor a
+	ld c,a
+	ret
+	
 
 ; ==========================================================================
 ; BASIC statements

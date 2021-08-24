@@ -1,8 +1,8 @@
-; =========================================================
-; Module: Graphics
-; =========================================================
+; ==========================================================================
+; Graphics
+; --------------------------------------------------------------------------
 ; Handles drawing graphics to the screen.
-; =========================================================
+; ==========================================================================
 .module Graphics
 
 MinX = allocVar(1)
@@ -54,6 +54,13 @@ BackgroundColour = allocVar(1) ; GCOL ..., <c>  /
 .include "Ellipse.asm"
 .include "Triangle.asm"
 
+; ==========================================================================
+; Reset
+; --------------------------------------------------------------------------
+; Resets the graphics module.
+; --------------------------------------------------------------------------
+; Destroyed: AF, HL, DE, BC.
+; ==========================================================================
 Reset:
 
 	; Clear the plot shape and visited points.
@@ -89,29 +96,32 @@ ResetViewport:
 	ret
 	
 
-; ---------------------------------------------------------
-; VisitPointAbsolute -> Visits an absolute point for
-; plotting.
-; ---------------------------------------------------------
-; Inputs:   hl = X coordinate to visit.
-;           de = Y coordinate to visit. 
-; Outputs:  None
-; Destroys: f.
-; ---------------------------------------------------------
+; ==========================================================================
+; VisitPointAbsolute
+; --------------------------------------------------------------------------
+; Visits an absolute point for plotting.
+; --------------------------------------------------------------------------
+; Inputs:    HL: absolute X coordinate to visit.
+;            DE: absolute Y coordinate to visit.
+; Outputs:   VisitedPoint0
+; Destroyed: F.
+; ==========================================================================
 VisitPointAbsolute:
 	call ShiftPointBuffer
 	ld (VisitedPoint0X),hl
 	ld (VisitedPoint0Y),de
 	ret
 
-; ---------------------------------------------------------
-; VisitPoint -> Visits a point for plotting.
-; ---------------------------------------------------------
-; Inputs:   hl = X coordinate to visit.
-;           de = Y coordinate to visit. 
-; Outputs:  None
-; Destroys: f.
-; ---------------------------------------------------------
+; ==========================================================================
+; VisitPoint
+; --------------------------------------------------------------------------
+; Visits a point for plotting.
+; --------------------------------------------------------------------------
+; Inputs:    HL: X coordinate to visit.
+;            DE: Y coordinate to visit.
+; Outputs:   VisitedPoint0
+; Destroyed: F.
+; ==========================================================================
 VisitPoint:
 	
 	call ShiftPointBuffer
@@ -137,14 +147,15 @@ VisitPoint:
 	pop hl
 	ret
 
-; ---------------------------------------------------------
-; ShiftPointBuffer -> Shifts the point buffer before
-; adding a new one.
-; ---------------------------------------------------------
-; Inputs:   None.
-; Outputs:  None.
-; Destroys: f.
-; ---------------------------------------------------------
+; ==========================================================================
+; ShiftPointBuffer
+; --------------------------------------------------------------------------
+; Shifts the point buffer before adding a new one.
+; --------------------------------------------------------------------------
+; Inputs:    VisitedPoints
+; Outputs:   VisitedPoints
+; Destroyed: F.
+; ==========================================================================
 ShiftPointBuffer:
 	; Shift the visited point buffer.
 	push hl
@@ -161,13 +172,15 @@ ShiftPointBuffer:
 	pop hl
 	ret
 
-; ---------------------------------------------------------
-; DivideBy5 -> Divides HL by 5.
-; ---------------------------------------------------------
-; Inputs:   hl = value to divide by 5.
-; Outputs:  hl is divided by 5.
-; Destroys: f.
-; ---------------------------------------------------------
+; ==========================================================================
+; DivideBy5
+; --------------------------------------------------------------------------
+; Divides HL by five.
+; --------------------------------------------------------------------------
+; Inputs:    HL: Value to divide by five.
+; Outputs:   HL: Value divided by five.
+; Destroyed: F.
+; ==========================================================================
 DivideBy5:
 	bit 7,h
 	push af
@@ -194,13 +207,15 @@ DivideBy5:
 	pop af
 	ret
 
-; ---------------------------------------------------------
-; MultiplyBy5 -> Multiplies HL by 5.
-; ---------------------------------------------------------
-; Inputs:   hl = value to multiply by 5.
-; Outputs:  hl is multiplied by 5.
-; Destroys: f.
-; ---------------------------------------------------------
+; ==========================================================================
+; MultiplyBy5
+; --------------------------------------------------------------------------
+; Multiplies HL by five.
+; --------------------------------------------------------------------------
+; Inputs:    HL: Value to multiply by five.
+; Outputs:   HL: Value multiplied by five.
+; Destroyed: F.
+; ==========================================================================
 MultiplyBy5:
 	push de
 	ld d,h
@@ -318,13 +333,16 @@ MultiplyBy5TP:
 	pop af
 	ret
 
-; ---------------------------------------------------------
-; SortDEHL -> Sort DE <= HL.
-; ---------------------------------------------------------
-; Inputs:   de, hl: the two values to sort.
-; Outputs:  de <= hl.
-; Destroys: None.
-; ---------------------------------------------------------
+; ==========================================================================
+; SortDEHL
+; --------------------------------------------------------------------------
+; Sort DE and HL so that DE<=HL.
+; --------------------------------------------------------------------------
+; Inputs:     HL: One value to sort.
+;             DE: The other value to sort.
+; Outputs:    DE <= HL.
+; Destroyed:  F.
+; ==========================================================================
 SortDEHL:
 	or a
 	sbc hl,de
@@ -340,28 +358,32 @@ SortDEHL:
 	ex de,hl
 	ret
 
-; ---------------------------------------------------------
-; SignedCPHLBC -> Compare signed HL and BC.
-; ---------------------------------------------------------
-; Inputs:   hl, bc: the two values to compare.
-; Outputs:  z = signed equality.
-;           c = set if HL<BC.
-; Destroys: f.
-; ---------------------------------------------------------
+; ==========================================================================
+; SignedCPHLBC
+; --------------------------------------------------------------------------
+; Compare signed HL and BC.
+; --------------------------------------------------------------------------
+; Inputs:     HL: One value to compare.
+;             BC: The other value to compare.
+; Outputs:    F: Z if HL=BC, C if HL<BC.
+; Destroyed:  F.
+; ==========================================================================
 SignedCPHLBC:
 	or a
 	sbc hl,bc
 	add hl,bc
 	jr SignedCPHLDE.F
 
-; ---------------------------------------------------------
-; SignedCPHLDE -> Compare signed HL and DE.
-; ---------------------------------------------------------
-; Inputs:   hl, de: the two values to compare.
-; Outputs:  z = signed equality.
-;           c = set if HL<DE.
-; Destroys: f.
-; ---------------------------------------------------------
+; ==========================================================================
+; SignedCPHLDE
+; --------------------------------------------------------------------------
+; Compare signed HL and DE.
+; --------------------------------------------------------------------------
+; Inputs:     HL: One value to compare.
+;             DE: The other value to compare.
+; Outputs:    F: Z if HL=DE, C if HL<DE.
+; Destroyed:  F.
+; ==========================================================================
 SignedCPHLDE:
 	or a
 	sbc hl,de
@@ -388,15 +410,16 @@ SignedCPHLDE.Z: ; If =Z, ensure =NC too.
 	ccf
 	ret
 
-; ---------------------------------------------------------
-; TransformPoints -> Converts visited point coordinates to
-;                    physical screen coordinates.
-; ---------------------------------------------------------
-; Inputs:   VisitedPoints
-;           b = number of points to transform.
-; Outputs:  TransformedPoints
-; Destroys: hl, de, bc
-; ---------------------------------------------------------
+; ==========================================================================
+; TransformPoints
+; --------------------------------------------------------------------------
+; Converts visited point coordinates to physical screen coordinates.
+; --------------------------------------------------------------------------
+; Inputs:     VisitedPoints
+;             B: Number of points to transform.
+; Outputs:    TransformedPoints
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 TransformPoints:
 	ld hl,(VisitedPoint0X)
 	ld de,(VisitedPoint0Y)
@@ -419,14 +442,40 @@ TransformPoints:
 	ld (TransformedPoint2Y),de
 	ret
 
-; ---------------------------------------------------------
-; TransformPoint -> Converts a visited point coordinate to
-;                   the physical screen coordinate.
-; ---------------------------------------------------------
-; Inputs:   (hl, de) = logical coordinates
-; Outputs:  (hl, de) = physical screen coordinates
-; Destroys: hl, de, f
-; ---------------------------------------------------------
+; ==========================================================================
+; TransformPointAroundOrigin
+; --------------------------------------------------------------------------
+; Converts logical coordinates relative to the origin to the physical
+; screen coordinates.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Logical X coordinate relative to the origin.
+;             DE: Logical Y coordinate relative to the origin.
+; Outputs:    HL: Transformed physical X coordinate.
+;             DE: Transformed physical Y coordinate.
+; Destroyed:  HL, DE, F.
+; ==========================================================================
+TransformPointAroundOrigin:
+	push bc
+	ld bc,(OriginX)
+	add hl,bc
+	ex de,hl
+	ld bc,(OriginY)
+	add hl,bc
+	ex de,hl
+	pop bc
+	; Fall-through to TransformPoint
+
+; ==========================================================================
+; TransformPoint
+; --------------------------------------------------------------------------
+; Converts logical "visited" coordinates to the physical screen coordinates.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Logical visited X coordinate.
+;             DE: Logical visited Y coordinate.
+; Outputs:    HL: Transformed physical X coordinate.
+;             DE: Transformed physical Y coordinate.
+; Destroyed:  HL, DE, F.
+; ==========================================================================
 TransformPoint:
 	push bc
 	ex de,hl
@@ -443,13 +492,15 @@ TransformPoint:
 	pop bc
 	ret
 
-; ---------------------------------------------------------
-; Plot -> Plots a shape on the screen.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = shape to plot.
-;           VisitedPoints = points to plot.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; Plot
+; --------------------------------------------------------------------------
+; Plots a shape on the screen.
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: Shape to plot.
+;             VisitedPoints: Cooridnates of the points to plot.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 Plot:
 	
 	; Default assumption is that we're using the foreground.
@@ -538,13 +589,16 @@ PlotCommands:
 .dw PlotDrawEllipse   ; 192..199: Ellipse outline.
 .dw PlotFillEllipse   ; 200..207: Ellipse fill.
 
-; ---------------------------------------------------------
-; Plot -> Plots a line.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = line type to plot.
-;           VisitedPoints = points to plot.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; PlotLine
+; --------------------------------------------------------------------------
+; Plots a line.
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: Line type to plot.
+;             VisitedPoint0: End coordinate.
+;             VisitedPoint1: Start coordinate.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 PlotLine:
 
 	ld b,2
@@ -692,29 +746,32 @@ PlotLine.Shallow:
 	
 	ret
 
-; ---------------------------------------------------------
-; PlotLinePlusPixel -> Plots a line, then draws the end
-;                      pixel again.
-; ---------------------------------------------------------
-; This is useful for inverse lines, to avoid the connection
-; between line segments from inverting themselves.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = pixel type to plot.
-;           VisitedPoint0 = End coordinate.
-;           VisitedPoint1 = Start coordinate.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; PlotLinePlusPixel
+; --------------------------------------------------------------------------
+; Plots a line, then draws the end pixel again.
+; --------------------------------------------------------------------------
+; This is useful for inverse lines, to avoid the connection between line
+; segments from inverting themselves.
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: Line type to plot.
+;             VisitedPoint0: End coordinate.
+;             VisitedPoint1: Start coordinate.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 PlotLinePlusPixel:
 	call PlotLine
 	; Fall-through to PlotPixel
 
-; ---------------------------------------------------------
-; PlotPixel -> Plots a single pixel.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = pixel type to plot.
-;           VisitedPoint0 = Point coordinates.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; PlotPixel
+; --------------------------------------------------------------------------
+; Plots a single pixel according to the current plot mode.
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: Pixel type to plot.
+;             VisitedPoint0: Coordinats of the pixel to plot.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 PlotPixel:
 	ld b,1
 	call TransformPoints
@@ -748,16 +805,17 @@ PlotPixel:
 	ret nc
 +:	ld e,a
 
-	; Fall-through:
+	; Fall-through to SetPixel:
 	
-; ---------------------------------------------------------
-; SetPixel -> Sets a pixel according to the current plot
-;             mode.
-; ---------------------------------------------------------
-; Inputs:   d = X coordinate.
-;           e = Y cooridnate.
-; Destroys: af, bc, de, hl.
-; ---------------------------------------------------------
+; ==========================================================================
+; SetPixel
+; --------------------------------------------------------------------------
+; Sets a pixel according to the current plot mode.
+; --------------------------------------------------------------------------
+; Inputs:     D: X coordinate.
+;             E: Y coordinate.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 SetPixel:
 	; Generate the masking values.
 	ld a,d
@@ -773,14 +831,17 @@ SetPixel:
 
 	jp Driver.SetAlignedHorizontalLineSegment
 
-; ---------------------------------------------------------
-; PlotTransformedHorizontalSpan -> Plots a horizontal span
-; ---------------------------------------------------------
-; Inputs:   PlotShape = pixel type to plot.
-;           (d,e) leftmost pixel to plot.
-;           h = X coordinate of rightmost pixel to plot.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; PlotTransformedHorizontalSpan
+; --------------------------------------------------------------------------
+; Plots a horizontal span
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: The pixel type to plot.
+;             D: X coordinate of the leftmost pixel.
+;             E: Y coordinate of the span.
+;             H: X coordinate of the rightmost pixel.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
 PlotTransformedHorizontalSpan:
 	ld a,h
 	sub d
@@ -913,9 +974,14 @@ NoSetAlignedHorizontalLineSegment:
 	ei
 	ret
 
-; ---------------------------------------------------------
-; PutMap -> Draws a character at the graphics cursor.
-; ---------------------------------------------------------
+; ==========================================================================
+; PutMap
+; --------------------------------------------------------------------------
+; Draws a character at the graphics cursor.
+; --------------------------------------------------------------------------
+; Inputs:     A: The character to draw.
+; Destroyed:  AF.
+; ==========================================================================
 PutMap:
 	push ix
 	push hl
@@ -1185,18 +1251,25 @@ Sub191BC:
 	pop hl
 	ret
 
-; ---------------------------------------------------------
-; PutChar -> Draws a character at the graphics cursor and
-; advances right.
-; ---------------------------------------------------------
+; ==========================================================================
+; PutChar
+; --------------------------------------------------------------------------
+; Draws a character at the graphics cursor and advances right.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; ==========================================================================
 PutChar:
 	call PutMap
 	ret nc
-	; Fall-through.
+	; Fall-through to CursorRight.
 	
-; ---------------------------------------------------------
-; CursorRight -> Move the cursor right one character.
-; ---------------------------------------------------------
+; ==========================================================================
+; CursorRight
+; --------------------------------------------------------------------------
+; Move the cursor right one character.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; ==========================================================================
 CursorRight:
 	push hl
 	push de
@@ -1230,9 +1303,13 @@ CursorRightNoWrap:
 	pop hl
 	ret
 
-; ---------------------------------------------------------
-; CursorDown -> Move the cursor down one character.
-; ---------------------------------------------------------
+; ==========================================================================
+; CursorDown
+; --------------------------------------------------------------------------
+; Move the cursor down one character.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; ==========================================================================
 CursorDown:
 	push hl
 	push de
@@ -1272,9 +1349,13 @@ CursorDownNoWrap:
 	pop hl
 	ret
 
-; ---------------------------------------------------------
-; CursorLeft -> Move the cursor left one character.
-; ---------------------------------------------------------
+; ==========================================================================
+; CursorLeft
+; --------------------------------------------------------------------------
+; Move the cursor left one character.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; ==========================================================================
 CursorLeft:
 	push hl
 	push de
@@ -1312,9 +1393,13 @@ CursorLeftNoWrap:
 	ret
 	ret
 
-; ---------------------------------------------------------
-; CursorUp -> Move the cursor up one character.
-; ---------------------------------------------------------
+; ==========================================================================
+; CursorUp
+; --------------------------------------------------------------------------
+; Move the cursor up one character.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; ==========================================================================
 CursorUp:
 	push hl
 	push de
@@ -1353,9 +1438,13 @@ CursorUpNoWrap:
 	pop hl
 	ret
 	
-; ---------------------------------------------------------
-; HomeLeft -> Move the cursor home to the left edge.
-; ---------------------------------------------------------
+; ==========================================================================
+; HomeLeft
+; --------------------------------------------------------------------------
+; Move the cursor home to the left edge.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; ==========================================================================
 HomeLeft:
 	push hl
 	push de
@@ -1367,16 +1456,18 @@ HomeLeft:
 	pop hl
 	ret
 
-; ---------------------------------------------------------
-; PlotTransformedSprite -> Plots a sprite.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = pixel type to plot.
-;           (d,e) top left corner.
-;           b = height of the sprite.
-;           c = mask value for each sprite row.
-;           ix = pointer to sprite data.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; PlotTransformedSprite
+; --------------------------------------------------------------------------
+; Draws a sprite.
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape = pixel type to plot.
+;             (D,E): top left corner.
+;             B: Height of the sprite.
+;             C: Mask value for each sprite row.
+;             IX : Pointer to sprite data.
+; Destroyed:  AF, HL, DE, BC, IX.
+; ==========================================================================
 PlotTransformedSprite:
 
 PlotTransformedSprite.Loop:
@@ -1443,18 +1534,14 @@ PlotTransformedSprite.Aligned:
 	
 	ret	
 	
-
-; ---------------------------------------------------------
-; Clear -> Clears the viewport.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = rectangle type to plot.
-;           VisitedPoint0 = One corner.
-;           VisitedPoint1 = The other corner.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; Clear
+; --------------------------------------------------------------------------
+; Clears the viewport.
+; --------------------------------------------------------------------------
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
 Clear:
-	
-
 	
 	ld hl,(MinX)
 	ld h,0
@@ -1486,14 +1573,16 @@ Clear:
 	
 	jr PlotTransformedRectangle
 
-; ---------------------------------------------------------
-; PlotRectangle -> Fills a rectangle.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = rectangle type to plot.
-;           VisitedPoint0 = One corner.
-;           VisitedPoint1 = The other corner.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; PlotRectangle
+; --------------------------------------------------------------------------
+; Fills a rectangle
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: Rectangle type to plot.
+;             VisitedPoint0: One corner.
+;             VisitedPoint1: The other corner
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
 PlotRectangle:
 	; <corner>, <corner>
 	ld b,2
@@ -1626,28 +1715,32 @@ PlotTransformedRectangle:
 	
 	ret
 
-; ---------------------------------------------------------
-; PlotDrawCircle -> Draws a circle outline.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = circle type to plot.
-;           VisitedPoint0 = Point on circumference.
-;           VisitedPoint1 = Center.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; PlotDrawCircle
+; --------------------------------------------------------------------------
+; Draws a circle outline.
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: Circle type to plot.
+;             VisitedPoint0: Point on circumference.
+;             VisitedPoint1: Center.
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
 PlotDrawCircle:
 	push iy
 	ld iy,PlotShape
 	res fFillEllipse,(iy+ellipseFlags)
 	jr PlotCircle
 
-; ---------------------------------------------------------
-; PlotFillCircle -> Fills a circle.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = circle type to plot.
-;           VisitedPoint0 = Point on circumference.
-;           VisitedPoint1 = Center.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; PlotFillCircle
+; --------------------------------------------------------------------------
+; Fills a circle.
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: Circle type to plot.
+;             VisitedPoint0: Point on circumference.
+;             VisitedPoint1: Center.
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
 PlotFillCircle:
 	push iy
 	ld iy,PlotShape
@@ -1751,30 +1844,34 @@ CircleFoundRadius:
 	pop iy
 	ret
 
-; ---------------------------------------------------------
-; PlotDrawEllipse -> Draws an ellipse outline.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = ellipse type to plot.
-;           VisitedPoint0 = Point on h tangent (v radius)
-;           VisitedPoint1 = Point on v tangent (h radius)
-;           VisitedPoint2 = Center.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; PlotDrawEllipse
+; --------------------------------------------------------------------------
+; Draws an ellipse outline.
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: Ellipse type to plot.
+;             VisitedPoint0: Point on h tangent (v radius)
+;             VisitedPoint1: Point on v tangent (h radius)
+;             VisitedPoint2: Center.
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
 PlotDrawEllipse:
 	push iy
 	ld iy,PlotShape
 	res fFillEllipse,(iy+ellipseFlags)
 	jr PlotEllipse
 	
-; ---------------------------------------------------------
-; PlotFillEllipse -> Fills an ellipse.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = ellipse type to plot.
-;           VisitedPoint0 = Point on h tangent (v radius)
-;           VisitedPoint1 = Point on v tangent (h radius)
-;           VisitedPoint2 = Center.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; PlotFillEllipse
+; --------------------------------------------------------------------------
+; Fills an ellipse.
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: Ellipse type to plot.
+;             VisitedPoint0: Point on h tangent (v radius)
+;             VisitedPoint1: Point on v tangent (h radius)
+;             VisitedPoint2: Center.
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
 PlotFillEllipse:
 	push iy
 	ld iy,PlotShape
@@ -1815,28 +1912,31 @@ PlotEllipse:
 	pop iy
 	ret
 
-; ---------------------------------------------------------
-; PlotTriangle -> Fills a triangle.
-; ---------------------------------------------------------
-; Inputs:   PlotShape = triangle type to plot.
-;           VisitedPoint0 = First coordinate
-;           VisitedPoint1 = Second coordinate.
-;           VisitedPoint2 = Third coordinate.
-; Destroys: Everything.
-; ---------------------------------------------------------
+; ==========================================================================
+; PlotTriangle
+; --------------------------------------------------------------------------
+; Fills a triangle.
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: Triangle type to plot.
+;             VisitedPoint0: First coordinate.
+;             VisitedPoint1: Second coordinate.
+;             VisitedPoint2: Third coordinate.
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
 PlotTriangle:
 	ld b,3
 	call TransformPoints
 	jp Triangle.Fill
 
-; ---------------------------------------------------------
-; ClampPhysicalHLX -> Clamps transformed HL X value to
-;                     physical screen coordinates.
-; ---------------------------------------------------------
-; Inputs:   hl = X value to clamp.
-; Outputs:  l = clamped value 0..255.
-; Destroys: af.
-; ---------------------------------------------------------
+; ==========================================================================
+; ClampTransformedHLX
+; --------------------------------------------------------------------------
+; Clamps transformed HL X value to physical screen coordinates.
+; --------------------------------------------------------------------------
+; Inputs:     HL: X value to clamp.
+; Outputs:    L: Clamped value 0..255.
+; Destroyed:  AF.
+; ==========================================================================
 ClampTransformedHLX:
 	bit 7,h
 	jr z,+
@@ -1848,14 +1948,15 @@ ClampTransformedHLX:
 	ld l,255
 	ret
 
-; ---------------------------------------------------------
-; ClampPhysicalDEY -> Clamps transformed DE Y value to
-;                     physical screen coordinates.
-; ---------------------------------------------------------
-; Inputs:   de = Y value to clamp.
-; Outputs:  e = clamped value 0..191.
-; Destroys: af.
-; ---------------------------------------------------------
+; ==========================================================================
+; ClampTransformedDEY
+; --------------------------------------------------------------------------
+; Clamps transformed DE Y value to physical screen coordinates.
+; --------------------------------------------------------------------------
+; Inputs:     DE: Y value to clamp.
+; Outputs:    E: Clamped value 0..191.
+; Destroyed:  AF.
+; ==========================================================================
 ClampTransformedDEY:
 	bit 7,d
 	jr z,+
