@@ -26,8 +26,8 @@ Execute:
 	or a \ jr z,Initialise
 	dec a \ ret z
 	dec a \ ret z
-	dec a \ ret z
-	dec a \ jp z,Scroll
+	dec a \ jp z,ScrollDown
+	dec a \ jp z,ScrollUp
 	dec a \ jp z,GetUserDefinedCharacter
 	dec a \ jp z,SetUserDefinedCharacter
 	dec a \ jp z,PreserveUnderCursor
@@ -181,7 +181,9 @@ ROMFont:
 	
 	; Get the address of the data in the font.
 	add a,FontCharOffset
-	add a,a
+	jr c,+
+	xor a
++:	add a,a
 	ld l,a
 	ld h,0
 	add hl,hl
@@ -230,15 +232,32 @@ WriteFontData:
 	ei
 	ret
 
-Scroll:
+ScrollDown:
 	push bc
 	push de
 	push hl
 	
+	; A stride of -256 bytes
+	ld de,-256
+	; Get the pointer to the bottom left corner in the pattern table.
+	ld a,(Console.MaxRow)
+	jr ScrollFromRow
+
+ScrollUp:
+	push bc
+	push de
+	push hl
+	
+	; A stride of 256 bytes
+	ld de,256
 	; Get the pointer to the top left corner in the pattern table.
-	ld a,(Console.MinCol)
-	ld e,a
 	ld a,(Console.MinRow)
+
+ScrollFromRow:
+
+	ld (TempSize),de
+	
+	ld de,(Console.MinCol)
 	call GetVRAMOffsetForTile
 	
 	push hl
@@ -269,7 +288,7 @@ Scroll:
 	
 	push bc
 	
-	ld de,256
+	ld de,(TempSize)
 	call Console.ScrollBlock
 	
 	pop bc
@@ -280,7 +299,7 @@ Scroll:
 	add hl,de
 .endif
 
-	ld de,256	
+	ld de,(TempSize)
 	call Console.ScrollBlock
 	
 	pop hl
