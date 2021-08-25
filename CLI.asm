@@ -470,7 +470,8 @@ Catalogue.PrintEndOfItem:
 	ret
 
 Catalogue.PrintEndOfList:
-	jp VDU.Console.NewLine
+	.bcall "VDU.Console.NewLine"
+	ret
 
 Catalogue.Tape:
 	call Tape.Catalogue
