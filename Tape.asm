@@ -7,8 +7,13 @@
 ; Data byte:
 ; - 0 dl....dh 1
 
-InputPort = $DD
-InputBit  = 3
+; Pins:
+; MIC-> = 7 Port B TH ($3F.7)
+; <-EAR = 2 Port B Down ($DC.7)
+; MOTOR = 9 Port B TR ($3F.6)
+
+InputPort = $DC
+InputBit  = 7
 
 HalfWaveLengthThreshold = 18
 FullWaveLengthThreshold = 45
