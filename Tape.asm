@@ -251,6 +251,29 @@ GetBlock:
 	ld b,(ix+Header.DataBlockLength+1)
 	
 	ld a,b
+	or a
+	jr z,DataNotOver256Bytes
+	
+	; We can only deal with blocks of data that are up to 256 bytes in length.
+	dec b
+	jr z,DataNotOver512Bytes
+	
+	; If B>1, BC>512.
+	xor a
+	ret
+
+DataNotOver512Bytes:
+	inc b
+	ld a,c
+	or a
+	jr z,ReadData
+	
+	; Too much data!
+	xor a
+	ret
+
+DataNotOver256Bytes:
+	
 	or c
 	jr nz,ReadData
 	inc a ; Set NZ
