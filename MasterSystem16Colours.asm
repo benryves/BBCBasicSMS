@@ -380,15 +380,13 @@ SetAlignedHorizontalLineSegment:
 	add hl,bc
 	
 	ld b,8
---:	ld c,3
+--:	ld c,4
 -:	ld a,(hl)          ; 7
 	out (Video.Data),a ; 11
 	dec c              ; 4
 	jr nz,-            ; 12/7 <- 34
 	inc hl             ; 6
-	ld a,0             ; 7
-	out (Video.Data),a ; 11
-	djnz --            ; 12/7 <- 35
+	djnz --            ; 12/7
 	
 	pop hl
 	
