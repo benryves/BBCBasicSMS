@@ -608,25 +608,6 @@ GotValidBlockFilename:
 	cp h
 	jp nz,CRCError
 	
-.if 0
-	ld a,' '
-	.bcall "VDU.PutChar"
-	.bcall "VDU.PutHexWord"
-	ld a,'='
-	.bcall "VDU.PutChar"
-	
-	ld l,(ix+Tape.Header.DataCRC+1)
-	ld h,(ix+Tape.Header.DataCRC+0)
-	.bcall "VDU.PutHexWord"
-	
-	ld a,'@'
-	.bcall "VDU.PutChar"
-	push de
-	pop hl
-	.bcall "VDU.PutHexWord"
-.endif
-	
-	
 EmptyBlock:	
 	; If we're not actively loading a file (GetFileName=-1), reset DE.
 	ld bc,(GetFileName)
@@ -707,7 +688,6 @@ MaintainOutput:
 ; --------------------------------------------------------------------------
 ; Inputs:     F: C is the bit (set or reset for 1 or 0) to send.
 ; Destroyed:  AF.
-; Interrupts: Disabled.
 ; ==========================================================================
 WriteBit:
 	jp c,WriteBit1
@@ -759,10 +739,27 @@ BitDelayShort:
 ; --------------------------------------------------------------------------
 ; Inputs:     A: The byte to write.
 ; Destroyed:  AF.
-; Interrupts: Disabled.
 ; ==========================================================================
 WriteByte:
 	push bc
+
+.if 0
+	push hl
+	push de
+	.bcall "VDU.PutHexByte"
+	ld a,' '
+	.bcall "VDU.PutChar"
+	ld a,' '
+	.bcall "VDU.PutChar"
+	ld a,(VDU.Console.CurRow)
+	cp 23
+	jr nz,+
+	xor a
+	ld (VDU.Console.CurRow),a
++:
+	pop de
+	pop hl
+.endif
 
 	ld c,a
 	ld b,9 ; start bit, 8 data bits
@@ -807,7 +804,6 @@ ByteDelayShort:
 ; Inputs:     HL: Pointer to the block of bytes to write.
 ;             BC: The number of bytes to write (1..65536).
 ; Destroyed:  AF, BC, HL.
-; Interrupts: Disabled.
 ; ==========================================================================
 WriteBytes:
 -:	ld a,(hl)
@@ -845,7 +841,6 @@ BytesDelayFull:
 ; Inputs:     HL: Pointer to the list of blocks of bytes to write.
 ;             B: The number of entries in the list.
 ; Destroyed:  AF, BC, DE, HL.
-; Interrupts: Disabled.
 ; ==========================================================================
 WriteBytesList:
 -:	push bc
@@ -875,16 +870,15 @@ WriteBytesList:
 ; --------------------------------------------------------------------------
 ; Inputs:     HL: Pointer to the list of blocks of bytes to write.
 ;             B: The number of entries in the list.
-;             D: Length of the carrier at the start of the data list (cs).
-;             E: Length of the carrier at the end of the data list (cs).
+;             D: Length of the carrier at the start of the data list (1/50s)
+;             E: Length of the carrier at the end of the data list (1/50s)
 ; Destroyed:  AF, BC, DE, HL.
-; Interrupts: Disabled.
 ; ==========================================================================
 WriteBytesListWithCarrier:
 	push de
 	
 	; Write the lead-in carrier.
---:	ld c,120
+--:	ld c,24
 -:	call WriteBit1
 	dec c
 	jr z,+
@@ -915,13 +909,13 @@ WriteBytesListWithCarrier:
 	
 	; Write the lead-out carrier.
 	pop de
---:	ld c,120
+--:	ld c,24
 -:	call WriteBit1
 	dec c
 	jr z,+
 	call CarrierDelayFull
 	jr -
-+:	dec d
++:	dec e
 	jr z,+
 	call CarrierDelayShort
 	jr --
@@ -944,6 +938,297 @@ CarrierDelayShort:
 	pop bc
 	ret
 
-LeadInShort
+; ==========================================================================
+; WriteFile
+; --------------------------------------------------------------------------
+; Writes a file to the tape.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to the file name NUL/CR terminated.
+;             DE: Pointer to RAM to get the file data from.
+;             BC: Size of the file to write.
+; Destroyed:  AF, BC, DE, HL.
+; Interrupts: Enabled.
+; ==========================================================================
+WriteFile:
+	; We'll need to remember the file location and size.
+	ld (TempPtr),de
+	ld (TempSize),bc
+	
+	; Get a free block of memory to store the header/data/CRC in.
+	ld de,64
+	call Host.GetSafeScratchMemoryDE
+	ret c
+	
+	; Back up IX and IY as we'll be modifying them later.
+	push ix
+	push iy
+	
+	; Each bytes list will require:
+	; Sync byte + Header + Header CRC
+	; Data
+	; Data CRC
+	
+	ex de,hl
+	
+	; Remember the pointer to the header.
+	push hl
+	
+	; Synchronisation byte.
+	ld (hl),$2A 
+	inc hl
+	
+	; File name.
+-:	ld a,(de)
+	or a
+	jr z,+
+	cp '\r'
+	jr z,+
+	
+	ld (hl),a
+	inc hl
+	inc de
+	jr -
++:	
+	; File name terminator.
+	ld (hl),0
+	inc hl
+	
+	; We'll need to access the fields below when writing each block,
+	; so remember the address in IX.
+	push hl
+	pop ix
+	
+	; Load address and execution address.
+	ld b,2
+	
+-:	ld a,(TempPtr+0)
+	ld (hl),a
+	inc hl
+	
+	ld a,(TempPtr+1)
+	ld (hl),a
+	inc hl
+	
+	xor a
+	ld (hl),a
+	inc hl
+	
+	xor a
+	ld (hl),a
+	inc hl
+	
+	djnz -
+	
+	; Write placeholder data for:
+	; Block number (2 bytes)
+	; Data block length (2 bytes).
+	; Block flag (1 byte).
+	; Address of next file (4 bytes).
+	; Header CRC (2 bytes, byte swapped).
+	ld b,2+2+1+4+2
+-:	ld (hl),a
+	inc hl
+	djnz -
+	
+	; Restore where the end of the header is (DE).
+	ld d,h
+	ld e,l
+	
+	; How long is the header block?
+	pop bc
+	or a
+	sbc hl,bc
+	ex de,hl
+	
+	; HL = End of header data.
+	; BC = Start of header data.
+	; DE = Size of header data.
+	
+	; We'll be writing our list of byte sequences here,
+	; so remember where that is.
+	push hl
+	pop iy
+	
+	ld (hl),c
+	inc hl
+	ld (hl),b
+	inc hl
+	ld (hl),e
+	inc hl
+	ld (hl),d
+	inc hl
+	
+	; We'll need to write the actual data to the tape after the header.
+	ld a,(TempPtr+0)
+	ld (hl),a
+	inc hl
+	ld a,(TempPtr+1)
+	ld (hl),a
+	inc hl
+	
+	ld a,(TempSize+0)
+	ld (hl),a
+	inc hl
+	ld a,(TempSize+1)
+	ld (hl),a
+	inc hl
+	
+	; We'll need to store the data CRC somewhere too!
+	ld d,h
+	ld e,l
+	ld bc,4
+	add hl,bc
+	ex de,hl
+	
+	ld (hl),e
+	inc hl
+	ld (hl),d
+	inc hl
+	ld (hl),2
+	inc hl
+	ld (hl),0
+	inc hl
+	
+	; At this point, we've loaded our dummy block into memory and set up our bytes lists.
+	
+	; IX: Points to block header.
+	; IY: Points to bytes list table.
+	
+	di
+
+WriteBlock:
+
+	; What should the size of the block be?
+	ld hl,(TempSize)
+	ld a,h
+	or l
+	jr z,WriteEmptyBlock
+	
+	; Clamp block size to 1..256 bytes
+	dec hl
+	ld h,0
+	inc hl
+
+WriteEmptyBlock:
+	
+	; Store the data block size in the header area.
+	ld (ix+Header.DataBlockLength+0),l
+	ld (ix+Header.DataBlockLength+1),h
+	
+	; Store the data block size in the bytes list table.
+	ld (iy+6),l
+	ld (iy+7),h
+	
+
+	; Update the block flag.
+	ld (ix+Header.BlockFlag),0
+	
+	ld a,h
+	or l
+	jr nz,+
+	set 6,(ix+Header.BlockFlag) ; bit 6 = 0 bytes in data block.
++:	
+	
+	; Is the amount of data we're writing equal to the size of the file remaining?
+	ld de,(TempSize)
+	or a
+	sbc hl,de
+	jr nz,+
+	set 7,(ix+Header.BlockFlag) ; bit 7 = end of file.
++:
+	
+	; We'll need to compute the header's CRC.
+	ld e,(iy+0)
+	ld d,(iy+1)
+	ld c,(iy+2)
+	ld b,(iy+3)
+	
+	; Skip the sync byte.
+	inc de
+	dec bc
+	
+	call CRC16
+	ld (ix+Header.CRC+0),h ; \ Intentionally byteswapped.
+	ld (ix+Header.CRC+1),l ; /
+	
+	; Assume we have no data, and are only writing the block header.
+	ld b,1
+	
+	; We'll need to compute the data CRC (if there is any!)
+	bit 6,(ix+Header.BlockFlag)
+	jr nz,+
+	
+	ld e,(iy+4)
+	ld d,(iy+5)
+	ld c,(iy+6)
+	ld b,(iy+7)
+	
+	call CRC16
+	
+	ld (iy+12),h ; \ Intentionally byteswapped.
+	ld (iy+13),l ; /
+	
+	; We have data, so will need to write the block header, data, and CRC.
+	ld b,3
++:
+
+	; How long should the carrier lead-in be?
+	ld d,23 ; 0.46s.
+	ld a,(ix+Header.BlockNumber+0)
+	or (ix+Header.BlockNumber+1)
+	jr nz,+
+	ld d,255 ; 5.1s
++:
+
+	; How long should the carrier lead-out be?
+	ld e,23 ; 0.46s
+	bit 7,(ix+Header.BlockFlag)
+	jr z,+
+	ld e,255 ; 5.1s
++:
+	
+	; Commit to tape.
+	push iy
+	pop hl
+	call WriteBytesListWithCarrier
+	
+	; Have we finished?
+	bit 7,(ix+Header.BlockFlag)
+	jr nz,FinishedWriteFile
+	
+	; Advance to the next block number.
+	ld l,(ix+Header.BlockNumber+0)
+	ld h,(ix+Header.BlockNumber+1)
+	inc hl
+	ld (ix+Header.BlockNumber+0),l
+	ld (ix+Header.BlockNumber+1),h
+	
+	; Advance the data pointer by the amount of data written.
+	ld e,(ix+Header.DataBlockLength+0)
+	ld d,(ix+Header.DataBlockLength+1)
+	
+	ld l,(iy+4)
+	ld h,(iy+5)
+	add hl,de
+	ld (iy+4),l
+	ld (iy+5),h
+	
+	; Decrement the amount of data remaining by the amount of data written.
+	ld hl,(TempSize)
+	or a
+	sbc hl,de
+	ld (TempSize),hl
+	
+	; Write the next block!
+	jp WriteBlock
+
+FinishedWriteFile:
+
+	; Done!
+	pop iy
+	pop ix
+	
+	ei
+	ret
 
 .endmodule

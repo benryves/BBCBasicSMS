@@ -1151,6 +1151,12 @@ WriteEOF:
 ; Destroyed:  AF, BC, DE, HL.
 ; ==========================================================================
 OSSAVE:
+
+	ld a,(Flags)
+	and 1<<TapeFS
+	jr nz,OSSAVE.Tape
+
+OSSAVE.PCLink2:
 	.bcall "VDU.BeginBlinkingCursor"
 	call PCLink2.SendFile
 	push af
@@ -1158,6 +1164,10 @@ OSSAVE:
 	pop af
 	jp nz,DeviceFault
 	jp c,TRAP.Escape
+	ret
+
+OSSAVE.Tape:
+	call Tape.WriteFile
 	ret
 
 ; ==========================================================================
