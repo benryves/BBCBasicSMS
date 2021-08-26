@@ -1,8 +1,20 @@
+; ==========================================================================
+; Tape
+; --------------------------------------------------------------------------
+; Implements the tape filing system.
+; ==========================================================================
 .module Tape
 
 ; Basic format:
 ; - 0 bit = one cycle of 1200Hz.
 ; - 1 bit = two cycles of 2400Hz.
+
+; Z80 CPU Frequency = 3546893 Hz (PAL), 3579540 Hz (NTSC)
+; Assume it's 3563217
+
+; 4800 :  742
+; 2400 : 1485
+; 1200 : 2969
 
 ; Data byte:
 ; - 0 dl....dh 1
@@ -14,6 +26,10 @@
 
 InputPort = $DC
 InputBit  = 7
+
+OutputPort = $3F
+OutputBit  = 7
+MotorBit   = 6
 
 HalfWaveLengthThreshold = 18
 FullWaveLengthThreshold = 45
@@ -33,49 +49,47 @@ Header.NextFileAddress  = 13
 Header.CRC              = 17
 Header.DataCRC          = 19
 
-; ---------------------------------------------------------
-; GetHalfWaveLength -> Gets the length of half of a wave.
-; ---------------------------------------------------------
-; Inputs:   None.
-; Outputs:  b = length of the half wave.
-;           z and c set if the bit timed out. 
-; Destroys: af, bc.
-; ---------------------------------------------------------
-GetHalfWaveLength:
+; ==========================================================================
+; Reset
+; --------------------------------------------------------------------------
+; Resets the tape system to its default state.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; Interrupts: Enabled.
+; ==========================================================================
+Reset:
+	
+	; Set the motor and output pins outputs.
 	di
+	ld a,(IOControl)
 	
-	; Count the length of the half-wave in B.
-	ld b,0
+	; Make the output and motor pins outputs.
+	and ~((1 << (OutputBit - 4)) | (1 << (MotorBit - 4)))
 	
-	; We need to see where the wave changes, so remember the initial state.
-	in a,(InputPort)
-	ld c,a
+	; Drive them both high by default.
+	or (1 << OutputBit) | (1 << MotorBit)
 	
--:	in a,(InputPort)   ; 11
-	xor c              ; 4
-	and 1 << InputBit  ; 7
-	ret nz             ; 11/5
-	inc b              ; 4
-	jr nz,-            ; 12/7
-	scf
+	ld (IOControl),a
+	out ($3F),a
+	
+	ei
 	ret
 
-
-; ---------------------------------------------------------
-; GetFullWaveLength -> Gets the length of a wave cycle.
-; ---------------------------------------------------------
-; Inputs:   None.
-; Outputs:  b = length of the half wave.
-;           z set if the bit timed out. 
-;           c set if it was a short wave, cleared if it was
-;           long.
-; Destroys: af, bc.
-; ---------------------------------------------------------
-GetFullWaveLength:
+; ==========================================================================
+; GetWaveLength
+; --------------------------------------------------------------------------
+; Counts the length of a complete wave cycle.
+; --------------------------------------------------------------------------
+; Outputs:    F: Z if there was a timeout, NZ if the wave was timed.
+;             B: Length of the wave.
+; Destroyed:  AF, BC.
+; Interrupts: Disabled.
+; ==========================================================================
+GetWaveLength:
 	di
 	ld b,0
 	
-	; Remember the initial state of the input port.
+	; Wait for the level to go low.
 -:	in a,(InputPort)
 	bit InputBit,a
 	jr z,+
@@ -128,29 +142,34 @@ GetFullWaveLength:
 	inc a ; Force NZ if Z before.
 	ret
 
-; ---------------------------------------------------------
-; GetBit -> Gets a bit from the tape.
-; ---------------------------------------------------------
-; Inputs:   None.
-; Outputs:  c = the bit value.
-;           z set if the bit timed out. 
-; Destroys: af, bc.
-; ---------------------------------------------------------
+; ==========================================================================
+; GetBit
+; --------------------------------------------------------------------------
+; Gets a bit from the tape.
+; --------------------------------------------------------------------------
+; Outputs:    F: Z if there was a timeout, NZ if the bit was received.
+;                C is the bit value.
+; Destroyed:  AF, BC.
+; Interrupts: Disabled.
+; ==========================================================================
 GetBit:
 
-	call GetFullWaveLength
+	call GetWaveLength
 	ret z
 	ret nc ; If it's a 0 bit, it's 1x 1200Hz.
-	call GetFullWaveLength
+	call GetWaveLength
 	ret
 
-; ---------------------------------------------------------
-; GetByte -> Gets a byte from the tape.
-; ---------------------------------------------------------
-; Outputs:  a = the byte value.
-;           z set if the byte timed out. 
-; Destroys: af, bc.
-; ---------------------------------------------------------
+; ==========================================================================
+; GetByte
+; --------------------------------------------------------------------------
+; Gets a byte from the tape.
+; --------------------------------------------------------------------------
+; Outputs:    F: Z if there was a timeout, NZ if the bit was received.
+;             A: The received byte value.
+; Destroyed:  AF, BC.
+; Interrupts: Disabled.
+; ==========================================================================
 GetByte:
 	
 	ld b,0
@@ -195,15 +214,18 @@ GotStartBit:
 	cp c
 	ret
 
-; ---------------------------------------------------------
-; GetBlock -> Gets a complete block from the tape.
-; ---------------------------------------------------------
-; Inputs:   hl = pointer to storage for the block header.
-;           de = pointer to storage for the block data.
-; Outputs:  ix = address of block data structure.
-;           z set if there was a problem receiving.
-; Destroys: af, bc, de, hl.
-; ---------------------------------------------------------
+; ==========================================================================
+; GetBlock
+; --------------------------------------------------------------------------
+; Gets a complete block from the tape.
+; --------------------------------------------------------------------------
+; INputs:     HL: Pointer to storage for the block's header.
+;             DE: Pointer to storage for the block data.
+; Outputs:    F: Z if there was a timeout, NZ if the bit was received.
+;             IX: Address of the block's data structure.
+; Destroyed:  AF, BC, DE, HL.
+; Interrupts: Disabled.
+; ==========================================================================
 GetBlock:
 	
 	; Wait for the synchronisation byte.
@@ -346,32 +368,39 @@ CRC16:
 	jr nz,-
 	ret
 
-; ---------------------------------------------------------
-; Catalogue -> Shows a list of files.
-; ---------------------------------------------------------
-; Outputs:  nz if there was a protocol/receive error.
-;           if no error, c set if transfer was cancelled.
-; Destroys: af, bc, de, hl
-; ---------------------------------------------------------
+; ==========================================================================
+; Catalogue
+; --------------------------------------------------------------------------
+; Shows a list of files on the tape.
+; --------------------------------------------------------------------------
+; Outputs:    F: NZ if there was a protocol/receive error.
+;                C is set if the transfer was cancelled.
+; Destroyed:  AF, BC, DE, HL.
+; Interrupts: Disabled.
+; ==========================================================================
 Catalogue:
 	ld hl,0
 	ld de,256
 	call Host.GetSafeScratchMemoryDE
 	ret c
 	ld bc,512
-	; Fall-through.
+	; Fall-through to GetFile.
 
-; ---------------------------------------------------------
-; GetFile -> Gets a file.
-; ---------------------------------------------------------
-; Inputs:   hl = pointer to file name NUL/CR terminated.
-;           de = pointer to RAM to store the file in.
-;           bc = maximum file size that can be loaded.
-; Outputs:  nz if there was a protocol/receive error.
-;           if no error, c set if transfer was cancelled.
-;           if error, c is set if the error is "No room".
-; Destroys: af, bc, de, hl
-; ---------------------------------------------------------
+; ==========================================================================
+; GetFile
+; --------------------------------------------------------------------------
+; Gets a file from the tape.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to file name NUL/CR terminated.
+;             DE: Pointer to RAM to store the file in.
+;             BC: Maximum file size that can be loaded.
+; Outputs:    F: NZ if there was a protocol/receive error.
+;                If no error, C is set if the transfer was cancelled.
+;                If there is an error, C is set if the error is "No room".
+;                C is the bit value.
+; Destroyed:  AF, BC, DE, HL.
+; Interrupts: Disabled.
+; ==========================================================================
 GetFile:
 	push ix
 
@@ -655,6 +684,167 @@ HeaderError:
 .db "\rHeader?\r",0
 BlockError:
 .db "\rBlock?\r",0
+
+
+InvertOutput:
+	ld a,(IOControl)
+	xor 1 << OutputBit
+	ld (IOControl),a
+	out ($3F),a
+	ret
+
+MaintainOutput:
+	ld a,(IOControl)
+	xor 0
+	ld (IOControl),a
+	out ($3F),a
+	ret
+
+; ==========================================================================
+; WriteBit
+; --------------------------------------------------------------------------
+; Writes a single bit to the tape.
+; --------------------------------------------------------------------------
+; Inputs:     F: C is the bit (set or reset for 1 or 0) to send.
+; Destroyed:  AF.
+; Interrupts: Disabled.
+; ==========================================================================
+WriteBit:
+	jr c,WriteBit1
+	nop
+
+WriteBit0: ; 1x 1200Hz cycle.
+	call InvertOutput
+	call BitDelayFull
+	call MaintainOutput
+	call BitDelayFull
+	call InvertOutput
+	call BitDelayFull
+	call MaintainOutput
+	call BitDelayShort
+	ret
+
+WriteBit1: ; 2x 2400Hz cycles.
+	call InvertOutput
+	call BitDelayFull
+	call InvertOutput
+	call BitDelayFull
+	call InvertOutput
+	call BitDelayFull
+	call InvertOutput
+	call BitDelayShort
+	ret
+
+BitDelayShort:
+	push bc
+	ld b,33
+-:	djnz -
+	pop bc
+	nop
+	scf ; Stop bit!
+	ret
 	
+BitDelayFull:
+	push bc
+	ld b,47
+-:	djnz -
+	dec bc
+	pop bc
+	nop
+	ret
+
+; ==========================================================================
+; WriteByte
+; --------------------------------------------------------------------------
+; Writes a byte to the tape with the bits evenly spaced.
+; --------------------------------------------------------------------------
+; Inputs:     A: The byte to write.
+; Destroyed:  AF.
+; Interrupts: Disabled.
+; ==========================================================================
+WriteByte:
+	push bc
+
+	ld c,a
+	ld b,9 ; start bit, 8 data bits
+
+	or a
+	
+	; Start/data bit + long delay
+-:	call WriteBit
+	rr c
+	call ByteDelayFull
+	djnz -
+	
+	; Stop bit + short delay
+	nop
+	call WriteBit
+	call ByteDelayShort
+	
+	pop bc
+	ret
+
+ByteDelayFull:
+	push bc
+	ld b,5
+-:	djnz -
+	ld a,r
+	pop bc
+	ret
+
+ByteDelayShort:
+	ld a,r
+	nop
+	nop
+	ret
+
+; ==========================================================================
+; WriteBytes
+; --------------------------------------------------------------------------
+; Writes a single block of bytes to the tape with the bytes evenly spaced.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to the block of bytes to write.
+;             BC: The number of bytes to write (1..65536).
+; Destroyed:  AF, BC.
+; Interrupts: Disabled.
+; ==========================================================================
+WriteBytes:
+-:	ld a,(hl)
+	call WriteByte
+	inc hl
+	dec bc
+	ld a,b
+	or c
+	jr nz,-
+	ret
+
+; ==========================================================================
+; WriteBytesList
+; --------------------------------------------------------------------------
+; Writes multiple blocks of bytes to the tape with the bytes evenly spaced.
+; The list of blocks must take the form of a 16-bit pointer to the data
+; followed by the 16-bit number of bytes in the block.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to the list of blocks of bytes to write.
+;             B: The number of entries in the list.
+; Destroyed:  AF, BC.
+; Interrupts: Disabled.
+; ==========================================================================
+WriteBytesList:
+-:	push bc
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	ld c,(hl)
+	inc hl
+	ld b,(hl)
+	inc hl
+	ex de,hl
+	call WriteBytes
+	ex de,hl
+	pop bc
+	djnz -
+	ret
 
 .endmodule
