@@ -59,19 +59,65 @@ Header.DataCRC          = 19
 ; ==========================================================================
 Reset:
 	
-	; Set the motor and output pins outputs.
 	di
 	ld a,(IOControl)
 	
-	; Make the output and motor pins outputs.
-	and ~((1 << (OutputBit - 4)) | (1 << (MotorBit - 4)))
-	
-	; Drive them both high by default.
-	or (1 << OutputBit) | (1 << MotorBit)
+	; Weakly pull the data output and motor outputs high.
+	or (1 << OutputBit) | (1 << MotorBit) | (1 << (OutputBit - 4)) | (1 << (MotorBit - 4))
 	
 	ld (IOControl),a
 	out ($3F),a
 	
+	ei
+	ret
+
+; ==========================================================================
+; SetMotorState
+; --------------------------------------------------------------------------
+; Switch the tape motor on or off.
+; --------------------------------------------------------------------------
+; Inputs:     L: 0 to switch the motor off, 1 to switch it on.
+;             H: 0 for write operations, 1 for read operations.
+; Destroyed:  AF.
+; Interrupts: Enabled.
+; ==========================================================================
+SetMotorState:
+	ld a,l
+	or a
+	jr z,MotorOff
+	; Fall-through to MotorOn.
+
+; ==========================================================================
+; MotorOn
+; --------------------------------------------------------------------------
+; Switch the tape motor on.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; Interrupts: Enabled.
+; ==========================================================================
+MotorOn:
+	di
+	ld a,(IOControl)
+	and ~((1 << MotorBit) | (1 << (MotorBit - 4)))
+ 	ld (IOControl),a
+	out ($3F),a
+	ei
+	ret
+
+; ==========================================================================
+; MotorOff
+; --------------------------------------------------------------------------
+; Switch the tape motor off.
+; --------------------------------------------------------------------------
+; Destroyed:  AF.
+; Interrupts: Enabled.
+; ==========================================================================
+MotorOff:
+	di
+	ld a,(IOControl)
+	or (1 << MotorBit) | (1 << (MotorBit - 4))
+	ld (IOControl),a
+	out ($3F),a
 	ei
 	ret
 
@@ -402,6 +448,8 @@ Catalogue:
 ; Interrupts: Disabled.
 ; ==========================================================================
 GetFile:
+	call MotorOn
+	
 	push ix
 
 	ld (GetFileName),hl
@@ -644,11 +692,15 @@ EmptyBlock:
 	jp nz,TapeSearchFileLoop
 	
 	
+	call MotorOff
+	
 	pop ix
 	xor a
 	ret
 
 GetFileError:
+	call MotorOff
+
 	pop ix
 	xor a
 	inc a
@@ -1094,7 +1146,15 @@ WriteFile:
 	; IX: Points to block header.
 	; IY: Points to bytes list table.
 	
+	call MotorOn
 	di
+	
+	; Make the data output pin an output and hold it high by default.
+	ld a,(IOControl)
+	and ~(1 << (OutputBit - 4))
+	or 1 << OutputBit
+	ld (IOControl),a
+	out ($3F),a
 
 WriteBlock:
 
@@ -1228,7 +1288,13 @@ FinishedWriteFile:
 	pop iy
 	pop ix
 	
-	ei
+	; Release the data output pin.
+	ld a,(IOControl)
+	or (1 << OutputBit) | (1 << (OutputBit - 4)) 
+	ld (IOControl),a
+	out ($3F),a
+	
+	call MotorOff
 	ret
 
 .endmodule

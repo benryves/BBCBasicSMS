@@ -1013,6 +1013,9 @@ RESET:
 	xor a
 	ld (VDU.CommandQueue.Waiting),a
 	
+	; Switch the tape motor off.
+	call Tape.MotorOff
+	
 	pop bc
 	pop de
 	pop hl
@@ -2060,6 +2063,9 @@ OSBYTE:
 	jp z,SetEscape
 	cp 126
 	jp z,AcknowledgeEscape
+	
+	cp 137
+	jp z,OSBYTE.SwitchCassetteRelay
 
 	; Sound suppression and bell
 	cp 210
@@ -2282,6 +2288,12 @@ TypematicRates:
 	.db round(43.47826087)
 	.db round(47.61904762)
 	.db round(50)
+
+OSBYTE.SwitchCassetteRelay:
+	push af
+	call Tape.SetMotorState
+	pop af
+	ret
 
 ; ==========================================================================
 ; OSBYTE.ModifyMemory

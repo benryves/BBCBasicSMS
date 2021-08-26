@@ -284,6 +284,10 @@ GetOnOff:
 	call SkipWhitespace
 	ld a,(hl)
 	inc hl
+	cp '0'
+	jr z,GetOnOff.GotOff
+	cp '1'
+	jr z,GetOnOff.GotOn
 	and %11011111
 	cp 'O'
 	jp nz,BadCommand
@@ -295,7 +299,7 @@ GetOnOff:
 	cp 'N'
 	jp nz,BadCommand
 
-GetOnOff.On:
+GetOnOff.GotOn:
 	scf
 	ret
 
@@ -305,6 +309,7 @@ GetOnOff.Off:
 	and %11011111
 	cp 'F'
 	jp nz,BadCommand
+GetOnOff.GotOff:
 	or a
 	ret
 
@@ -668,6 +673,7 @@ Tape:
 	or 1<<Host.TapeFS
 	ld (Host.Flags),a
 	
+	call Tape.Reset
 	
 	ld a,(hl)
 	or a
@@ -696,6 +702,9 @@ PCLink2:
 	ld a,(Host.Flags)
 	and ~(1<<Host.TapeFS)
 	ld (Host.Flags),a
+	
+	call Serial.Reset
+	
 	scf
 	ret
 
@@ -727,6 +736,20 @@ Escape.GotOnOff:
 	scf
 	ret
 
+Motor:
+	call SkipWhitespace
+	call GetOnOff
+	push af
+	call CheckCommandEnd
+	pop af
+	ld a,0
+	adc a,0
+	ld l,a
+	ld h,0
+	call Tape.SetMotorState
+	scf
+	ret
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
@@ -739,6 +762,7 @@ Commands:
 	osclicommand("TAPE", Tape)
 	osclicommand("PCLINK", PCLink2)
 	osclicommand("ESC", Escape)
+	osclicommand("MOTOR", Motor)
 	.db 0
 
 .endmodule
