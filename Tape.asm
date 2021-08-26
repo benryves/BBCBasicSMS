@@ -710,8 +710,7 @@ MaintainOutput:
 ; Interrupts: Disabled.
 ; ==========================================================================
 WriteBit:
-	jr c,WriteBit1
-	nop
+	jp c,WriteBit1
 
 WriteBit0: ; 1x 1200Hz cycle.
 	call InvertOutput
@@ -735,15 +734,6 @@ WriteBit1: ; 2x 2400Hz cycles.
 	call BitDelayShort
 	ret
 
-BitDelayShort:
-	push bc
-	ld b,33
--:	djnz -
-	pop bc
-	nop
-	scf ; Stop bit!
-	ret
-	
 BitDelayFull:
 	push bc
 	ld b,47
@@ -751,6 +741,15 @@ BitDelayFull:
 	dec bc
 	pop bc
 	nop
+	ret
+
+BitDelayShort:
+	push bc
+	ld b,20
+-:	djnz -
+	inc bc
+	pop bc
+	scf ; Stop bit!
 	ret
 
 ; ==========================================================================
@@ -786,16 +785,18 @@ WriteByte:
 
 ByteDelayFull:
 	push bc
-	ld b,5
+	ld b,18
 -:	djnz -
 	ld a,r
 	pop bc
 	ret
 
 ByteDelayShort:
-	ld a,r
+	push bc
 	nop
+	inc bc
 	nop
+	pop bc
 	ret
 
 ; ==========================================================================
@@ -805,7 +806,7 @@ ByteDelayShort:
 ; --------------------------------------------------------------------------
 ; Inputs:     HL: Pointer to the block of bytes to write.
 ;             BC: The number of bytes to write (1..65536).
-; Destroyed:  AF, BC.
+; Destroyed:  AF, BC, HL.
 ; Interrupts: Disabled.
 ; ==========================================================================
 WriteBytes:
@@ -815,7 +816,23 @@ WriteBytes:
 	dec bc
 	ld a,b
 	or c
-	jr nz,-
+	jr z,+
+	call BytesDelayFull
+	jr -
++:	push bc
+	pop bc
+	nop
+	nop
+	ret
+
+BytesDelayFull:
+	push bc
+	ld b,6
+-:	djnz -
+	or 0
+	nop
+	nop
+	pop bc
 	ret
 
 ; ==========================================================================
@@ -827,7 +844,7 @@ WriteBytes:
 ; --------------------------------------------------------------------------
 ; Inputs:     HL: Pointer to the list of blocks of bytes to write.
 ;             B: The number of entries in the list.
-; Destroyed:  AF, BC.
+; Destroyed:  AF, BC, DE, HL.
 ; Interrupts: Disabled.
 ; ==========================================================================
 WriteBytesList:
@@ -846,5 +863,87 @@ WriteBytesList:
 	pop bc
 	djnz -
 	ret
+
+; ==========================================================================
+; WriteBytesListWithCarrier
+; --------------------------------------------------------------------------
+; Writes multiple blocks of bytes to the tape with the bytes evenly spaced.
+; The list of blocks must take the form of a 16-bit pointer to the data
+; followed by the 16-bit number of bytes in the block.
+; A carrier sequence is inserted at the start and end of the data written to
+; tape.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to the list of blocks of bytes to write.
+;             B: The number of entries in the list.
+;             D: Length of the carrier at the start of the data list (cs).
+;             E: Length of the carrier at the end of the data list (cs).
+; Destroyed:  AF, BC, DE, HL.
+; Interrupts: Disabled.
+; ==========================================================================
+WriteBytesListWithCarrier:
+	push de
+	
+	; Write the lead-in carrier.
+--:	ld c,120
+-:	call WriteBit1
+	dec c
+	jr z,+
+	call CarrierDelayFull
+	jr -
++:	dec d
+	jr z,+
+	call CarrierDelayShort
+	jr --
++:	
+	
+	; Delay to pad between lead-in carrier and data block.
+	push bc
+	ld b,8
+-:	djnz -
+	nop
+	pop bc
+
+	; Write the data.
+	call WriteBytesList
+	
+	; Delay to pad between data block and lead-out carrier.
+	push bc
+	ld b,7
+-:	djnz -
+	rr b
+	pop bc
+	
+	; Write the lead-out carrier.
+	pop de
+--:	ld c,120
+-:	call WriteBit1
+	dec c
+	jr z,+
+	call CarrierDelayFull
+	jr -
++:	dec d
+	jr z,+
+	call CarrierDelayShort
+	jr --
++:	
+	ret
+
+CarrierDelayFull:
+	push bc
+	ld b,19
+-:	djnz -
+	nop
+	pop bc
+	ret
+
+CarrierDelayShort:
+	push bc
+	ld b,17
+-:	djnz -
+	or 0
+	pop bc
+	ret
+
+LeadInShort
 
 .endmodule
