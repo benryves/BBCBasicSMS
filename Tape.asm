@@ -803,12 +803,6 @@ WriteByte:
 	.bcall "VDU.PutChar"
 	ld a,' '
 	.bcall "VDU.PutChar"
-	ld a,(VDU.Console.CurRow)
-	cp 23
-	jr nz,+
-	xor a
-	ld (VDU.Console.CurRow),a
-+:
 	pop de
 	pop hl
 .endif
@@ -1010,6 +1004,29 @@ WriteFile:
 	ld de,64
 	call Host.GetSafeScratchMemoryDE
 	ret c
+	
+	; Display the "RECORD then RETURN" prompt.
+	push hl
+	ld hl,RecordThenReturn
+	.bcall "VDU.PutString"
+-:	call Host.CheckEscape
+	call Host.OSRDCH
+	cp '\r'
+	jr nz,-
+	.bcall "VDU.Console.NewLine"
+	pop hl
+	
+	; Remember the old value of FREE.
+	ld bc,(Basic.BBCBASIC_FREE)
+	ld (TempCapacity),bc
+	
+	; Move the FREE pointer in case future operations also need to make use it.
+	; (e.g. scrolling text).
+	push hl
+	ld hl,64
+	add hl,de
+	ld (Basic.BBCBASIC_FREE),hl
+	pop hl
 	
 	; Back up IX and IY as we'll be modifying them later.
 	push ix
@@ -1247,6 +1264,14 @@ WriteEmptyBlock:
 	ld e,255 ; 5.1s
 +:
 	
+	; Print the name of the block.
+	.bcall "VDU.HomeLeft"
+	ld l,(iy+0)
+	ld h,(iy+1)
+	inc hl
+	call PrintBlockDetails
+	di
+	
 	; Commit to tape.
 	push iy
 	pop hl
@@ -1284,6 +1309,10 @@ WriteEmptyBlock:
 
 FinishedWriteFile:
 
+	; Restore the BASIC FREE pointer.
+	ld bc,(TempCapacity)
+	ld (Basic.BBCBASIC_FREE),bc
+
 	; Done!
 	pop iy
 	pop ix
@@ -1294,7 +1323,97 @@ FinishedWriteFile:
 	ld (IOControl),a
 	out ($3F),a
 	
+	.bcall "VDU.Console.NewLine"
+	
 	call MotorOff
+	ret
+
+RecordThenReturn:
+.db "RECORD then RETURN", 0
+
+; ==========================================================================
+; PrintBlockDetails
+; --------------------------------------------------------------------------
+; Prints details about the current block to the screen.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to the block header.
+; Destroyed:  AF, HL.
+; ==========================================================================
+PrintBlockDetails:
+	push bc
+	push de
+	
+	ld b,11 ; Pad the file name to 11 characters.
+	
+-:	ld a,(hl)
+	inc hl
+	or a
+	jr z,PrintedEndOfFilename
+	
+	; Only show printable characters here.
+	jp p,+
+	ld a,'?'
++:	cp 32
+	jr nc,+
+	ld a,'?'
++: 	.bcall "VDU.PutChar"
+	dec b
+	jr nz,-
+	
+	; If we get here, the filename is longer than 11 characters.
+	; Try to find the end of the filename anyway...
+-:	ld a,(hl)
+	inc hl
+	or a
+	jr nz,-
+	
+PrintedEndOfFilename:
+	
+	; Pad the filename with spaces.
+	ld a,b
+	or a
+	jr z,+
+
+-:	ld a,' '
+	.bcall "VDU.PutChar"
+	djnz -
++:
+	
+	; Skip the load address, execution address.
+	ld bc,8
+	add hl,bc
+	
+	; Block number (LSB only).
+	ld a,(hl)
+	ld b,a
+	inc hl
+	inc hl
+	.bcall "VDU.PutHexByte"
+	
+	; Block size.
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	
+	; Block flag: is it EOF?
+	bit 7,(hl)
+	
+	jr z,+
+	
+	; Show the file size.
+	ld a,' '
+	.bcall "VDU.PutChar"
+	
+	; Add the block number * 256 to the current block size to get the final size.
+	ld h,b
+	ld l,0
+	add hl,de
+	
+	.bcall "VDU.PutHexWord"
+
++:	
+	pop bc
 	ret
 
 .endmodule
