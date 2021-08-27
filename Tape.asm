@@ -1181,10 +1181,13 @@ WriteBlock:
 	or l
 	jr z,WriteEmptyBlock
 	
-	; Clamp block size to 1..256 bytes
+	; If the block size > 256 bytes, only write 256.
 	dec hl
-	ld h,0
-	inc hl
+	ld a,h
+	or a
+	jr z,+
+	ld hl,255
++:	inc hl
 
 WriteEmptyBlock:
 	
@@ -1263,7 +1266,7 @@ WriteEmptyBlock:
 	jr z,+
 	ld e,255 ; 5.1s
 +:
-	
+
 	; Print the name of the block.
 	.bcall "VDU.HomeLeft"
 	ld l,(iy+0)
@@ -1271,7 +1274,7 @@ WriteEmptyBlock:
 	inc hl
 	call PrintBlockDetails
 	di
-	
+
 	; Commit to tape.
 	push iy
 	pop hl
