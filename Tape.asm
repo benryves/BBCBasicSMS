@@ -1416,6 +1416,7 @@ PrintedEndOfFilename:
 	.bcall "VDU.PutHexWord"
 
 +:	
+	pop de
 	pop bc
 	ret
 
