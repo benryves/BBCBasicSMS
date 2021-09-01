@@ -1477,6 +1477,10 @@ WriteEmptyBlock:
 	inc de
 	dec bc
 	
+	; We don't want to include the CRC bytes in the CRC calculation, do we?
+	dec bc
+	dec bc
+	
 	call CRC16
 	ld (ix+Header.CRC+0),h ; \ Intentionally byteswapped.
 	ld (ix+Header.CRC+1),l ; /
