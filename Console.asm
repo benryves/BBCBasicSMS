@@ -19,7 +19,7 @@ MaxHeight = allocVar(1)
 
 Colour = allocVar(1)
 
-global.VDU.Console.Flags = allocVar(1) ;; HACK for broken name resolution
+ConsoleFlags = allocVar(1)
 PageMode = 1
 CursorHidden = 3
 CursorBlinking = 4
@@ -41,7 +41,7 @@ AreaUnderCursor = allocVar(16)
 Reset:
 	
 	xor a
-	ld (Flags),a
+	ld (ConsoleFlags),a
 	ld a,$0F
 	ld (Colour),a
 	; Fall-through to ResetViewport
@@ -403,12 +403,12 @@ ClearBottomRow:
 ; ---------------------------------------------------------
 BeginBlinkingCursor:
 	; Is the cursor already blinking?
-	ld a,(Flags)
+	ld a,(ConsoleFlags)
 	bit CursorBlinking,a
 	ret nz
 	set CursorBlinking,a
 	res CursorBlinkOn,a
-	ld (Flags),a
+	ld (ConsoleFlags),a
 	
 	; We haven't already started.
 	push hl
@@ -432,11 +432,11 @@ BeginBlinkingCursor:
 ; ---------------------------------------------------------
 EndBlinkingCursor:
 	; Is the cursor currently blinking?
-	ld a,(Flags)
+	ld a,(ConsoleFlags)
 	bit CursorBlinking,a
 	ret z
 	res CursorBlinking,a
-	ld (Flags),a
+	ld (ConsoleFlags),a
 
 	; We had been drawing a blinking cursor.
 	push hl
@@ -457,7 +457,7 @@ EndBlinkingCursor:
 ; ---------------------------------------------------------
 DrawBlinkingCursor:
 	; Is the cursor hidden?
-	ld a,(Flags)
+	ld a,(ConsoleFlags)
 	bit CursorHidden,a
 	ret nz
 
@@ -478,11 +478,11 @@ DrawBlinkingCursor:
 
 DrawBlinkingCursorOff:
 	; Is the cursor already blinking off?
-	ld a,(Flags)
+	ld a,(ConsoleFlags)
 	bit CursorBlinkOn,a
 	ret z
 	res CursorBlinkOn,a
-	ld (Flags),a
+	ld (ConsoleFlags),a
 	push hl
 	push de
 	push bc
@@ -496,11 +496,11 @@ DrawBlinkingCursorOff:
 
 DrawBlinkingCursorOn:
 	; Is the cursor already blinking on?
-	ld a,(Flags)
+	ld a,(ConsoleFlags)
 	bit CursorBlinkOn,a
 	ret nz
 	set CursorBlinkOn,a
-	ld (Flags),a
+	ld (ConsoleFlags),a
 	; What is the cursor?
 	bit Overwrite,a
 	ld a,'_' ; Insert mode cursor

@@ -8,7 +8,7 @@
 
 ; Temporary storage for a single 8x8 tile.
 TempTile = allocVar(8)
-global.VDU.Flags = allocVar(1) ;; HACK for broken name resolution
+VDUFlags = allocVar(1)
 
 GraphicalText = 0
 
@@ -259,7 +259,7 @@ SetMode:
 	xor a
 	ld (CommandQueue),a
 	ld (CommandQueue.Waiting),a
-	ld (Flags),a
+	ld (VDUFlags),a
 	
 	; Screen on, enable frame interrupts.
 	call Video.DisplayOn
@@ -452,7 +452,7 @@ PutLiteralChar:
 PutMap:
 	push hl
 	ld l,a
-	ld a,(Flags)
+	ld a,(VDUFlags)
 	bit GraphicalText,a
 	ld a,l
 	pop hl
@@ -526,9 +526,9 @@ CommandJumpTable:
 ; VDU 4                                             DRAW TEXT AT TEXT CURSOR
 ; ==========================================================================
 TextViaConsoleCommand:
-	ld a,(Flags)
+	ld a,(VDUFlags)
 	res GraphicalText,a
-	ld (Flags),a
+	ld (VDUFlags),a
 	ret
 
 ; ==========================================================================
@@ -540,9 +540,9 @@ TextViaGraphicsCommand:
 	ld a,(Driver.SetAlignedHorizontalLineSegment)
 	cp $C9
 	ret z
-	ld a,(Flags)
+	ld a,(VDUFlags)
 	set GraphicalText,a
-	ld (Flags),a
+	ld (VDUFlags),a
 	ret
 
 ; ==========================================================================
@@ -555,7 +555,7 @@ Bell:
 ; VDU 8                                                          CURSOR LEFT
 ; ==========================================================================
 CursorLeft:
-	ld a,(Flags)
+	ld a,(VDUFlags)
 	bit GraphicalText,a
 	jp z,Console.CursorLeft
 	jp Graphics.CursorLeft
@@ -564,7 +564,7 @@ CursorLeft:
 ; VDU 9                                                         CURSOR RIGHT
 ; ==========================================================================
 CursorRight:
-	ld a,(Flags)
+	ld a,(VDUFlags)
 	bit GraphicalText,a
 	jp z,Console.CursorRight
 	jp Graphics.CursorRight
@@ -573,7 +573,7 @@ CursorRight:
 ; VDU 10                                                         CURSOR DOWN
 ; ==========================================================================
 CursorDown:
-	ld a,(Flags)
+	ld a,(VDUFlags)
 	bit GraphicalText,a
 	jp z,Console.CursorDown
 	jp Graphics.CursorDown
@@ -582,7 +582,7 @@ CursorDown:
 ; VDU 11                                                           CURSOR UP
 ; ==========================================================================
 CursorUp:
-	ld a,(Flags)
+	ld a,(VDUFlags)
 	bit GraphicalText,a
 	jp z,Console.CursorUp
 	jp Graphics.CursorUp
@@ -596,7 +596,7 @@ ClearConsoleCommand = Console.Clear
 ; VDU 13                                                     CARRIAGE RETURN
 ; ==========================================================================
 HomeLeft:
-	ld a,(Flags)
+	ld a,(VDUFlags)
 	bit GraphicalText,a
 	jp z,Console.HomeLeft
 	jp Graphics.HomeLeft
@@ -753,12 +753,12 @@ CursorControl:
 	
 SetCursorEnabled:
 	di
-	ld a,(VDU.Console.Flags)
+	ld a,(VDU.Console.ConsoleFlags)
 	jr z,+
 	res VDU.Console.CursorHidden,a
 	jr ++
 +:	set VDU.Console.CursorHidden,a
-++:	ld (VDU.Console.Flags),a
+++:	ld (VDU.Console.ConsoleFlags),a
 	ei
 	ret
 
@@ -1364,7 +1364,7 @@ GotCharacterData:
 ; Destroyed:  AF.
 ; ==========================================================================
 BeginBlinkingCursor:
-	ld a,(Flags)
+	ld a,(VDUFlags)
 	bit GraphicalText,a
 	jp z,Console.BeginBlinkingCursor
 	ret
@@ -1377,7 +1377,7 @@ BeginBlinkingCursor:
 ; Destroyed:  AF.
 ; ==========================================================================
 EndBlinkingCursor:
-	ld a,(Flags)
+	ld a,(VDUFlags)
 	bit GraphicalText,a
 	jp z,Console.EndBlinkingCursor
 	ret
@@ -1390,7 +1390,7 @@ EndBlinkingCursor:
 ; Destroyed:  AF.
 ; ==========================================================================
 DrawBlinkingCursor
-	ld a,(Flags)
+	ld a,(VDUFlags)
 	bit GraphicalText,a
 	jp z,Console.DrawBlinkingCursor
 	ret

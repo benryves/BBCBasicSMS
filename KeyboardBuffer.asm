@@ -102,9 +102,9 @@ GetDeviceKeyExtended:
 	jr nz,GetDeviceKeyNotInsert
 	
 	; Toggle insert/overwrite, then pretend no key happened.
-	ld a,(VDU.Console.Flags)
+	ld a,(VDU.Console.ConsoleFlags)
 	xor 1 << VDU.Console.Overwrite
-	ld (VDU.Console.Flags),a
+	ld (VDU.Console.ConsoleFlags),a
 	pop af
 	
 	jr GetDeviceKey.Skip
@@ -117,7 +117,7 @@ GetDeviceKeyNotInsert:
 	
 	; Is it a cursor key?
 	ld e,a
-	ld a,(VDU.Console.Flags)
+	ld a,(VDU.Console.ConsoleFlags)
 	bit VDU.Console.CursorEditingDisabled,a
 	ld a,e
 	jr z,ExitGetDeviceKey

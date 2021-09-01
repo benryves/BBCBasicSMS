@@ -21,6 +21,7 @@ CursorKeysDisabled = 2 ; OSBYTE 4
 EscapeKeyDisabled = 3
 EscapeErrorDisabled = 4
 TapeFS = 5
+Loading = 6
 
 OSLINE.Override = allocVar(2)
 OSWRCH.Override = allocVar(2)
@@ -282,7 +283,7 @@ OSLINE.Loop:
 	ld e,a
 	
 	; Is this going to be an insert or overwrite command?
-	ld a,(VDU.Console.Flags)
+	ld a,(VDU.Console.ConsoleFlags)
 	bit VDU.Console.Overwrite,a
 	jr z,OSLINE.InsertCharacter
 	
@@ -1053,10 +1054,10 @@ OSLOAD.PCLink:
 OSLOAD.Tape:
 	call Tape.GetFile
 
-+:	jr nz,OSLOAD.Error
++:	pop hl
+	jr nz,OSLOAD.Error
 	jp c,TRAP.Escape
 	
-	pop hl
 	call RepairProgram
 	
 	scf
@@ -2136,7 +2137,7 @@ OSBYTE.ReadHostOS:
 
 OSBYTE.CursorEditing:
 	di
-	ld a,(VDU.Console.Flags)
+	ld a,(VDU.Console.ConsoleFlags)
 
 	bit 0,l ; New value
 	ld l,a  ; Old value
@@ -2150,7 +2151,7 @@ OSBYTE.CursorEditingEnable:
 	res VDU.Console.CursorEditingDisabled,a
 	
 OSBYTE.CursorEditingReturn:
-	ld (VDU.Console.Flags),a
+	ld (VDU.Console.ConsoleFlags),a
 	
 	bit VDU.Console.CursorEditingDisabled,l
 	ld l,0
@@ -2493,7 +2494,7 @@ GetSafeScratchMemoryDE:
 Sorry:
 	xor a
 	call Basic.BBCBASIC_EXTERR
-	.db "Sorry",0
+	.db "Sorry", 0
 
 ; ==========================================================================
 ; DeviceFault
@@ -2504,5 +2505,15 @@ DeviceFault:
 	ld a,202
 	call Basic.BBCBASIC_EXTERR
 	.db "Device fault", 0
+
+; ==========================================================================
+; BadString
+; --------------------------------------------------------------------------
+; Triggers the "Bad string" error.
+; ==========================================================================
+BadString:
+	ld a,253
+	call Basic.BBCBASIC_EXTERR
+	.db Tokens.Bad, "string", 0
 
 .endmodule

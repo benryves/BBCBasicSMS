@@ -31,14 +31,7 @@ OutputPort = $3F
 OutputBit  = 7
 MotorBit   = 6
 
-HalfWaveLengthThreshold = 18
 FullWaveLengthThreshold = 45
-
-.define GetFileName          Basic.BBCBASIC_BUFFER+207 ; Pointer to the filename to retrieve.
-.define GetFileAddress       Basic.BBCBASIC_BUFFER+209 ; Pointer to the start address to store the actual file.
-.define GetFileExpectedBlock Basic.BBCBASIC_BUFFER+211 ; 2 byte block number we SHOULD get.
-.define GetFileExpectedName  Basic.BBCBASIC_BUFFER+213 ; 10 character+NUL filename we SHOULD get.
-.define GetFileHeader        Basic.BBCBASIC_BUFFER+224 ; Last-received file header.
 
 Header.LoadAddress      = 0
 Header.ExecutionAddress = 4
@@ -48,6 +41,12 @@ Header.BlockFlag        = 12
 Header.NextFileAddress  = 13
 Header.CRC              = 17
 Header.DataCRC          = 19
+
+LastBlockNumber     = $DDFE ; BUFFER
+LastBlockFlag       = $DDFD ; BUFFER
+LastBlockName       = $DDF0 ; BUFFER
+LoadBlockNumber     = $DDEE ; BUFFER
+LoadBlockName       = $DDE0 ; BUFFER
 
 ; ==========================================================================
 ; Reset
@@ -265,9 +264,9 @@ GotStartBit:
 ; --------------------------------------------------------------------------
 ; Gets a complete block from the tape.
 ; --------------------------------------------------------------------------
-; INputs:     HL: Pointer to storage for the block's header.
+; Inputs:     HL: Pointer to storage for the block's header.
 ;             DE: Pointer to storage for the block data.
-; Outputs:    F: Z if there was a timeout, NZ if the bit was received.
+; Outputs:    F: Z if there was an error.
 ;             IX: Address of the block's data structure.
 ; Destroyed:  AF, BC, DE, HL.
 ; Interrupts: Disabled.
@@ -297,14 +296,25 @@ GetBlock:
 	; Now read the header!
 
 	; Variable length filename, NUL terminated.
--:	call GetByte
+	ld b,11
+-:	push bc
+	call GetByte
+	pop bc
 	ret z
 	ld (hl),a
 	inc hl
 	or a
-	jr nz,-
+	jr z,+
+	djnz -
 	
+	xor a ; File name > 10 characters
+	ret
+	
++:	
+	
+	; Set IX to point to the header data after the file name.	
 	push hl
+	pop ix
 	
 	; 19 bytes of further data.
 	ld b,19
@@ -316,8 +326,6 @@ GetBlock:
 	ld (hl),a
 	inc hl
 	djnz -
-	
-	pop ix
 
 	; Read the data block length.
 	ld c,(ix+Header.DataBlockLength+0)
@@ -401,6 +409,17 @@ crc16_xmodem_f:
         RET                     ; 10  C9        RET
 
         ; 115 T-states, 25 bytes
+
+; ==========================================================================
+; CRC16
+; --------------------------------------------------------------------------
+; Calculates the CRC16 for a block of data.
+; --------------------------------------------------------------------------
+; Inputs:     DE: Pointer to address to calculate the CRC16 for.
+;             BC: Number of bytes to calculate the CRC16 for.
+; Outputs:    HL: CRC16 calculated for the data block.
+; Destroyed:  AF, BC, DE.
+; ==========================================================================
 CRC16:
 	ld hl,0
 -:	ld a,(de)
@@ -425,11 +444,19 @@ CRC16:
 ; Interrupts: Disabled.
 ; ==========================================================================
 Catalogue:
-	ld hl,0
-	ld de,256
+	ld de,512
 	call Host.GetSafeScratchMemoryDE
-	ret c
-	ld bc,512
+	jr nc,+
+	xor a
+	dec a
+	ret
+
++:	; We'll reserve the low 128 bytes for scrolling operations.
+	ld hl,128
+	add hl,de
+	ex de,hl
+	ld hl,0
+	ld bc,384
 	; Fall-through to GetFile.
 
 ; ==========================================================================
@@ -443,254 +470,330 @@ Catalogue:
 ; Outputs:    F: NZ if there was a protocol/receive error.
 ;                If no error, C is set if the transfer was cancelled.
 ;                If there is an error, C is set if the error is "No room".
-;                C is the bit value.
 ; Destroyed:  AF, BC, DE, HL.
 ; Interrupts: Disabled.
 ; ==========================================================================
 GetFile:
-	call MotorOn
+
+	ld (TempSize),hl
+	ld (TempCapacity),bc
+	ld (TempPtr),de
+	
+	ld a,l
+	or h
+	jr z,GetFile.ValidFilename
+	
+	ld a,(hl)
+	or a
+	jr z,GetFile.ValidFilename
+	cp '\r'
+	jr z,GetFile.ValidFilename
+	
+	call ValidateFilename
+	jp nz,Host.BadString
+	
+
+GetFile.ValidFilename:
 	
 	push ix
 
-	ld (GetFileName),hl
-	ld (GetFileAddress),de
-	ld (TempCapacity),bc
-	ld bc,0
-	ld (TempSize),bc
+	call MotorOn
 	
+	; We always want to start loading from block 0.
+	ld hl,0
+	ld (LoadBlockNumber),hl
+	
+	; Pretend we're loading so that the below routine to forces a change of state.
+	ld a,(Host.Flags)
+	set Host.Loading,a
+	ld (Host.Flags),a
+	
+GetFile.SetSearching:
+
+	; Set state to "searching"
+	ld a,(Host.Flags)
+	bit Host.Loading,a
+	jr z,GetFile.AlreadySearching
+	
+	res Host.Loading,a
+	ld (Host.Flags),a
+
+	; Set last block name and number = 0
+	ld hl,0
+	ld (LastBlockNumber),hl
+	ld (LastBlockName),hl
+	
+	; Set all the last block flags.
+	xor a
+	cpl
+	ld (LastBlockFlag),a
+	
+	; Is the filename NULL?
+	ld hl,(TempSize)
 	ld a,h
 	or l
-	jr z,TapeSearchFileLoop
+	jr z,+
 	
+	; If not, print "Searching".
 	ld hl,Searching
 	.bcall "VDU.PutStringWithNewLines"
++:
 
-TapeSearchFileLoop:
-	
-	; We always want to start from block 0 and a zero-length file.
-	ld hl,0
-	ld (GetFileExpectedBlock),hl
-	
-	ld bc,0
-	ld (TempSize),bc
-	
-	; ...and always start from the beginning of the available buffer.
-	ld de,(GetFileAddress)
-	ld (TempPtr),de
+GetFile.AlreadySearching:
+GetFile.AwaitNextBlock:
 
-TapeBlockLoop:
+	; Check the amount of free space.
+	ld hl,(TempCapacity)
+	ld de,384
+	or a
+	sbc hl,de
+	jr nc,GetFile.CheckEscape
+	
+	call MotorOff
+	pop ix
+	xor a
+	dec a
+	scf
+	ret
 
-	; Wait for carrier tone.
+GetFile.CheckEscape:
+
+	; Check Escape
 	.bcall "VDU.BeginBlinkingCursor"
 
-TapeBlockAwaitCarrier:
+GetFile.CheckEscapeLoop:
 	ei
 	halt
+	pop ix
 	call KeyboardBuffer.GetDeviceKey
 	call Host.CheckEscape
+	push ix
 	.bcall "VDU.DrawBlinkingCursor"
 	
 	ld b,30
 -:	push bc
 	call GetBit
 	pop bc
-	jr z,TapeBlockAwaitCarrier  ; No bit.
-	jr nc,TapeBlockAwaitCarrier ; Zero bit, not carrier.
+	jr z,GetFile.CheckEscapeLoop  ; No bit.
+	jr nc,GetFile.CheckEscapeLoop ; Zero bit, not carrier.
 	djnz -
 	
 	; If we get this far, we just received a long string of "1" bits in a row.
 	; It's the carrier!
 	.bcall "VDU.EndBlinkingCursor"
 	
+	; Set up DE->data, HL->header
 	ld de,(TempPtr)
-	ld hl,GetFileHeader
+	ld h,d
+	ld l,e
+	inc h
 	
-	call Tape.GetBlock
-	jr nz,TapeGotBlock
-	jr TapeBlockLoop
-
-CRCError:
-
-	ld hl,DataError
-	.bcall "VDU.PutStringWithNewLines"
-	jr TapeBlockLoop
+	; Read the block.
+	call GetBlock
+	jr z,GetFile.AwaitNextBlock
 	
-TapeGotBlock:
+	; Check the header CRC16.
+	ld de,(TempPtr)
+	inc d
+	scf
+	dec hl
+	sbc hl,de
+	ld c,l
+	ld b,h
+	call CRC16
 	
-	; Are we loading block 0?
-	ld a,(ix+Tape.Header.BlockNumber+0)
-	or (ix+Tape.Header.BlockNumber+1)
-	jr nz,TapeNotLoading
-	
-	; Is it the one we need to load?
-	ld bc,(GetFileName)
-	ld a,b
-	or c
-	jr z,TapeNotLoading
-	
-	; If it's the empty string, always load that.
-	ld a,(bc)
-	cp '\r'
-	jr z,TapeStartLoading
-	
-	ld hl,GetFileHeader
--:	ld a,(bc)
-	cp '\r'
-	jr nz,+
-	xor a
-+:	cp (hl)
-	jr nz,TapeNotLoading
+	ld d,(ix+Header.CRC+0) ; \ Intentionally byte-swapped.
+	ld e,(ix+Header.CRC+1) ; /
 	or a
-	jr z,TapeStartLoading
-	inc hl
-	inc bc
-	jr -
+	sbc hl,de
+	ld hl,HeaderError
+	jp nz,GetFile.ReportDataError
 	
-TapeStartLoading:
-
-	ld hl,Loading
-	.bcall "VDU.PutStringWithNewLines"
-	
-	; Blank out the filename to search for to indicate we've found it.
-	ld hl,-1
-	ld (GetFileName),hl
-
-TapeNotLoading:
-	; Print the name of the received block.
-	.bcall "VDU.Console.HomeLeft"
-	ld hl,GetFileHeader
-	.bcall "VDU.PutString"
-	
-	; Pad to 11 characters.
-	ld a,GetFileHeader+12
-	sub l
-	
-	ld b,a
--:	ld a,' '
-	.bcall "VDU.PutChar"
-	djnz -
-	
-	; Display the block number in hex.
-	ld a,(ix+Tape.Header.BlockNumber+0)
-	.bcall "VDU.PutHexByte"
-	
-	; If we're not loading a program, we can ignore the block number check.
-	ld hl,(GetFileName)
-	inc hl
+	; Are we loading a file?
+	ld hl,(TempSize)
 	ld a,h
 	or l
-	jr nz,GotValidBlockFileName
+	jr z,GetFile.NeverLoading
 	
-	; Is this the right block?
-	ld hl,(GetFileExpectedBlock)
-	ld c,(ix+Tape.Header.BlockNumber+0)
-	ld b,(ix+Tape.Header.BlockNumber+1)
+	; Is the filename empty?
+	ld a,(hl)
 	or a
-	sbc hl,bc
-	jr z,CorrectBlockNumber
+	jr z,GetFile.EmptyFilename
+	cp '\r'
+	jr nz,GetFile.NonEmptyFilename
 
-GotWrongBlock:
-	; Zut, the wrong block!
-	ld hl,BlockError
-	.bcall "VDU.PutStringWithNewLines"
-	jp TapeBlockLoop
-
-CorrectBlockNumber:
-	; bc = old block number, so get ready for the next block number.
-	inc bc
-	ld (GetFileExpectedBlock),bc
+GetFile.EmptyFilename:
 	
-	dec bc
-	ld a,b
-	or c
-	jr nz,CheckBlockFilename
+	; Is this the first block of the file? If so, pretend that's what we're trying to load.
+	ld a,(ix+Header.BlockNumber+0)
+	or (ix+Header.BlockNumber+1)
+	jr nz,GetFile.NonEmptyFilename
 	
-	; This is our first time around, so remember the block name for next time.
+	ld hl,(TempPtr)
+	inc h
+	ld de,LoadBlockName
+	ld (TempSize),de
 	push de
-	ld hl,GetFileHeader
-	ld de,GetFileExpectedName
 	ld bc,11
 	ldir
-	pop de
-	jr GotValidBlockFilename
+	pop hl
 
-CheckBlockFilename:
-	
-	ld hl,GetFileHeader
-	ld bc,GetFileExpectedName
--:	ld a,(bc)
-	cp (hl)
-	jr nz,GotWrongBlock
-	or a
-	jr z,GotValidBlockFilename
-	inc hl
-	inc bc
-	jr -
+GetFile.NonEmptyFilename:
 
-GotValidBlockFilename:
-
-	; Now we can advance the pointer if the block had valid data.
+	; HL -> filename to load.
+	ld a,(Host.Flags)
+	bit Host.Loading,a
+	jr nz,GetFile.AlreadyLoading
 	
-	; Was there any data in the block?
-	ld c,(ix+Tape.Header.DataBlockLength+0)
-	ld b,(ix+Tape.Header.DataBlockLength+1)
-	ld a,b
-	or c
-	jr z,EmptyBlock
-	
-	; Increment the received size.
-	ld hl,(TempSize)
-	add hl,bc
-	ld (TempSize),hl
-	
-	; Compute the CRC16.
-	push de
+	; We're not loading. Should we load?
 	ld de,(TempPtr)
-	call Tape.CRC16
-	pop de
+	inc d
 	
-	ld a,(ix+Tape.Header.DataCRC+1)
-	cp l
-	jp nz,CRCError
-	ld a,(ix+Tape.Header.DataCRC+0)
-	cp h
-	jp nz,CRCError
+	call CompareFilename
+	jr nz,GetFile.NotLoading
+
+	ld hl,(LoadBlockNumber)
+	ld e,(ix+Header.BlockNumber+0)
+	ld d,(ix+Header.BlockNumber+1)
+	or a
+	sbc hl,de
+	jr nz,GetFile.NotLoading
 	
-EmptyBlock:	
-	; If we're not actively loading a file (GetFileName=-1), reset DE.
-	ld bc,(GetFileName)
-	inc bc
+	; We are now loading!
+	ld a,(Host.Flags)
+	set Host.Loading,a
+	ld (Host.Flags),a
+	
+	ld hl,Loading
+	.bcall "VDU.PutStringWithNewLines"
+
+GetFile.NotLoading:
+GetFile.AlreadyLoading:
+GetFile.NeverLoading:
+	
+	; Has the block name changed since last time?
+	ld de,LastBlockName
+	ld hl,(TempPtr)
+	inc h
+	
+	call CompareFilename
+	jr z,GetFile.SameBlockFilename
+	
+GetFile.NewBlockFilename:
+
+	; The block name has changed, so move to the next line.
+	push af
+	.bcall "VDU.CursorDown"
+	pop af
+
+GetFile.SameBlockFilename:
+	
+	; Print header information.
+	push af
+	.bcall "VDU.HomeLeft"
+	ld hl,(TempPtr)
+	inc h
+	call PrintBlockDetails
+	pop af
+	
+	; Check if the block name and number matched our expectations.
+	jr nz,GetFile.BlockNameOrNumberChanged
+	
+	ld hl,(LastBlockNumber)
+	inc hl
+	ld e,(ix+Header.BlockNumber+0)
+	ld d,(ix+Header.BlockNumber+1)
+	or a
+	sbc hl,de
+	jr z,GetFile.BlockNameAndNumberAsExpected
+
+GetFile.BlockNameOrNumberChanged:
+
+	; Either the block name OR the block number are a surprise to us now.
+	
+	; If we just got the first block (and were expecting that), then a mismatched filename is to be expected.
+	ld a,(LastBlockFlag)
+	bit 7,a
+	jr z,GetFile.TriggerBlockError
+	inc a
+	jr z,GetFile.BlockNameAndNumberAsExpected
+	
+	ld hl,(LastBlockNumber)
+	ld a,h
+	or l
+	or (ix+Header.BlockNumber+0)
+	or (ix+Header.BlockNumber+1)
+	jr z,GetFile.BlockNameAndNumberAsExpected
+	
+	; Block error.
+GetFile.TriggerBlockError:
+	ld hl,BlockError
+	jp GetFile.ReportDataError
+
+GetFile.BlockNameAndNumberAsExpected:
+
+	; Check the data CRC.
+	ld c,(ix+Header.DataBlockLength+0)
+	ld b,(ix+Header.DataBlockLength+1)
 	ld a,b
 	or c
-	jr z,+
-	ld de,(GetFileAddress)
-+:	ld (TempPtr),de
+	jr z,GetFile.NoDataCRC
 	
-	; Is this end of the file?
-	ld a,(ix+Tape.Header.BlockFlag)
-	add a,a
-	jp nc,TapeBlockLoop
+	ld de,(TempPtr)
+	call CRC16
 	
-	; Show the file size (in hex).
-	ld a,' '
-	.bcall "VDU.PutChar"
+	ld d,(ix+Header.DataCRC+0) ; \ Intentionally byte-swapped.
+	ld e,(ix+Header.DataCRC+1) ; / 
+	or a
+	sbc hl,de
+	ld hl,DataError
+	jp nz,GetFile.ReportDataError
+
+GetFile.NoDataCRC:
+	
+	; If we're loading, then double check the load block name/number.
+	ld a,(Host.Flags)
+	bit Host.Loading,a
+	jr z,GetFile.GotValidBlockButNotLoading
+	
+	; Double check the load block name.
+	ld de,(TempPtr)
+	inc d
 	ld hl,(TempSize)
-	.bcall "VDU.PutHexWord"
+	call CompareFilename
+	jr nz,GetFile.TriggerBlockError
 	
-	; Always move down at the end of the file.
-	.bcall "VDU.Console.NewLine"
-	
-	; Is it the actual file we want?
-	ld hl,(GetFileName) ; If filename to get = 0, never return.
-	ld a,h
+	; Double check the load block number.
+	ld de,(LoadBlockNumber)
+	ld l,(ix+Header.BlockNumber+0)
+	ld h,(ix+Header.BlockNumber+1)
 	or a
-	jp z,TapeSearchFileLoop
+	sbc hl,de
+	jr nz,GetFile.TriggerBlockError
 	
-	inc hl  ; If filename to get = -1, we have our file!
-	ld a,h
-	or a
-	jp nz,TapeSearchFileLoop
+GetFile.GotValidBlockButNotLoading:
 	
+	; Have we reached the end of the file yet?
+	bit 7,(ix+Header.BlockFlag)
+	jr z,GetFile.NotEndOfFile
+
+GetFile.EndOfFile:
+	; If we've reached the end of a file, we won't know anything about the next block.
+	ld hl,0
+	ld (LastBlockNumber),hl
+	ld (LastBlockName),hl
+	
+	ld a,(ix+Header.BlockFlag)
+	ld (LastBlockFlag),a
+	
+	; Are we loading?
+	ld a,(Host.Flags)
+	bit Host.Loading,a
+	jp z,GetFile.AwaitNextBlock
+	
+	; We've loaded the whole file successfully!
+	ld a,'\r'
+	.bcall "VDU.PutChar"
 	
 	call MotorOff
 	
@@ -698,18 +801,65 @@ EmptyBlock:
 	xor a
 	ret
 
-GetFileError:
-	call MotorOff
+GetFile.NotEndOfFile:	
+	
+	call GetFile.RememberLastBlockNameAndNumber
+	
+	; If we're loading, then increment the load block number and target pointer.
+	ld a,(Host.Flags)
+	bit Host.Loading,a
+	jp z,GetFile.AwaitNextBlock
+	
+	; Increment the load block number.
+	ld de,(LoadBlockNumber)
+	inc de
+	ld (LoadBlockNumber),de
+	
+	; Increase the target pointer by the block size.
+	ld hl,(TempPtr)
+	ld e,(ix+Header.DataBlockLength+0)
+	ld d,(ix+Header.DataBlockLength+1)
+	add hl,de
+	ld (TempPtr),hl
+	
+	; Decrease the amount of free space by the block size.
+	ld hl,(TempCapacity)
+	or a
+	sbc hl,de
+	ld (TempCapacity),hl
+	
+	jp GetFile.AwaitNextBlock
 
-	pop ix
-	xor a
-	inc a
+GetFile.ReportDataError:
+	.bcall "VDU.PutStringWithNewLines"
+	call GetFile.RememberLastBlockNameAndNumber
+	ld a,(Host.Flags)
+	bit Host.Loading,a
+	jp z,GetFile.SetSearching
+	ld hl,RewindTape
+	.bcall "VDU.PutStringWithNewLines"
+	jp GetFile.SetSearching
+
+GetFile.RememberLastBlockNameAndNumber:
+	; Copy the last block name and number.
+	ld hl,(TempPtr)
+	inc h
+	ld de,LastBlockName
+	ld bc,11
+	ldir
+	
+	ld l,(ix+Header.BlockNumber+0)
+	ld h,(ix+Header.BlockNumber+1)
+	ld (LastBlockNumber),hl
+	
+	ld a,(ix+Header.BlockFlag)
+	ld (LastBlockFlag),a
 	ret
 
 Searching:
-.db "Searching\r\r",0
+.db "Searching\r",0
 Loading:
-.db "Loading\r\r",0
+.db "\rLoading\r",0
 
 DataError:
 .db "\rData?\r",0
@@ -717,7 +867,100 @@ HeaderError:
 .db "\rHeader?\r",0
 BlockError:
 .db "\rBlock?\r",0
+RewindTape:
+.db "Rewind tape\r\r",0
 
+; ==========================================================================
+; ValidateFilename
+; --------------------------------------------------------------------------
+; Checks that a filename is valid.
+; --------------------------------------------------------------------------
+; Inputs:     HL: The filename to validate.
+; Outputs:    F: Z set if the file name is valid, NZ if it is not.
+; Destroyed:  AF.
+; ==========================================================================
+ValidateFilename:
+	push bc
+	
+	; Check that the name is not empty.
+	ld a,(hl)
+	call NormaliseFilenameCharacter
+	or a
+	jr z,ValidateFilename.Invalid
+	
+	; Maximum length + terminator.
+	ld b,11
+-:	ld a,(hl)
+	inc hl
+	call NormaliseFilenameCharacter
+	or a
+	jr z,ValidateFilename.Valid
+	jp m,ValidateFilename.Invalid
+	cp 33
+	jr c,ValidateFilename.Invalid
+	djnz -
+	
+ValidateFilename.Invalid:
+	xor a
+	dec a
+	pop bc
+	ret
+	
+ValidateFilename.Valid:
+	xor a
+	pop bc
+	ret
+
+; ==========================================================================
+; CompareFilename
+; --------------------------------------------------------------------------
+; Compares two filenames for equality.
+; --------------------------------------------------------------------------
+; Inputs:     HL: One filename to compare.
+;             DE: The filename to compare it to.
+; Outputs:    F: Z set if the file names are equal.
+; Destroyed:  AF, HL, DE.
+; ==========================================================================
+CompareFilename:
+	push bc
+	ld b,11
+-:	ld a,(hl)
+	call NormaliseFilenameCharacter
+	ld c,a
+	ld a,(de)
+	call NormaliseFilenameCharacter
+	cp c
+	jr nz,+
+	or a
+	jr z,+
+	inc hl
+	inc de
+	djnz -
++:	pop bc
+	ret
+
+; ==========================================================================
+; NormaliseFilenameCharacter
+; --------------------------------------------------------------------------
+; Converts lowercase characters to uppercase and CR to NUL to assist in 
+; filename comparisons.
+; --------------------------------------------------------------------------
+; Inputs:     A: Character to normalise.
+; Destroyed:  F.
+; ==========================================================================
+NormaliseFilenameCharacter:
+	or a
+	ret z
+	cp '\r'
+	jr nz,+
+	xor a
+	ret
++:	cp 'a'
+	ret c
+	cp 'z'*1+1
+	ret nc
+	and ~('a'-'A')
+	ret
 
 InvertOutput:
 	ld a,(IOControl)
@@ -996,6 +1239,13 @@ CarrierDelayShort:
 ; Interrupts: Enabled.
 ; ==========================================================================
 WriteFile:
+	
+	; Validate the filename.
+	push hl
+	call ValidateFilename
+	pop hl
+	jp nz,Host.BadString
+
 	; We'll need to remember the file location and size.
 	ld (TempPtr),de
 	ld (TempSize),bc
