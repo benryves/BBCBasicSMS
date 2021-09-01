@@ -284,14 +284,9 @@ GetBlock:
 	xor a ; Timed out
 	ret
 
-+:	cp $2A
-	jr z,+
-	
-	; Not the synchronisation byte.
-	xor a
-	ret
-	
-+:
++:	; All blocks must start with the synchronisation byte.
+	cp $2A
+	jr nz,-
 	
 	; Now read the header!
 
@@ -373,7 +368,6 @@ ReadData:
 	ret z
 	ld (ix+Header.DataCRC+1),a
 	
-	inc a ; Set NZ
 	ret
 	
 	; CRC routine from http://regregex.bbcmicro.net/crc-code.htm
@@ -570,7 +564,7 @@ GetFile.CheckEscapeLoop:
 	push ix
 	.bcall "VDU.DrawBlinkingCursor"
 	
-	ld b,30
+	ld b,10
 -:	push bc
 	call GetBit
 	pop bc
