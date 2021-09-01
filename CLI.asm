@@ -750,6 +750,14 @@ Motor:
 	scf
 	ret
 
+Help:
+	xor a
+	ld h,a
+	ld l,a
+	call Host.OSBYTE
+	scf
+	ret
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
@@ -760,9 +768,13 @@ Commands:
 	osclicommand("SERIAL", Serial)
 	osclicommand("FX", FX)
 	osclicommand("TAPE", Tape)
+	osclicommand("T.", Tape)
 	osclicommand("PCLINK", PCLink2)
 	osclicommand("ESC", Escape)
 	osclicommand("MOTOR", Motor)
+	osclicommand("M.", Motor)
+	osclicommand("HELP", Help)
+	osclicommand("H.", Help)
 	.db 0
 
 .endmodule
