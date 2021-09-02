@@ -497,6 +497,27 @@ GetFile:
 GetFile.ValidFilename:
 	
 	push ix
+	
+	; Will we be suppressing messages?
+	ld a,(Options)
+	or %10000000 ; Show messages
+	ld (Options),a
+	and %00000011
+	jr nz,+
+	
+	; Apparently we should suppress messages.
+	; However, if HL=0, we should still show messages!
+	ld hl,(TempSize)
+	ld a,h
+	or l
+	jr z,+
+	
+	; We've asked to suppress messages, and HL<>0.
+	ld a,(Options)
+	and %01111111
+	ld (Options),a
+	
++:
 
 	call MotorOn
 	
@@ -536,6 +557,9 @@ GetFile.SetSearching:
 	jr z,+
 	
 	; If not, print "Searching".
+	ld a,(Options)
+	add a,a
+	jr nc,+
 	ld hl,Searching
 	.bcall "VDU.PutStringWithNewLines"
 +:
@@ -710,8 +734,12 @@ GetFile.NonEmptyFilename:
 	set Host.Loading,a
 	ld (Host.Flags),a
 	
+	ld a,(Options)
+	add a,a
+	jr nc,+
 	ld hl,Loading
 	.bcall "VDU.PutStringWithNewLines"
++:
 
 GetFile.NotLoading:
 GetFile.AlreadyLoading:
@@ -729,18 +757,24 @@ GetFile.NewBlockFilename:
 
 	; The block name has changed, so move to the next line.
 	push af
+	ld a,(Options)
+	add a,a
+	jr nc,+
 	.bcall "VDU.CursorDown"
-	pop af
++:	pop af
 
 GetFile.SameBlockFilename:
 	
 	; Print header information.
 	push af
+	ld a,(Options)
+	add a,a
+	jr nc,+
 	.bcall "VDU.HomeLeft"
 	ld hl,(TempPtr)
 	inc h
 	call PrintBlockDetails
-	pop af
++:	pop af
 	
 	; Check if the block name and number matched our expectations.
 	jr nz,GetFile.BlockNameOrNumberChanged
@@ -830,8 +864,11 @@ GetFile.SkipBlockNameNumberDoubleCheck:
 	
 
 GetFile.IgnoreError:
+	ld a,(Options)
+	add a,a
+	jr nc,+
 	.bcall "VDU.PutStringWithNewLines"
-	call GetFile.RememberLastBlockNameAndNumber
++:	call GetFile.RememberLastBlockNameAndNumber
 	
 	; Ignore the error if appropriate.
 	ld a,(Options)
@@ -842,9 +879,13 @@ GetFile.IgnoreError:
 	ld a,(Host.Flags)
 	bit Host.Loading,a
 	jp z,GetFile.SetSearching
+	
+	ld a,(Options)
+	add a,a
+	jr nc,+
 	ld hl,RewindTape
 	.bcall "VDU.PutStringWithNewLines"
-	jp GetFile.SetSearching
++:	jp GetFile.SetSearching
 
 GetFile.NoLoadingError:
 
@@ -867,9 +908,12 @@ GetFile.EndOfFile:
 	jp z,GetFile.AwaitNextBlock
 	
 	; We've loaded the whole file successfully!
+	ld a,(Options)
+	add a,a
+	jr nc,+
 	ld a,'\r'
 	.bcall "VDU.PutChar"
-	
++:
 	call MotorOff
 	
 	pop ix
