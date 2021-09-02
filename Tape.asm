@@ -822,6 +822,7 @@ GetFile.SkipBlockNameNumberDoubleCheck:
 	jr nz,GetFile.IgnoreError
 	
 	; Trigger an error.
+	pop ix
 	inc hl
 	push hl
 	ld a,(LoadBlockError)
