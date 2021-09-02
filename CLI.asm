@@ -639,6 +639,8 @@ FX:
 	
 	; Get the first argument.
 	call GetDecimalByte
+
+FX.SpecificFunction:
 	push af
 	ld de,0
 	call SkipWhitespaceAndComma
@@ -758,6 +760,10 @@ Help:
 	scf
 	ret
 
+Options:
+	ld a,139
+	jp FX.SpecificFunction
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
@@ -775,6 +781,8 @@ Commands:
 	osclicommand("M.", Motor)
 	osclicommand("HELP", Help)
 	osclicommand("H.", Help)
+	osclicommand("OPT", Options)
+	osclicommand("O.", Options)
 	.db 0
 
 .endmodule

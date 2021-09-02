@@ -24,6 +24,8 @@
 ; <-EAR = 2 Port B Down ($DC.7)
 ; MOTOR = 9 Port B TR ($3F.6)
 
+Options   = allocVar(1)
+
 InputPort = $DC
 InputBit  = 7
 
@@ -42,11 +44,13 @@ Header.NextFileAddress  = 13
 Header.CRC              = 17
 Header.DataCRC          = 19
 
-LastBlockNumber     = $DDFE ; BUFFER
-LastBlockFlag       = $DDFD ; BUFFER
-LastBlockName       = $DDF0 ; BUFFER
-LoadBlockNumber     = $DDEE ; BUFFER
-LoadBlockName       = $DDE0 ; BUFFER
+LastBlockNumber     = $DDFE
+LastBlockFlag       = $DDFD
+LastBlockName       = $DDF0
+LoadBlockNumber     = $DDEE
+LoadBlockName       = $DDE3
+LoadBlockError      = $DDE2
+LoadBlockReport     = $DDE0
 
 ; ==========================================================================
 ; Reset
@@ -66,6 +70,9 @@ Reset:
 	
 	ld (IOControl),a
 	out ($3F),a
+	
+	ld a,%00000101
+	ld (Options),a
 	
 	ei
 	ret
@@ -582,6 +589,10 @@ GetFile.CheckEscapeLoop:
 	ld l,e
 	inc h
 	
+	; Assume there are no errors.
+	xor a
+	ld (LoadBlockError),a
+	
 	; Read the block.
 	call GetBlock
 	jr z,GetFile.AwaitNextBlock
@@ -600,10 +611,51 @@ GetFile.CheckEscapeLoop:
 	ld e,(ix+Header.CRC+1) ; /
 	or a
 	sbc hl,de
-	ld hl,HeaderError
-	jp nz,GetFile.ReportDataError
+	jr z,+
 	
+	ld a,217
+	ld (LoadBlockError),a
+	ld hl,HeaderError
+	ld (LoadBlockReport),hl	
++:
+
+	; Check the data CRC16.
+	ld c,(ix+Header.DataBlockLength+0)
+	ld b,(ix+Header.DataBlockLength+1)
+	ld a,b
+	or c
+	jr z,GetFile.NoDataCRC
+	
+	ld de,(TempPtr)
+	call CRC16
+	
+	ld d,(ix+Header.DataCRC+0) ; \ Intentionally byte-swapped.
+	ld e,(ix+Header.DataCRC+1) ; / 
+	or a
+	sbc hl,de
+	jr z,+
+	
+	ld a,216
+	ld (LoadBlockError),a
+	ld hl,DataError
+	ld (LoadBlockReport),hl
+	
++:
+
+
+GetFile.NoDataCRC:
+
 	; Are we loading a file?
+	
+	; We can't load if there's an error.
+	ld a,(Options)
+	and %00001100
+	jr z,+
+	ld a,(LoadBlockError)
+	or a
+	jr nz,GetFile.NotLoading
++:
+	
 	ld hl,(TempSize)
 	ld a,h
 	or l
@@ -721,29 +773,16 @@ GetFile.BlockNameOrNumberChanged:
 	
 	; Block error.
 GetFile.TriggerBlockError:
+	ld a,218
+	ld (LoadBlockError),a
 	ld hl,BlockError
-	jp GetFile.ReportDataError
+	ld (LoadBlockReport),hl
 
 GetFile.BlockNameAndNumberAsExpected:
-
-	; Check the data CRC.
-	ld c,(ix+Header.DataBlockLength+0)
-	ld b,(ix+Header.DataBlockLength+1)
-	ld a,b
-	or c
-	jr z,GetFile.NoDataCRC
 	
-	ld de,(TempPtr)
-	call CRC16
-	
-	ld d,(ix+Header.DataCRC+0) ; \ Intentionally byte-swapped.
-	ld e,(ix+Header.DataCRC+1) ; / 
+	ld a,(LoadBlockError)
 	or a
-	sbc hl,de
-	ld hl,DataError
-	jp nz,GetFile.ReportDataError
-
-GetFile.NoDataCRC:
+	jr nz,GetFile.SkipBlockNameNumberDoubleCheck
 	
 	; If we're loading, then double check the load block name/number.
 	ld a,(Host.Flags)
@@ -766,7 +805,48 @@ GetFile.NoDataCRC:
 	jr nz,GetFile.TriggerBlockError
 	
 GetFile.GotValidBlockButNotLoading:
+GetFile.SkipBlockNameNumberDoubleCheck:
 	
+	; If there's an error, handle it.
+	ld hl,(LoadBlockReport)
+	ld a,(LoadBlockError)
+	or a
+	jr z,GetFile.NoLoadingError
+	
+	; Display information about the error.
+	ld a,(Options)
+	and %00001100
+	jr z,GetFile.IgnoreError
+	
+	cp %00001000
+	jr nz,GetFile.IgnoreError
+	
+	; Trigger an error.
+	inc hl
+	push hl
+	ld a,(LoadBlockError)
+	jp Basic.BBCBASIC_EXTERR
+	
+
+GetFile.IgnoreError:
+	.bcall "VDU.PutStringWithNewLines"
+	call GetFile.RememberLastBlockNameAndNumber
+	
+	; Ignore the error if appropriate.
+	ld a,(Options)
+	and %00001100
+	jr z,GetFile.NoLoadingError
+	
+	; Prompt to fix the error then start searching again.
+	ld a,(Host.Flags)
+	bit Host.Loading,a
+	jp z,GetFile.SetSearching
+	ld hl,RewindTape
+	.bcall "VDU.PutStringWithNewLines"
+	jp GetFile.SetSearching
+
+GetFile.NoLoadingError:
+
 	; Have we reached the end of the file yet?
 	bit 7,(ix+Header.BlockFlag)
 	jr z,GetFile.NotEndOfFile
@@ -824,15 +904,6 @@ GetFile.NotEndOfFile:
 	
 	jp GetFile.AwaitNextBlock
 
-GetFile.ReportDataError:
-	.bcall "VDU.PutStringWithNewLines"
-	call GetFile.RememberLastBlockNameAndNumber
-	ld a,(Host.Flags)
-	bit Host.Loading,a
-	jp z,GetFile.SetSearching
-	ld hl,RewindTape
-	.bcall "VDU.PutStringWithNewLines"
-	jp GetFile.SetSearching
 
 GetFile.RememberLastBlockNameAndNumber:
 	; Copy the last block name and number.

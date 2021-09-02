@@ -2067,6 +2067,8 @@ OSBYTE:
 	
 	cp 137
 	jp z,OSBYTE.SwitchCassetteRelay
+	cp 139
+	jp z,OSBYTE.SetFileSystemOptions
 
 	; Sound suppression and bell
 	cp 210
@@ -2294,6 +2296,46 @@ OSBYTE.SwitchCassetteRelay:
 	push af
 	call Tape.SetMotorState
 	pop af
+	ret
+
+OSBYTE.SetFileSystemOptions:
+	ld a,h
+	inc l
+	dec l
+	jr z,OSBYTE.ResetFileSystemOptions
+	dec l
+	jr z,OSBYTE.SetFileSystemMessageOptions
+	dec l
+	jr z,OSBYTE.SetFileSystemErrorOptions
+	jp CLI.BadCommand
+
+
+OSBYTE.ResetFileSystemOptions:
+	ld a,%00000101
+	ld (Tape.Options),a
+	ld a,139
+	ret
+
+OSBYTE.SetFileSystemMessageOptions:
+	cp 3
+	jp nc,CLI.BadCommand
+	ld a,(Tape.Options)
+	and %11111100
+	or h
+	ld (Tape.Options),a
+	ld a,139
+	ret
+
+OSBYTE.SetFileSystemErrorOptions:
+	cp 3
+	jp nc,CLI.BadCommand
+	ld a,(Tape.Options)
+	and %11110011
+	sla h
+	sla h
+	or h
+	ld (Tape.Options),a
+	ld a,139
 	ret
 
 ; ==========================================================================
