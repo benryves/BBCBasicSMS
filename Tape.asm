@@ -1722,20 +1722,63 @@ PrintedEndOfFilename:
 	; Block flag: is it EOF?
 	bit 7,(hl)
 	
-	jr z,+
+	jr z,PrintBlockDetailsNameNumberOnly
 	
 	; Show the file size.
 	ld a,' '
 	.bcall "VDU.PutChar"
 	
 	; Add the block number * 256 to the current block size to get the final size.
+	push hl
 	ld h,b
 	ld l,0
 	add hl,de
 	
 	.bcall "VDU.PutHexWord"
+	pop hl
+	
+	; Are we showing the start/execution addresses?
+	ld a,(Options)
+	and %00000011
+	cp 2
+	jr nz,PrintBlockDetailsNameNumberOnly
+	
+	; Three spaces.
+	ld b,3
+-:	ld a,' '
+	.bcall "VDU.PutChar"
+	djnz -
+	
+	; At this point, HL->block flag
+	ld de,-2-2-4-4 ; block length, block number, execution address, load address
+	add hl,de
+	
+	ld b,2
+	
+-:	ld a,' '
+	.bcall "VDU.PutChar"
+	
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	
+	push de
+	
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	inc hl
+	
+	ex de,hl
+	.bcall "VDU.PutHexWord"
+	pop hl
+	.bcall "VDU.PutHexWord"
+	ex de,hl
+	
+	djnz -
 
-+:	
+PrintBlockDetailsNameNumberOnly:	
 	pop de
 	pop bc
 	ret
