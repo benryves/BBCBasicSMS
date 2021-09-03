@@ -1,4 +1,6 @@
-﻿.incscript "Scripts.cs"
+﻿AllowCheckingKeyboardByInterrupt = 0
+
+.incscript "Scripts.cs"
 
 .sdsctag Program.Version, Program.Name, Program.Notes, Program.Author
 
@@ -27,7 +29,10 @@ HIMEM = Variables
 
 PAGE = allocVar(2)
 IOControl = allocVar(1)
+
+.if AllowCheckingKeyboardByInterrupt
 LastHCounter = allocVar(1)
+.endif
 
 TempPtr      = allocVar(2)
 TempCapacity = allocVar(2)
@@ -98,6 +103,9 @@ Interrupt:
 	call z,Host.PressBreakKey
 	
 	in a,($BF)
+
+.if AllowCheckingKeyboardByInterrupt
+
 	bit 7,a
 	jr nz,FrameInterrupt
 	
@@ -123,8 +131,11 @@ LineInterrupt:
 	ei
 	reti
 
+.endif
+
 FrameInterrupt:
 
+.if AllowCheckingKeyboardByInterrupt
 	ld a,(IOControl)
 	and %00000010 ; Bit 1 = Port A TH pin direction (1=input, 0=output)
 	jr z,NotTestingKeyboard
@@ -151,6 +162,7 @@ FrameInterrupt:
 	
 +:	pop hl
 NotTestingKeyboard:
+.endif
 
 	; Handle the 100Hz TIME counter
 	
@@ -172,11 +184,14 @@ NotTestingKeyboard:
 	inc hl
 	ld (Host.TIME+2),hl
 +:	
-	
+
+.if AllowCheckingKeyboardByInterrupt
 	; Are we checking the keyboard state in a line interrupt?
 	ld a,(Video.Registers+$00)
 	and %00010000
 	jr nz,CheckingKeyboardInInterrupt
+.endif
+
 	; Indicate that the host can try to read the keyboard if it wants.
 	ld a,(Sound.Status)
 	bit Sound.Status.Active,a

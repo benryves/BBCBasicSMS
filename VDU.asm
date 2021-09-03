@@ -266,6 +266,9 @@ SetMode:
 	call Video.EnableFrameInterrupt
 	
 	; We also want to trigger a line interrupt just before the frame interrupt.
+	
+	; Clock must be high for at least 50uS (say, 1 scanline).
+	; Clock frequency is around 15kHz (one scanline per clock).
 	ld a,191-8
 	ld b,$0A
 	call Video.SetRegister

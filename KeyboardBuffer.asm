@@ -18,6 +18,7 @@ Reset:
 	ret
 
 CheckKeyboardWithInterrupt:
+.if AllowCheckingKeyboardByInterrupt
 	push af
 	ld a,(Video.Registers+$00)
 	and %00010000
@@ -28,8 +29,10 @@ CheckKeyboardWithInterrupt:
 +:	pop af
 	ei
 	ret
-	
+.endif
+
 CheckKeyboardByPolling:
+.if AllowCheckingKeyboardByInterrupt
 	push af
 	ld a,(Video.Registers+$00)
 	and %00010000
@@ -43,6 +46,7 @@ CheckKeyboardByPolling:
 	ld (Host.Flags),a
 +:	pop af
 	ei
+.endif
 	ret
 
 ; ---------------------------------------------------------
