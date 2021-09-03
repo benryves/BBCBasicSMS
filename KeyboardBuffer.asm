@@ -299,6 +299,9 @@ GetKey:
 	ld bc,KeyboardBufferSize-1
 	ldir
 	
+	ex de,hl
+	ld (hl),0
+	
 	jp p,GetKeyGotKey
 	
 	bit 6,a
