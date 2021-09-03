@@ -1365,6 +1365,11 @@ WriteFile:
 	call Host.GetSafeScratchMemoryDE
 	ret c
 	
+	; Skip the prompt if we've disabled messages.
+	ld a,(Options)
+	and %00000011
+	jr z,+
+	
 	; Display the "RECORD then RETURN" prompt.
 	push hl
 	ld hl,RecordThenReturn
@@ -1375,6 +1380,7 @@ WriteFile:
 	jr nz,-
 	.bcall "VDU.Console.NewLine"
 	pop hl
++:
 	
 	; Remember the old value of FREE.
 	ld bc,(Basic.BBCBASIC_FREE)
@@ -1631,13 +1637,19 @@ WriteEmptyBlock:
 	ld e,255 ; 5.1s
 +:
 
+	; Are we printing block names?
+	ld a,(Options)
+	and %00000011
+	jr z,+
+	
 	; Print the name of the block.
 	.bcall "VDU.HomeLeft"
 	ld l,(iy+0)
 	ld h,(iy+1)
 	inc hl
 	call PrintBlockDetails
-	di
+	
++:	di
 
 	; Commit to tape.
 	push iy
@@ -1690,8 +1702,12 @@ FinishedWriteFile:
 	ld (IOControl),a
 	out ($3F),a
 	
+	ld a,(Options)
+	and %0000011
+	jr z,+
 	.bcall "VDU.Console.NewLine"
-	
++:
+		
 	call MotorOff
 	ret
 
