@@ -34,6 +34,8 @@ IOControl = allocVar(1)
 LastHCounter = allocVar(1)
 .endif
 
+TrapKeyboardCounter = allocVar(1)
+
 TempPtr      = allocVar(2)
 TempCapacity = allocVar(2)
 TempSize     = allocVar(2)
@@ -172,6 +174,13 @@ NotTestingKeyboard:
 	
 -:	push hl
 	push af
+	
+	; Decrement the trap keyboard counter.
+	ld a,(TrapKeyboardCounter)
+	dec a
+	jp m,+
+	ld (TrapKeyboardCounter),a
++:
 	
 	; Update TIME.
 	ld hl,(Host.TIME)
@@ -317,6 +326,10 @@ FoundCartridgeRAM:
 	ld a,%11111111
 	ld (IOControl),a
 	out ($3F),a
+	
+	; Set the TRAP keyboard counter to a sensible default.
+	xor a
+	ld (TrapKeyboardCounter),a
 
 Main:
 

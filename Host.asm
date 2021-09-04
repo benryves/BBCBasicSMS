@@ -887,6 +887,9 @@ OSWRCH.NoOverride:
 ; Destroyed:  AF.
 ; ==========================================================================
 LTRAP:
+	; Force a keyboard update.
+	xor a
+	ld (TrapKeyboardCounter),a
 	; Fall-through to TRAP.
 	
 ; ==========================================================================
@@ -894,7 +897,6 @@ LTRAP:
 ; --------------------------------------------------------------------------
 ; Test for an operator abort when running a program (ESCape).
 ; --------------------------------------------------------------------------
-; Inputs:     A: Character to output.
 ; Destroyed:  AF, HL.
 ; ==========================================================================
 TRAP:
@@ -903,6 +905,13 @@ TRAP:
 	call KeyboardBuffer.CheckKeyboardWithInterrupt
 	
 	call CheckEscape
+	
+	ld a,(TrapKeyboardCounter)
+	or a
+	ret nz
+	
+	ld a,10
+	ld (TrapKeyboardCounter),a
 	
 -:	call KeyboardBuffer.GetDeviceKey
 	ret nz ; No key
