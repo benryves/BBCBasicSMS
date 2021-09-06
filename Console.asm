@@ -205,18 +205,17 @@ CursorLeftWrapped:
 ; ==========================================================================
 CursorUp:
 	ld a,(CurRow)
-	push bc
-	ld bc,(MinRow)
 	or a
 	jr z,CursorUpWrapped
 	dec a
+	push bc
+	ld bc,(MinRow)
 	cp c
 	pop bc
 	jr nc,+
 
 CursorUpWrapped:
 	call ScrollDown
-	pop bc
 	ld a,(MinRow)
 	ld (CurRow),a
 	scf
