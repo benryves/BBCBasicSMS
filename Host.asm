@@ -79,9 +79,8 @@ OSINIT:
 ; ==========================================================================
 OSRDCH:
 	.bcall "VDU.BeginBlinkingCursor"
-	call KeyboardBuffer.CheckKeyboardByPolling
 	
--:	call KeyboardBuffer.GetKey
+-:	call KeyboardBuffer.GetKeyImmediate
 	
 	jr z,+              ; No key.
 	jp m,+              ; Ignore extended keys.
@@ -164,8 +163,6 @@ OSKEY.CheckKey:
 
 OSKEY.NotNegative:
 	
-	call KeyboardBuffer.CheckKeyboardByPolling
-	
 	; Calculate the end time-1 (easier to check for <0 instead of <=0 later)
 	ld de,(TIME)
 	dec de
@@ -173,7 +170,7 @@ OSKEY.NotNegative:
 
 	ei
 OSKEY.Loop:
-	call KeyboardBuffer.GetKey
+	call KeyboardBuffer.GetKeyImmediate
 	
 	jr z,OSKEY.NoKey
 	jp m,OSKey.NoKey
@@ -235,7 +232,6 @@ OSLINE:
 	ret
 
 +:
-	call KeyboardBuffer.CheckKeyboardByPolling
 	.bcall "VDU.BeginBlinkingCursor"
 	ld bc,255 ; B = current length (0), C = maximum length (excluding \r terminator).
 	ld d,0 ; D = index into current string.
@@ -252,7 +248,7 @@ OSLINE.Loop:
 	
 -:	call CheckEscape
 	.bcall "VDU.DrawBlinkingCursor"
-	call KeyboardBuffer.GetKey
+	call KeyboardBuffer.GetKeyImmediate
 	jr z,-
 	
 	jp m,OSLINE.ExtendedKey
@@ -800,7 +796,6 @@ OSLINE.RepaintAtRightEdge:
 ; Destroyed:  AF, BC, DE, HL.
 ; ==========================================================================
 OSLINE.Prefilled:
-	call KeyboardBuffer.CheckKeyboardByPolling
 	.bcall "VDU.BeginBlinkingCursor"
 	ld bc,255
 	ld d,0
@@ -902,8 +897,6 @@ LTRAP:
 TRAP:
 	ei
 	
-	call KeyboardBuffer.CheckKeyboardWithInterrupt
-	
 	call CheckEscape
 	
 	ld a,(TrapKeyboardCounter)
@@ -966,7 +959,6 @@ TRAP.Escape:
 TrapFileTransfers:
 	ei
 	
-	call KeyboardBuffer.CheckKeyboardWithInterrupt
 	.bcall "VDU.DrawBlinkingCursor"
 	
 	; Is Escape pressed?

@@ -1,6 +1,4 @@
-﻿AllowCheckingKeyboardByInterrupt = 0
-
-.incscript "Scripts.cs"
+﻿.incscript "Scripts.cs"
 
 .sdsctag Program.Version, Program.Name, Program.Notes, Program.Author
 
@@ -29,10 +27,6 @@ HIMEM = Variables
 
 PAGE = allocVar(2)
 IOControl = allocVar(1)
-
-.if AllowCheckingKeyboardByInterrupt
-LastHCounter = allocVar(1)
-.endif
 
 TrapKeyboardCounter = allocVar(1)
 
@@ -106,66 +100,8 @@ Interrupt:
 	
 	in a,($BF)
 
-.if AllowCheckingKeyboardByInterrupt
-
-	bit 7,a
-	jr nz,FrameInterrupt
-	
-LineInterrupt:
-	
-	; Are we already waiting for a key?
-	ld a,(Host.Flags)
-	bit Host.GetKeyPending,a
-	jr nz,+
-	
-	; Release the keyboard's clock line.
-	ld a,(IOControl)
-	or %00110011 ; A.TH, A.TR = input, high
-	out ($3F),a
-	ld (IOControl),a
-	
-	; What's the current H counter?
-	in a,(Video.HCounter)
-	ld (LastHCounter),a
-+:
-	
-	pop af
-	ei
-	reti
-
-.endif
-
 FrameInterrupt:
-
-.if AllowCheckingKeyboardByInterrupt
-	ld a,(IOControl)
-	and %00000010 ; Bit 1 = Port A TH pin direction (1=input, 0=output)
-	jr z,NotTestingKeyboard
-
-	push hl
-	in a,(Video.HCounter)
-	ld l,a
 	
-	; Inhibit the keyboard's clock line.
-	ld a,(IOControl)
-	or %00100010 ; A.TH (data) = input high
-	and %11101110 ; A.TR (clock) = output low
-	out ($3F),a
-	ld (IOControl),a
-	
-	ld a,(LastHCounter)
-	cp l
-	jr z,+
-	
-	; We know there's a key waiting!
-	ld a,(Host.Flags)
-	set Host.GetKeyPending,a
-	ld (Host.Flags),a
-	
-+:	pop hl
-NotTestingKeyboard:
-.endif
-
 	; Handle the 100Hz TIME counter
 	
 	ld a,(FrameCounter)
@@ -193,13 +129,6 @@ NotTestingKeyboard:
 	inc hl
 	ld (Host.TIME+2),hl
 +:	
-
-.if AllowCheckingKeyboardByInterrupt
-	; Are we checking the keyboard state in a line interrupt?
-	ld a,(Video.Registers+$00)
-	and %00010000
-	jr nz,CheckingKeyboardInInterrupt
-.endif
 
 	; Indicate that the host can try to read the keyboard if it wants.
 	ld a,(Sound.Status)
@@ -230,7 +159,6 @@ FinishedFrameInterrupt:
 	ld (FrameCounter),a
 	
 	pop af
-	ei
 	reti
 
 ; Libraries:

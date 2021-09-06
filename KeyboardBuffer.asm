@@ -17,50 +17,35 @@ Reset:
 	ldir
 	ret
 
-CheckKeyboardWithInterrupt:
-.if AllowCheckingKeyboardByInterrupt
-	push af
-	ld a,(Video.Registers+$00)
-	and %00010000
-	jr nz,+
-	push bc
-	call Video.EnableLineInterrupt
-	pop bc
-+:	pop af
-	ei
-	ret
-.endif
-
-CheckKeyboardByPolling:
-.if AllowCheckingKeyboardByInterrupt
-	push af
-	ld a,(Video.Registers+$00)
-	and %00010000
-	jr z,+
-	push bc
-	call Video.DisableLineInterrupt
-	pop bc
+; ==========================================================================
+; GetDeviceKeyImmediate
+; --------------------------------------------------------------------------
+; Gets a key from the keyboard immediately and stores the device code.
+; --------------------------------------------------------------------------
+; Outputs:    A: ASCII code of the pressed key.
+;             F: Z if key pressed or released, NZ if no key.
+;                C if key not pressed, NC if key pressed.
+;                P if printable key, M if extended key.
+; Destroyed:  AF.
+; ==========================================================================
+GetDeviceKeyImmediate:
 	di
 	ld a,(Host.Flags)
 	or 1<<Host.GetKeyPending
 	ld (Host.Flags),a
-+:	pop af
-	ei
-.endif
-	ret
+	; Fall-through to GetDeviceKey
 
-; ---------------------------------------------------------
-; GetDeviceKey -> Gets a key from the keyboard and stores
-; the device code.
-; ---------------------------------------------------------
-; This is a wrapper around Keyboard.GetKey that stores the
-; state of any pressed/released keys.
-; ---------------------------------------------------------
-; Outputs:  z = if key pressed or released, nz if no key.
-;           c = if key not pressed, nc if key pressed.
-;           p = if printable key, m if extended key.
-; Destroys: af.
-; ---------------------------------------------------------
+; ==========================================================================
+; GetDeviceKey
+; --------------------------------------------------------------------------
+; Gets a key from the keyboard and stores the device code.
+; --------------------------------------------------------------------------
+; Outputs:    A: ASCII code of the pressed key.
+;             F: Z if key pressed or released, NZ if no key.
+;                C if key not pressed, NC if key pressed.
+;                P if printable key, M if extended key.
+; Destroyed:  AF.
+; ==========================================================================
 GetDeviceKey:
 	push de
 	
@@ -193,13 +178,13 @@ GetDeviceKey.Skip:
 	ei
 	ret
 
-; ---------------------------------------------------------
-; HoldDeviceKey -> Hold a key via its device code.
-; ---------------------------------------------------------
-; Inputs:   d = device code.
-; Outputs:  None.
-; Destroys: None.
-; ---------------------------------------------------------
+; ==========================================================================
+; HoldDeviceKey
+; --------------------------------------------------------------------------
+; Holds a key via its device code.
+; --------------------------------------------------------------------------
+; Inputs:     D: Device code of the key.
+; ==========================================================================
 HoldDeviceKey:
 	push af
 	push hl
@@ -235,13 +220,13 @@ HoldDeviceKey:
 	pop af
 	ret
 
-; ---------------------------------------------------------
-; ReleaseDeviceKey -> Releases a key via its device code.
-; ---------------------------------------------------------
-; Inputs:   d = device code.
-; Outputs:  None.
-; Destroys: None.
-; ---------------------------------------------------------
+; ==========================================================================
+; ReleaseDeviceKey
+; --------------------------------------------------------------------------
+; Releases a key via its device code.
+; --------------------------------------------------------------------------
+; Inputs:     D: Device code of the key.
+; ==========================================================================
 ReleaseDeviceKey:
 	push af
 	push hl
@@ -269,14 +254,30 @@ ReleaseDeviceKey:
 	pop hl
 	pop af
 	ret
-	
-; ---------------------------------------------------------
-; GetKey -> Gets a key from the keyboard.
-; ---------------------------------------------------------
-; Outputs:  nz = if a key was returned.
-;           z = if no keys were returned.
-; Destroys: af.
-; ---------------------------------------------------------
+
+; ==========================================================================
+; GetKeyImmediate
+; --------------------------------------------------------------------------
+; Gets a key from the keyboard immediately.
+; --------------------------------------------------------------------------
+; Outputs:    A: ASCII code of the key that was pressed.
+;             F: Z if no key was returned, NZ if a key was returned.
+; ==========================================================================
+GetKeyImmediate:
+	di
+	ld a,(Host.Flags)
+	or 1<<Host.GetKeyPending
+	ld (Host.Flags),a
+	; Fall-through to GetKey
+
+; ==========================================================================
+; GetKey
+; --------------------------------------------------------------------------
+; Gets a key from the keyboard.
+; --------------------------------------------------------------------------
+; Outputs:    A: ASCII code of the key that was pressed.
+;             F: Z if no key was returned, NZ if a key was returned.
+; ==========================================================================
 GetKey:
 	
 	push hl
