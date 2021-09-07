@@ -158,9 +158,9 @@ CursorDown:
 	jr z,+
 	jr c,+
 	
-	call ScrollUp
 	ld a,(MaxRow)
 	ld (CurRow),a
+	call ScrollUp
 	scf
 	ret
 	
@@ -215,9 +215,9 @@ CursorUp:
 	jr nc,+
 
 CursorUpWrapped:
-	call ScrollDown
 	ld a,(MinRow)
 	ld (CurRow),a
+	call ScrollDown
 	scf
 	ret
 	
@@ -284,12 +284,48 @@ DriverExecute:
 	ret
 
 ScrollUp:
+	ld a,(MaxCol)
+	call CheckScrollInhibit
 	ld a,Driver.Execute.ScrollUp
 	jr DriverExecute
 	
 ScrollDown:
+	ld a,(MinCol)
+	call CheckScrollInhibit
 	ld a,Driver.Execute.ScrollDown
 	jr DriverExecute
+
+CheckScrollInhibit:
+	push bc
+	ld b,a
+	ld a,(Keyboard.Status)
+	and %101
+	cp %101
+	ld a,b
+	pop bc
+	ret nz
+	
+	push bc
+	ld bc,(CurRow)
+	push bc
+	
+	ld (CurCol),a
+	
+-:	call VDU.DrawBlinkingCursor
+	call KeyboardBuffer.GetDeviceKeyImmediate
+	
+	ld a,(Keyboard.Status)
+	and %101
+	cp %101
+	jr z,-
+	
+	call VDU.EndBlinkingCursor
+	
+	pop bc
+	ld (CurRow),bc
+	pop bc
+	ret
+	
 
 ; ---------------------------------------------------------
 ; ScrollBlockNoClear -> Scrolls a block of characters but
