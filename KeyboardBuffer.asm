@@ -55,7 +55,7 @@ GetDeviceKey:
 	jp z,GetDeviceKey.Skip
 	
 	call Keyboard.GetKey
-	jr nz,GetDeviceKey.NoKey
+	jp nz,GetDeviceKey.NoKey
 	
 	push af
 	call nc,HoldDeviceKey
@@ -63,14 +63,102 @@ GetDeviceKey:
 	pop af
 	
 	; Ignore all released keys.
-	jr c,GetDeviceKey.NoKey
+	jp c,GetDeviceKey.NoKey
 	
 	; Is it Escape?
 	push af
 	jp m,GetDeviceKeyExtended ; Check extended keys.
 	
 	cp 27
-	jr nz,ExitGetDeviceKey
+	jr z,GetDeviceKey.Escape
+	
+	bit 7,a
+	jr z,ExitGetDeviceKey
+
+GetDeviceKey.FunctionKey:
+	
+	; At this point we need to handle the function keys $8x and $Cx.
+	pop af
+	ld e,a
+	
+	; Check that it's either %1000xxxx or %1100xxxx
+	; We know the top bit is 1 already.
+	and %00110000
+	jr z,GetDeviceKey.IsFunctionKey
+	
+	; If we get here, it's by mistake, so drop the key.
+	jp GetDeviceKey.Skip
+
+GetDeviceKey.IsFunctionKey:
+	
+	; Are we translating the keys?
+	ld a,(Host.Flags)
+	bit Host.CursorKeysFixed,a
+	jr z,GetDeviceKey.TranslateFunctionKey
+	
+GetDeviceKey.FixedCursorKey:
+
+	; Here we return fixed cursor key values.
+	bit 6,e
+	jr z,GetDeviceKey.Skip
+	
+	ld a,e
+	cp $C9 ; END
+	jr nz,GetDeviceKey.NotEnd
+	
+	xor a
+	ld a,$87 ; COPY
+	push af
+	jr ExitGetDeviceKey
+
+GetDeviceKey.NotEnd:
+	
+	; Check it's in the range left/right/down/up
+	cp $CC
+	jr c,GetDeviceKey.Skip
+	
+	; Transform the key.
+	add a,$88-$CC
+	ld e,a
+	xor a
+	ld a,e
+	push af
+	jr ExitGetDeviceKey
+
+
+GetDeviceKey.TranslateFunctionKey:
+	; Now we have a function key, we might need to offset it by the current status.
+	ld a,(Keyboard.Status)
+	and %111
+	jr z,GetDeviceKey.GotFunctionKeyModifier
+	
+	cp %001 ; Shift
+	jr z,GetDeviceKey.ShiftFunctionKeyModifier
+	cp %010 ; Alt
+	jr z,GetDeviceKey.AltFunctionKeyModifier
+	cp %100 ; Ctrl
+	jr z,GetDeviceKey.CtrlFunctionKeyModifier
+	
+	; Invalid combination of modifiers, so skip the key.
+	jr GetDeviceKey.Skip
+
+GetDeviceKey.ShiftFunctionKeyModifier:
+	ld a,$10
+	jr GetDeviceKey.GotFunctionKeyModifier
+GetDeviceKey.CtrlFunctionKeyModifier:
+	ld a,$20
+	jr GetDeviceKey.GotFunctionKeyModifier
+GetDeviceKey.AltFunctionKeyModifier:
+	ld a,$30
+GetDeviceKey.GotFunctionKeyModifier:
+	add a,e
+	ld e,a
+	xor a
+	ld a,e
+	push af
+	jr ExitGetDeviceKey
+
+GetDeviceKey.Escape:
 	
 	; Set the Escape condition.
 	call Host.PressEscapeKey
@@ -86,44 +174,13 @@ GetDeviceKey:
 
 GetDeviceKeyExtended:
 	
-	; Is it Insert?
-	cp Keyboard.KeyCode.Insert
-	jr nz,GetDeviceKeyNotInsert
-	
-	; Toggle insert/overwrite, then pretend no key happened.
-	ld a,(VDU.Console.ConsoleFlags)
-	xor 1 << VDU.Console.Overwrite
-	ld (VDU.Console.ConsoleFlags),a
-	pop af
-	
-	jr GetDeviceKey.Skip
-
-GetDeviceKeyNotInsert:
-	
 	; Is it Pause?
 	cp Keyboard.KeyCode.Pause
 	jp z,Host.PressBreakKey
 	
-	; Is it a cursor key?
-	ld e,a
-	ld a,(VDU.Console.ConsoleFlags)
-	bit VDU.Console.CursorEditingDisabled,a
-	ld a,e
-	jr z,ExitGetDeviceKey
-	ld e,136
-	cp Keyboard.KeyCode.Left
-	jr z,ChangeGetDeviceKey
-	inc e
-	cp Keyboard.KeyCode.Right
-	jr z,ChangeGetDeviceKey	
-	inc e
-	cp Keyboard.KeyCode.Down
-	jr z,ChangeGetDeviceKey
-	inc e
-	cp Keyboard.KeyCode.Up
-	jr z,ChangeGetDeviceKey
-	
-	jr ExitGetDeviceKey
+	; Ignore all other "special" keys.
+	pop af
+	jr GetDeviceKey.Skip
 	
 ChangeGetDeviceKey:
 	pop af
@@ -134,11 +191,6 @@ ExitGetDeviceKey:
 	pop af
 ++:	
 	; Now we have our device key, store it in the keyboard buffer.
-	
-	; If it's an extended key, set the top two bits.	
-	jp p,+
-	or %11000000
-+:
 	
 	push hl
 	push bc
@@ -305,19 +357,10 @@ GetKey:
 	
 	jp p,GetKeyGotKey
 	
-	bit 6,a
-	jr nz,GetKeyIsExtendedKey
-	
 	ld b,a
 	xor a
 	inc a
 	ld a,b
-	jr GetKeyGotKey
-
-GetKeyIsExtendedKey:
-	or a
-	res 6,a
-	res 7,a
 	
 GetKeyGotKey:
 	pop bc

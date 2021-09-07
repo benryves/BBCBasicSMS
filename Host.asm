@@ -17,7 +17,7 @@ KeyboardRate = allocVar(1)
 global.Host.Flags = allocVar(1) ;; HACK for broken name resolution
 EscapeError = 0
 GetKeyPending = 1
-CursorKeysDisabled = 2 ; OSBYTE 4
+CursorKeysFixed = 2
 EscapeKeyDisabled = 3
 EscapeErrorDisabled = 4
 TapeFS = 5
@@ -84,7 +84,15 @@ OSRDCH:
 	
 	jr z,+              ; No key.
 	jp m,+              ; Ignore extended keys.
-	jr OSRDCH.GotKey
+	
+	bit 7,a
+	jr z,OSRDCH.GotKey
+	
+	ld e,a
+	ld a,(VDU.Console.ConsoleFlags)
+	bit VDU.Console.CursorEditingDisabled,a
+	ld a,e
+	jr nz,OSRDCH.GotKey
 
 +:	push af
 	.bcall "VDU.DrawBlinkingCursor"
@@ -175,7 +183,15 @@ OSKEY.Loop:
 	jr z,OSKEY.NoKey
 	jp m,OSKey.NoKey
 	
-	jr OSKEY.GotKey
+	bit 7,a
+	jr z,OSKEY.GotKey
+	
+	ld e,a
+	ld a,(VDU.Console.ConsoleFlags)
+	bit VDU.Console.CursorEditingDisabled,a
+	ld a,e
+	jr nz,OSKEY.GotKey
+	
 
 OSKEY.NoKey:
 	; Has the timer expired?
@@ -269,6 +285,46 @@ OSLINE.Loop:
 	jr OSLINE.Loop
 +:
 
+	; Is it a cursor key, and is cursor editing enabled?
+	cp $C0
+	jr c,OSLINE.NotCursorKey
+	
+	ld e,a
+	ld a,(VDU.Console.ConsoleFlags)
+	bit VDU.Console.CursorEditingDisabled,a
+	ld a,e
+	jr nz,OSLINE.NotCursorKey
+	
+	; Ignore modifiers.
+	and $CF
+	
+	cp $C6
+	call z,OSLINE.Insert
+	
+	cp $C7
+	jp z,OSLINE.Delete
+	
+	cp $C8
+	call z,OSLINE.Home
+	
+	cp $C9
+	call z,OSLINE.End
+	
+	cp $CC
+	call z,OSLINE.Left
+	
+	cp $CD
+	call z,OSLINE.Right
+	
+	cp $CE
+	call z,OSLINE.Down
+	
+	cp $CF
+	call z,OSLINE.Up
+	
+	jr OSLINE.Loop
+
+OSLINE.NotCursorKey:
 	; Check if it's in the range 32..127.
 	cp 32
 	jr c,OSLINE.Loop
@@ -300,13 +356,13 @@ OSLINE.Loop:
 	
 	; Print the character.
 	.bcall "VDU.PutChar"
-	jr OSLINE.Loop
+	jp OSLINE.Loop
 
 OSLINE.InsertCharacter
 	; Check if we've got enough space.
 	ld a,c
 	or a
-	jr z,OSLINE.Loop
+	jp z,OSLINE.Loop
 
 OSLINE.EnoughSpace:	
 	
@@ -451,25 +507,15 @@ OSLINE.Return:
 
 OSLINE.ExtendedKey:
 	
-	cp Keyboard.KeyCode.Home
-	call z,OSLINE.Home
-	
-	cp Keyboard.KeyCode.End
-	call z,OSLINE.End
-	
-	cp Keyboard.KeyCode.Left
-	call z,OSLINE.Left
-	
-	cp Keyboard.KeyCode.Right
-	call z,OSLINE.Right
-	
-	cp Keyboard.KeyCode.Up
-	call z,OSLINE.Up
-	
-	cp Keyboard.KeyCode.Down
-	call z,OSLINE.Down
-	
 	jp OSLINE.Loop
+
+OSLINE.Insert:
+	push af
+	ld a,(VDU.Console.ConsoleFlags)
+	xor 1<<VDU.Console.Overwrite
+	ld (VDU.Console.ConsoleFlags),a
+	pop af
+	ret
 
 OSLINE.Delete:
 	; Same as moving right once, then backspacing.
@@ -2140,27 +2186,32 @@ OSBYTE.ReadHostOS:
 
 OSBYTE.CursorEditing:
 	di
-	ld a,(VDU.Console.ConsoleFlags)
-
-	bit 0,l ; New value
-	ld l,a  ; Old value
-	jr z,OSBYTE.CursorEditingEnable
-
-OSBYTE.CursorEditingDisable:
-	set VDU.Console.CursorEditingDisabled,a
-	jr OSBYTE.CursorEditingReturn
 	
-OSBYTE.CursorEditingEnable:
+	ld a,(Host.Flags)
+	bit 0,l
+	jr z,OSBYTE.TranslateCursorKeys
+OSBYTE.FixCursorKeys
+	set CursorKeysFixed,a
+	jr OSBYTE.FunctionKeyExit
+OSBYTE.TranslateCursorKeys:
+	res CursorKeysFixed,a
+OSBYTE.FunctionKeyExit:
+	ld (Host.Flags),a
+
+	ld a,l
+	or a
+	ld a,(VDU.Console.ConsoleFlags)
+	jr z,OSBYTE.EnableCursorEditing
+
+OSBYTE.DisableCursorEditing:
+	set VDU.Console.CursorEditingDisabled,a
+	jr OSBYTE.CursorEditingExit
+
+OSBYTE.EnableCursorEditing:
 	res VDU.Console.CursorEditingDisabled,a
 	
-OSBYTE.CursorEditingReturn:
+OSBYTE.CursorEditingExit:
 	ld (VDU.Console.ConsoleFlags),a
-	
-	bit VDU.Console.CursorEditingDisabled,l
-	ld l,0
-	jr z,+
-	inc l
-+:
 	ld a,4
 	ei
 	ret
