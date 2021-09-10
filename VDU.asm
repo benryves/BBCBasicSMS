@@ -60,20 +60,21 @@ Stub:
 	.include "TextDoubleHeight.asm"
 	.include "GraphicsII.asm"
 	.include "MasterSystem16Colours.asm"
+	.include "MasterSystem16ColoursReduced.asm"
 	.include "MasterSystem4Colours.asm"
 	.include "MasterSystem2Colours.asm"
 
 	Count = 8
 	
 	Vectors:
-		.dw Text.Vectors                   ; MODE 0
-		.dw MasterSystem4Colours.Vectors   ; MODE 1
-		.dw MasterSystem16Colours.Vectors  ; MODE 2
-		.dw GraphicsII.Vectors             ; MODE 3
-		.dw MasterSystem2Colours.Vectors   ; MODE 4
-		.dw MasterSystem4Colours.Vectors   ; MODE 5
-		.dw Text.Vectors                   ; MODE 6
-		.dw TextDoubleHeight.Vectors       ; MODE 7
+		.dw Text.Vectors                         ; MODE 0
+		.dw MasterSystem4Colours.Vectors         ; MODE 1
+		.dw MasterSystem16ColoursReduced.Vectors ; MODE 2
+		.dw GraphicsII.Vectors                   ; MODE 3
+		.dw MasterSystem2Colours.Vectors         ; MODE 4
+		.dw MasterSystem4Colours.Vectors         ; MODE 5
+		.dw Text.Vectors                         ; MODE 6
+		.dw TextDoubleHeight.Vectors             ; MODE 7
 		
 .endmodule
 
@@ -236,6 +237,18 @@ SetMode:
 	ld a,60
 	ld (FieldRate),a
 +:	
+	
+	; Set up the divide/multiply coordinate vectors.
+	ld a,$C3
+	
+	ld hl,Graphics.DivideBy5T
+	ld (Graphics.DivideCoordinate),a
+	ld (Graphics.DivideCoordinate+1),hl
+	
+	ld hl,Graphics.MultiplyBy5T
+	ld (Graphics.MultiplyCoordinate),a
+	ld (Graphics.MultiplyCoordinate+1),hl
+	
 	
 	; Initialise the driver.
 	ld a,Driver.Execute.Reset
@@ -549,7 +562,7 @@ TextViaGraphicsCommand:
 	ret
 
 ; ==========================================================================
-; VDU 7                                                                   BEL
+; VDU 7                                                                  BEL
 ; ==========================================================================
 Bell:
 	jp Sound.PlayBell
@@ -963,9 +976,11 @@ ConsoleViewportCommand:
 	add a,d
 	ld (Console.MaxCol),a
 	
-	ld a,e
+	ld a,(Console.OriginY)
+	add a,e
 	ld (Console.MinRow),a
-	ld a,l
+	ld a,(Console.OriginY)
+	add a,l
 	ld (Console.MaxRow),a
 	
 	; Is the current cursor outside the new viewport?
@@ -992,7 +1007,7 @@ ConsoleViewportCommand:
 	ret
 
 ; ==========================================================================
-; VDU 29,<x>;<y>;                                                      SET GRAPHICS ORIGIN
+; VDU 29,<x>;<y>;                                        SET GRAPHICS ORIGIN
 ; ==========================================================================
 SetOriginCommand:
 	ld hl,VDUQ(0,4)

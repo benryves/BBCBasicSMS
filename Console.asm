@@ -14,6 +14,7 @@ MinCol = allocVar(1)
 MaxCol = allocVar(1)
 
 OriginX = allocVar(1)
+OriginY = allocVar(1)
 MaxWidth = allocVar(1)
 MaxHeight = allocVar(1)
 
@@ -58,6 +59,7 @@ ResetViewport:
 	; Set to sensible defaults.
 	xor a
 	ld (MinRow),a
+	ld (OriginY),a
 	inc a
 	ld (MinCol),a
 	ld (OriginX),a
@@ -325,7 +327,54 @@ CheckScrollInhibit:
 	ld (CurRow),bc
 	pop bc
 	ret
+
+; ---------------------------------------------------------
+; RotateBlock -> Rotates a block of characters.
+; ---------------------------------------------------------
+; Inputs:   hl = offset in VRAM to top left corner.
+;           de = stride of VRAM in bytes.
+;           b = number of rows to rotate.
+;           c = number of columns to rotate.
+; Outputs:  None.
+; Destroys: af, hl, bc.
+; ---------------------------------------------------------
+RotateBlock:
 	
+	; Back up the top row of the nametable.
+	push hl
+	push bc
+	call Video.SetReadAddress
+	ld hl,128
+	call Host.GetSafeScratchMemoryHL
+	jr c,+
+	ld a,c
+	ld c,64
+	add hl,bc
+	ld (TempPtr),hl
+	ld b,c
+-:	in a,(Video.Data)
+	ld (hl),a
+	inc hl
+	djnz -
+	or a
++:	pop bc
+	pop hl
+	
+	jr c,ScrollBlock
+	
+	push bc
+	call ScrollBlockNoClear
+	pop bc
+	
+	; Move the top row to the bottom row.
+	ld hl,(TempPtr)
+	
+	ld b,c
+-:	ld a,(hl)
+	out (Video.Data),a
+	inc hl
+	djnz -
+	ret
 
 ; ---------------------------------------------------------
 ; ScrollBlockNoClear -> Scrolls a block of characters but
@@ -336,7 +385,7 @@ CheckScrollInhibit:
 ;           b = number of rows to scroll.
 ;           c = number of columns to scroll.
 ; Outputs:  None.
-; Destroys: af, hl, de, bc.
+; Destroys: af, hl, bc.
 ; ---------------------------------------------------------
 ScrollBlockNoClear:
 	
@@ -353,7 +402,7 @@ ScrollBlockNoClear:
 ;           b = number of rows to scroll.
 ;           c = number of columns to scroll.
 ; Outputs:  None.
-; Destroys: af, hl, de, bc.
+; Destroys: af, hl, bc.
 ; ---------------------------------------------------------
 ScrollBlock:
 		

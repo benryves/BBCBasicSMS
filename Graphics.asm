@@ -9,6 +9,8 @@ MinX = allocVar(1)
 MaxX = allocVar(1)
 MinY = allocVar(1)
 MaxY = allocVar(1)
+OffsetX = allocVar(1)
+OffsetY = allocVar(1)
 
 g_wndXMin = MinX ; The g_wnd* variables must appear
 g_wndXMax = MaxX ; in this order.
@@ -50,6 +52,9 @@ ForegroundColour = allocVar(1) ; GCOL ..., <c>   \ Must appear in this order!
 BackgroundMode   = allocVar(1) ; GCOL <m>, ....  /
 BackgroundColour = allocVar(1) ; GCOL ..., <c>  /
 
+DivideCoordinate   = allocVar(3)
+MultiplyCoordinate = allocVar(3)
+
 .include "Clip.asm"
 .include "Ellipse.asm"
 .include "Triangle.asm"
@@ -86,13 +91,19 @@ Reset:
 ResetViewport:
 	; Set default graphics bounds
 	xor a
+	ld (OffsetY),a
 	ld (MinY),a
 	ld a,8
+	ld (OffsetX),a
 	ld (MinX),a
 	ld a,255-8
 	ld (MaxX),a
 	ld a,191
 	ld (MaxY),a
+	
+	; Now invoke the driver-specific version.
+	ld a,Driver.Execute.ResetGraphicsViewport
+	call Driver.Execute
 	ret
 	
 
@@ -334,6 +345,36 @@ MultiplyBy5TP:
 	ret
 
 ; ==========================================================================
+; DivideBy8
+; --------------------------------------------------------------------------
+; Divides HL by eight.
+; --------------------------------------------------------------------------
+; Inputs:    HL: Value to divide by eight.
+; Outputs:   HL: Value divided by eight.
+; Destroyed: F.
+; ==========================================================================
+DivideBy8:
+	.rept 3
+	sra h \ rr l
+	.loop
+	ret
+
+; ==========================================================================
+; MultiplyBy8
+; --------------------------------------------------------------------------
+; Multiplies HL by eight.
+; --------------------------------------------------------------------------
+; Inputs:    HL: Value to multiply by eight.
+; Outputs:   HL: Value multiplied by eight.
+; Destroyed: F.
+; ==========================================================================
+MultiplyBy8:
+	.rept 3
+	add hl,hl
+	.loop
+	ret
+
+; ==========================================================================
 ; SortDEHL
 ; --------------------------------------------------------------------------
 ; Sort DE and HL so that DE<=HL.
@@ -479,15 +520,20 @@ TransformPointAroundOrigin:
 TransformPoint:
 	push bc
 	ex de,hl
-	call DivideBy5T
+	call DivideCoordinate
 	ld c,l
 	ld b,h
 	ld hl,191
 	or a
 	sbc hl,bc
+	ld bc,(OffsetY)
+	ld b,0
+	or a
+	sbc hl,bc
 	ex de,hl
-	call DivideBy5T
-	ld bc,8
+	call DivideCoordinate
+	ld bc,(OffsetX)
+	ld b,0
 	add hl,bc
 	pop bc
 	ret
@@ -1303,7 +1349,7 @@ CursorRight:
 	push bc
 	
 	ld hl,(VisitedPoint0X)
-	call DivideBy5T
+	call DivideCoordinate
 	
 	ld bc,8
 	add hl,bc
@@ -1315,12 +1361,12 @@ CursorRight:
 	
 	; Cursor home.
 	call GetCursorMinXHL
-	call MultiplyBy5T
+	call MultiplyCoordinate
 	jr CursorDown.FromCursorRight
 	
 CursorRightNoWrap:
 
-	call MultiplyBy5T
+	call MultiplyCoordinate
 
 	ld de,(VisitedPoint0Y)
 	call VisitPointAbsolute
@@ -1350,7 +1396,7 @@ CursorDown.FromCursorRight:
 	
 	ld hl,(VisitedPoint0Y)
 	
-	call DivideBy5T
+	call DivideCoordinate
 	
 	ld bc,-8
 	add hl,bc
@@ -1365,7 +1411,7 @@ CursorDown.FromCursorRight:
 
 CursorDownNoWrap:
 
-	call MultiplyBy5T
+	call MultiplyCoordinate
 	
 	ex de,hl
 	
@@ -1389,7 +1435,7 @@ CursorLeft:
 	push bc
 	
 	ld hl,(VisitedPoint0X)
-	call DivideBy5T
+	call DivideCoordinate
 	ld bc,-8
 	add hl,bc
 	
@@ -1403,13 +1449,13 @@ CursorLeft:
 	ld bc,-8
 	add hl,bc
 	
-	call MultiplyBy5T
+	call MultiplyCoordinate
 	
 	jr CursorUp.FromCursorLeft
 	
 CursorLeftNoWrap:
 
-	call MultiplyBy5T
+	call MultiplyCoordinate
 
 	ld de,(VisitedPoint0Y)
 	call VisitPointAbsolute
@@ -1439,7 +1485,7 @@ CursorUp.FromCursorLeft:
 	ex de,hl
 	
 	ld hl,(VisitedPoint0Y)
-	call DivideBy5T
+	call DivideCoordinate
 	ld bc,8
 	add hl,bc
 	
@@ -1455,7 +1501,7 @@ CursorUp.FromCursorLeft:
 
 CursorUpNoWrap:
 	
-	call MultiplyBy5T
+	call MultiplyCoordinate
 	
 	ex de,hl
 	call VisitPointAbsolute
@@ -1476,7 +1522,7 @@ HomeLeft:
 	push hl
 	push de
 	call GetCursorMinXHL
-	call MultiplyBy5T
+	call MultiplyCoordinate
 	ld de,(VisitedPoint0Y)
 	call VisitPointAbsolute
 	pop de
