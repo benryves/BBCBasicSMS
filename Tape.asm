@@ -24,8 +24,6 @@
 ; <-EAR = 2 Port B Down ($DC.7)
 ; MOTOR = 9 Port B TR ($3F.6)
 
-Options   = allocVar(1)
-
 InputPort = $DC
 InputBit  = 7
 
@@ -72,7 +70,7 @@ Reset:
 	out ($3F),a
 	
 	ld a,%00000101
-	ld (Options),a
+	ld (File.Options),a
 	
 	ei
 	ret
@@ -499,9 +497,9 @@ GetFile.ValidFilename:
 	push ix
 	
 	; Will we be suppressing messages?
-	ld a,(Options)
+	ld a,(File.Options)
 	or %10000000 ; Show messages
-	ld (Options),a
+	ld (File.Options),a
 	and %00000011
 	jr nz,+
 	
@@ -513,9 +511,9 @@ GetFile.ValidFilename:
 	jr z,+
 	
 	; We've asked to suppress messages, and HL<>0.
-	ld a,(Options)
+	ld a,(File.Options)
 	and %01111111
-	ld (Options),a
+	ld (File.Options),a
 	
 +:
 
@@ -557,7 +555,7 @@ GetFile.SetSearching:
 	jr z,+
 	
 	; If not, print "Searching".
-	ld a,(Options)
+	ld a,(File.Options)
 	add a,a
 	jr nc,+
 	ld hl,Searching
@@ -672,7 +670,7 @@ GetFile.NoDataCRC:
 	; Are we loading a file?
 	
 	; We can't load if there's an error.
-	ld a,(Options)
+	ld a,(File.Options)
 	and %00001100
 	jr z,+
 	ld a,(LoadBlockError)
@@ -734,7 +732,7 @@ GetFile.NonEmptyFilename:
 	set Host.Loading,a
 	ld (Host.Flags),a
 	
-	ld a,(Options)
+	ld a,(File.Options)
 	add a,a
 	jr nc,+
 	ld hl,Loading
@@ -757,7 +755,7 @@ GetFile.NewBlockFilename:
 
 	; The block name has changed, so move to the next line.
 	push af
-	ld a,(Options)
+	ld a,(File.Options)
 	add a,a
 	jr nc,+
 	.bcall "VDU.CursorDown"
@@ -767,7 +765,7 @@ GetFile.SameBlockFilename:
 	
 	; Print header information.
 	push af
-	ld a,(Options)
+	ld a,(File.Options)
 	add a,a
 	jr nc,+
 	.bcall "VDU.HomeLeft"
@@ -848,7 +846,7 @@ GetFile.SkipBlockNameNumberDoubleCheck:
 	jr z,GetFile.NoLoadingError
 	
 	; Display information about the error.
-	ld a,(Options)
+	ld a,(File.Options)
 	and %00001100
 	jr z,GetFile.IgnoreError
 	
@@ -864,14 +862,14 @@ GetFile.SkipBlockNameNumberDoubleCheck:
 	
 
 GetFile.IgnoreError:
-	ld a,(Options)
+	ld a,(File.Options)
 	add a,a
 	jr nc,+
 	.bcall "VDU.PutStringWithNewLines"
 +:	call GetFile.RememberLastBlockNameAndNumber
 	
 	; Ignore the error if appropriate.
-	ld a,(Options)
+	ld a,(File.Options)
 	and %00001100
 	jr z,GetFile.NoLoadingError
 	
@@ -880,7 +878,7 @@ GetFile.IgnoreError:
 	bit Host.Loading,a
 	jp z,GetFile.SetSearching
 	
-	ld a,(Options)
+	ld a,(File.Options)
 	add a,a
 	jr nc,+
 	ld hl,RewindTape
@@ -908,7 +906,7 @@ GetFile.EndOfFile:
 	jp z,GetFile.AwaitNextBlock
 	
 	; We've loaded the whole file successfully!
-	ld a,(Options)
+	ld a,(File.Options)
 	add a,a
 	jr nc,+
 	ld a,'\r'
@@ -1366,7 +1364,7 @@ WriteFile:
 	ret c
 	
 	; Skip the prompt if we've disabled messages.
-	ld a,(Options)
+	ld a,(File.Options)
 	and %00000011
 	jr z,+
 	
@@ -1638,7 +1636,7 @@ WriteEmptyBlock:
 +:
 
 	; Are we printing block names?
-	ld a,(Options)
+	ld a,(File.Options)
 	and %00000011
 	jr z,+
 	
@@ -1702,7 +1700,7 @@ FinishedWriteFile:
 	ld (IOControl),a
 	out ($3F),a
 	
-	ld a,(Options)
+	ld a,(File.Options)
 	and %0000011
 	jr z,+
 	.bcall "VDU.Console.NewLine"
@@ -1798,7 +1796,7 @@ PrintedEndOfFilename:
 	pop hl
 	
 	; Are we showing the start/execution addresses?
-	ld a,(Options)
+	ld a,(File.Options)
 	and %00000011
 	cp 2
 	jr nz,PrintBlockDetailsNameNumberOnly

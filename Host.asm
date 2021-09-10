@@ -20,7 +20,6 @@ GetKeyPending = 1
 CursorKeysFixed = 2
 EscapeKeyDisabled = 3
 EscapeErrorDisabled = 4
-TapeFS = 5
 Loading = 6
 
 OSLINE.Override = allocVar(2)
@@ -1086,9 +1085,15 @@ OSLOAD:
 	push de
 	
 	
-	ld a,(Flags)
-	and 1<<TapeFS
-	jr nz,OSLOAD.Tape
+	ld a,(File.FileSystem)
+	cp File.FileSystems.Tape1200
+	jr z,OSLOAD.Tape
+	cp File.FileSystems.Tape300
+	jr z,OSLOAD.Tape
+	cp File.FileSystems.PCLink2
+	jr z,OSLOAD.PCLink
+	
+	jp DeviceFault
 	
 OSLOAD.PCLink:
 	.bcall "VDU.BeginBlinkingCursor"
@@ -1203,9 +1208,15 @@ WriteEOF:
 ; ==========================================================================
 OSSAVE:
 
-	ld a,(Flags)
-	and 1<<TapeFS
-	jr nz,OSSAVE.Tape
+	ld a,(File.FileSystem)
+	cp File.FileSystems.Tape1200
+	jr z,OSSAVE.Tape
+	cp File.FileSystems.Tape300
+	jr z,OSSAVE.Tape
+	cp File.FileSystems.PCLink2
+	jr z,OSSAVE.PCLink2
+	
+	jp DeviceFault
 
 OSSAVE.PCLink2:
 	.bcall "VDU.BeginBlinkingCursor"
@@ -2364,29 +2375,29 @@ OSBYTE.SetFileSystemOptions:
 
 OSBYTE.ResetFileSystemOptions:
 	ld a,%00000101
-	ld (Tape.Options),a
+	ld (File.Options),a
 	ld a,139
 	ret
 
 OSBYTE.SetFileSystemMessageOptions:
 	cp 3
 	jp nc,CLI.BadCommand
-	ld a,(Tape.Options)
+	ld a,(File.Options)
 	and %11111100
 	or h
-	ld (Tape.Options),a
+	ld (File.Options),a
 	ld a,139
 	ret
 
 OSBYTE.SetFileSystemErrorOptions:
 	cp 3
 	jp nc,CLI.BadCommand
-	ld a,(Tape.Options)
+	ld a,(File.Options)
 	and %11110011
 	sla h
 	sla h
 	or h
-	ld (Tape.Options),a
+	ld (File.Options),a
 	ld a,139
 	ret
 

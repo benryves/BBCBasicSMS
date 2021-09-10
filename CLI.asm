@@ -357,10 +357,18 @@ SerialTerminal:
 Catalogue:
 	call SkipWhitespace
 	
-	ld a,(Host.Flags)
-	and 1<<Host.TapeFS
-	jp nz,Catalogue.Tape
+	ld a,(File.FileSystem)
+	cp File.FileSystems.Tape1200
+	jp z,Catalogue.Tape
+	cp File.FileSystems.Tape300
+	jp z,Catalogue.Tape
+	cp File.FileSystems.PCLink2
+	jp z,Catalogue.PCLink2
 	
+	jp BadCommand
+
+
+Catalogue.PCLink2:
 	; Is there an argument?
 	ld a,(hl)
 	or a
@@ -671,11 +679,8 @@ FXGotArguments:
 	ret
 
 Tape:
-	ld a,(Host.Flags)
-	or 1<<Host.TapeFS
-	ld (Host.Flags),a
-	
-	call Tape.Reset
+	ld a,File.FileSystems.Tape1200
+	call File.SetFileSystem
 	
 	ld a,(hl)
 	or a
@@ -688,12 +693,19 @@ Tape:
 	
 	call CheckCommandEnd
 	
-+:	scf
++:	call Tape.Reset
+	scf
 	ret
 
 Tape300:
+	ld a,File.FileSystems.Tape300
+	call File.SetFileSystem
+	ret
+
 Tape1200:
-	jp Host.Sorry
+	ld a,File.FileSystems.Tape1200
+	call File.SetFileSystem
+	ret
 
 TapeSubcommands:
 	osclicommand("3", Tape300)
@@ -701,9 +713,8 @@ TapeSubcommands:
 	.db 0
 
 PCLink2:
-	ld a,(Host.Flags)
-	and ~(1<<Host.TapeFS)
-	ld (Host.Flags),a
+	ld a,File.FileSystems.PCLink2
+	call File.SetFileSystem
 	
 	call Serial.Reset
 	

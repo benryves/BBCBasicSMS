@@ -174,6 +174,7 @@ FinishedFrameInterrupt:
 .include "CLI.asm"
 .include "Tape.asm"
 .include "Sound.asm"
+.include "File.asm"
 
 Boot:
 	; Make sure SP points somewhere sensible.
@@ -280,6 +281,9 @@ Main:
 	
 	; Sound initialisation.
 	call Sound.Reset
+	
+	; File system reset.
+	call File.Reset
 	
 	; Sign on message.
 	ld hl,SignOnMessage
