@@ -1212,12 +1212,15 @@ PutMap.NoClipTop:
 	ld b,a
 
 PutMap.NoClipBottom:
+	
+	ld a,b
+	or a
 
 	ld a,(TransformedPoint0X)
 	ld d,a
 	ld a,(TransformedPoint0Y)
 	ld e,a
-	call PlotTransformedSprite
+	call nz,PlotTransformedSprite
 
 PutMap.ReturnPrint:
 	pop af
@@ -1234,39 +1237,50 @@ PutMap.ReturnNoPrint:
 	jr -
 
 GetCursorMinXHL:
+	push bc
 	ld hl,(MinX)
 	ld h,0
-	call SubHL8
+	ld bc,(OffsetX)
+	ld b,0
+	or a
+	sbc hl,bc
+	pop bc
 	ret
 
 GetCursorMaxXHL:
+	push bc
 	ld hl,(MaxX)
 	ld h,0
 	inc hl
-	call SubHL8
-	ret
-
-SubHL8:
-	push af
-	ld a,l
-	sub 8
-	ld l,a
-	jr nc,+
-	dec h
-+:	pop af
+	ld bc,(OffsetX)
+	ld b,0
+	or a
+	sbc hl,bc
+	pop bc
 	ret
 	
 GetCursorMinYHL:
+	push bc
 	ld hl,(MaxY)
 	ld h,0
 	call Sub191HL
-	dec hl
+	ld bc,(OffsetY)
+	ld b,0
+	scf
+	sbc hl,bc
+	pop bc
 	ret
 
 GetCursorMaxYHL:
+	push bc
 	ld hl,(MinY)
 	ld h,0
 	call Sub191HL
+	ld bc,(OffsetY)
+	ld b,0
+	or a
+	sbc hl,bc
+	pop bc
 	ret
 
 Sub191HL:
@@ -1279,46 +1293,32 @@ Sub191HL:
 	ret
 
 GetCursorMinXBC:
-	ld bc,(MinX)
-	ld b,0
-	call SubBC8
+	push hl
+	call GetCursorMinXHL
+	ld b,h
+	ld c,l
+	pop hl
 	ret
 
 GetCursorMaxXBC:
-	ld bc,(MaxX)
-	ld b,0
-	inc bc
-	call SubBC8
+	push hl
+	call GetCursorMaxXHL
+	ld b,h
+	ld c,l
+	pop hl
 	ret
-
-SubBC8:
-	push af
-	ld a,c
-	sub 8
-	ld c,a
-	jr nc,+
-	dec b
-+:	pop af
-	ret
-
+	
 GetCursorMinYBC:
-	ld bc,(MaxY)
-	ld b,0
-	call Sub191BC
-	dec bc
+	push hl
+	call GetCursorMinYHL
+	ld b,h
+	ld c,l
+	pop hl
 	ret
 
 GetCursorMaxYBC:
-	ld bc,(MinY)
-	ld b,0
-	call Sub191BC
-	ret
-
-Sub191BC:
 	push hl
-	ld hl,191
-	or a
-	sbc hl,bc
+	call GetCursorMaxYHL
 	ld b,h
 	ld c,l
 	pop hl
