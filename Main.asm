@@ -159,6 +159,7 @@ FinishedFrameInterrupt:
 	ld (FrameCounter),a
 	
 	pop af
+	ei
 	reti
 
 ; Libraries:
