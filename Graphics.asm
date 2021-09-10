@@ -693,24 +693,55 @@ PlotLine.Steep:
 PlotLine.Shallow:
 	; Line is shallow
 
-	; Ensure that we draw it from left to right, so swap (D,E) and (H,L) if necessary.
-	ld a,d
-	cp h
+	; Ensure that we draw it from top to bottom, so swap (D,E) and (H,L) if necessary.
+	ld a,e
+	cp l
 	jr c,+
 	ex de,hl
 +:
 
-	; Ensure that when we adjust the Y coordinate, we move in the correct direction
-	ld a,e
-	cp l
+	; Are we going from left to right, or right to left?
 	ld l,c
-	ld c,+1
-	jr c,+
-	ld c,-1
-+:
-
+	ld a,d
+	cp h
 	ld h,b
+	jr c,PlotLine.Shallow.LeftToRight
+
+PlotLine.Shallow.RightToLeft:
 	
+	; H = |dx|, L = |dy|
+
+	ld b,h
+	inc b
+	ld a,h ; Initial error
+	srl a
+	neg
+	
+-:	push hl
+	push de
+	push bc
+	push af
+	call SetPixel
+	pop af
+	pop bc
+	pop de
+	pop hl
+	
+	dec d ; Always moving left
+	
+	add a,l
+	jr nc,+
+	sub h
+	
+	inc e ; Always moving down
+	
++:	
+	djnz -
+	
+	ret
+	
+PlotLine.Shallow.LeftToRight:
+
 	; H = |dx|, L = |dy|
 
 	ld b,h
@@ -735,15 +766,11 @@ PlotLine.Shallow:
 	jr nc,+
 	sub h
 	
-	push af
-	ld a,e
-	add a,c
-	ld e,a
-	pop af
+	inc e ; Always moving down
 	
 +:	
 	djnz -
-	
+
 	ret
 
 ; ==========================================================================
