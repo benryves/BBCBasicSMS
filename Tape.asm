@@ -1873,7 +1873,7 @@ PrintBlockDetailsNameNumberOnly:
 	ret
 
 ; ==========================================================================
-; Open
+; FileOpen
 ; --------------------------------------------------------------------------
 ; Opens a file.
 ; --------------------------------------------------------------------------
@@ -1883,9 +1883,10 @@ PrintBlockDetailsNameNumberOnly:
 ;             IX+2: File system.
 ;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
 ;             HL: Pointer to CR-terminated filename.
+; Outputs:    The file should be opened, if not IX+3 should be set to 0.
 ; Destroyed:  AF, HL.
 ; ==========================================================================
-Open:
+FileOpen:
 	ld a,(ix+3)
 	cp 3
 	jr nz,+
@@ -2099,6 +2100,141 @@ GetSpecificBlock.GotCorrectBlock:
 	ld (hl),0
 	
 	; All done!
+	ret
+
+; ==========================================================================
+; IsEndOfBlock
+; --------------------------------------------------------------------------
+; Determines whether an open file pointer is at the end of the block.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Outputs:    F: Z if at the end of the block, NZ if not.
+;             A: Data byte under the current file pointer if not at end.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+IsEndOfBlock:
+	ld e,(ix+0)
+	ld d,(ix+1)
+	ld hl,11+2 ; Filename + block number
+	add hl,de
+	
+	ld c,(hl)
+	inc hl
+	ld b,(hl)
+	
+	; BC = Pointer within file.
+	
+	ld hl,16+256+4+4+2
+	add hl,de
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	
+	; DE = Length of block.
+	
+	; Are we at the end of the block?
+	ld l,e
+	ld h,d
+	or a
+	sbc hl,bc
+	ret z
+	
+	; We're not!
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld de,16
+	add hl,de
+	add hl,bc
+	ld a,(hl)
+	ret
+
+; ==========================================================================
+; FileIsEOF
+; --------------------------------------------------------------------------
+; Determines whether an open file pointer is at the end-of-file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Outputs:    F: Z if at the end-of-file, NZ if not.
+;             A: Data byte under the current file pointer if not at end.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileIsEOF:
+	call IsEndOfBlock
+	ret nz
+	
+	; First check to see if the block flag indicates this was the last block.
+	ld e,(ix+0)
+	ld d,(ix+1)
+	ld hl,16+256+4+4+2+2 ; Block flag
+	add hl,de
+	ld a,(hl)
+	cpl
+	bit 7,a
+	ret z
+	
+	; Not the last block! So we can now fetch the next block.
+	
+	; Advance the block pointer.
+	ld hl,11 ; Filename
+	add hl,de
+	
+	ld c,(hl)
+	inc hl
+	ld b,(hl)
+	
+	inc bc
+	
+	ld (hl),b
+	dec hl
+	ld (hl),c
+	
+	; Fetch the block, then test again.
+	call GetSpecificBlock
+	jr FileIsEOF
+
+; ==========================================================================
+; FileGetByte
+; --------------------------------------------------------------------------
+; Gets a byte from a file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileGetByte:
+	call FileIsEOF
+	jp z,File.EOF
+	
+	push af
+	
+	; Advance the read pointer.
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld de,11+2 ; Filename + block number
+	add hl,de
+	
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	
+	inc de
+	
+	ld (hl),d
+	dec hl
+	ld (hl),e
+	
+	pop af
 	ret
 
 .endmodule

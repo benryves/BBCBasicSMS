@@ -254,9 +254,9 @@ Open:
 	
 	ld a,(FileSystem)
 	cp FileSystems.Tape1200
-	jp z,Tape.Open
+	jp z,Tape.FileOpen
 	cp FileSystems.Tape300
-	jp z,Tape.Open
+	jp z,Tape.FileOpen
 	
 	pop bc
 	ld (ix+3),0 ; Close
@@ -314,6 +314,107 @@ CloseAll:
 	ret
 
 ; ==========================================================================
+; GetByte
+; --------------------------------------------------------------------------
+; Read a single byte from an open file.
+; --------------------------------------------------------------------------
+; Inputs:     E: The file handle (channel number).
+; Outputs:    A: The byte read from the file.
+; Destroyed:  AF, BC.
+; ==========================================================================
+GetByte:
+	push ix
+	
+	; Get the handle.
+	ld a,e
+	call GetHandle
+	
+	; Could we retrieve it?
+	jp nz,Channel
+	
+	; Is it open for reading?
+	bit 1,(ix+3)
+	jp z,Channel
+	
+	push hl
+	push de
+	push bc
+	
+	ld bc,DoneGetByte
+	push bc
+	
+	ld a,(ix+2)
+	
+	cp FileSystems.Tape1200
+	jp z,Tape.FileGetByte
+	
+	cp FileSystems.Tape300
+	jp z,Tape.FileGetByte
+	
+	; Unsupported device.
+	pop bc
+	pop de
+	pop hl
+	pop ix
+	jp Host.DeviceFault
+	
+DoneGetByte:
+
+	pop bc
+	pop de
+	pop hl
+	pop ix
+	ret
+
+; ==========================================================================
+; IsEOF
+; --------------------------------------------------------------------------
+; Determines whether an open file pointer is at the end-of-file.
+; --------------------------------------------------------------------------
+; Inputs:     E: The file handle (channel number).
+; Outputs:    F: If at the end-of-file, return Z.
+;                If not at end-of file, return NZ.
+; Destroyed:  AF, DE, HL.
+; ==========================================================================
+IsEOF:
+	push ix
+	
+	; Get the handle.
+	ld a,e
+	call GetHandle
+	
+	; Could we retrieve it?
+	jp nz,Channel
+	
+	; Is it open for reading?
+	bit 1,(ix+3)
+	jp z,Channel
+	
+	push bc
+	
+	ld bc,DoneIsEOF
+	push bc
+	
+	ld a,(ix+2)
+	
+	cp FileSystems.Tape1200
+	jp z,Tape.FileIsEOF
+	
+	cp FileSystems.Tape300
+	jp z,Tape.FileIsEOF
+	
+	; Unsupported device.
+	pop bc
+	pop ix
+	jp Host.DeviceFault
+	
+DoneIsEOF:
+
+	pop bc
+	pop ix
+	ret
+
+; ==========================================================================
 ; Channel
 ; --------------------------------------------------------------------------
 ; Triggers the "Channel" error.
@@ -322,5 +423,15 @@ Channel:
 	ld a,222
 	call Basic.BBCBASIC_EXTERR
 	.db "Channel",0
+
+; ==========================================================================
+; EOF
+; --------------------------------------------------------------------------
+; Triggers the "EOF" error.
+; ==========================================================================
+EOF:
+	ld a,223
+	call BASIC.BBCBASIC_EXTERR
+	.db "EOF",0
 
 .endmodule
