@@ -1173,22 +1173,10 @@ BitDelayShort:
 ; ==========================================================================
 WriteByte:
 	push bc
-
-.if 0
-	push hl
-	push de
-	.bcall "VDU.PutHexByte"
-	ld a,' '
-	.bcall "VDU.PutChar"
-	ld a,' '
-	.bcall "VDU.PutChar"
-	pop de
-	pop hl
-.endif
-
+	
 	ld c,a
 	ld b,9 ; start bit, 8 data bits
-
+	
 	or a
 	
 	; Start/data bit + long delay
