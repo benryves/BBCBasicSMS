@@ -63,8 +63,11 @@ Reset:
 	di
 	ld a,(IOControl)
 	
-	; Weakly pull the data output and motor outputs high.
-	or (1 << OutputBit) | (1 << MotorBit) | (1 << (OutputBit - 4)) | (1 << (MotorBit - 4))
+	; Weakly pull the data output high.
+	or (1 << OutputBit) | (1 << (OutputBit - 4))
+	
+	; Drive the motor output low.
+	and ~((1 << MotorBit) | (1 << (MotorBit - 4)))
 	
 	ld (IOControl),a
 	out ($3F),a
@@ -102,7 +105,8 @@ SetMotorState:
 MotorOn:
 	di
 	ld a,(IOControl)
-	and ~((1 << MotorBit) | (1 << (MotorBit - 4)))
+	or 1 << MotorBit
+	and ~(1 << (MotorBit - 4))
  	ld (IOControl),a
 	out ($3F),a
 	ei
@@ -119,7 +123,7 @@ MotorOn:
 MotorOff:
 	di
 	ld a,(IOControl)
-	or (1 << MotorBit) | (1 << (MotorBit - 4))
+	and ~((1 << MotorBit) | (1 << (MotorBit - 4)))
 	ld (IOControl),a
 	out ($3F),a
 	ei
@@ -912,6 +916,30 @@ GetFile.EndOfFile:
 	ld a,'\r'
 	.bcall "VDU.PutChar"
 +:
+	
+	; Wait for the carrier tone to finish.
+	.bcall "VDU.BeginBlinkingCursor"
+
+GetFile.WaitCarrierEnd:
+	ei
+	halt
+	
+	pop ix
+	call KeyboardBuffer.GetDeviceKey
+	call Host.CheckEscape
+	push ix
+	
+	.bcall "VDU.DrawBlinkingCursor"
+	
+	call GetBit
+	jr z,GetFile.FinalCarrierEnded  ; No bit.
+	jr nc,GetFile.FinalCarrierEnded  ; Zero bit, not carrier!
+	jr GetFile.WaitCarrierEnd
+
+GetFile.FinalCarrierEnded:	
+
+	.bcall "VDU.EndBlinkingCursor"
+	
 	call MotorOff
 	
 	pop ix
