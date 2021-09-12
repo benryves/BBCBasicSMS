@@ -1893,6 +1893,27 @@ FileOpen:
 	ld (ix+3),0
 	jp Host.DeviceFault
 +:
+
+	; Validate the filename.
+	bit 1,(ix+3)
+	jr z,FileOpenSkipEmptyFilenameCheck
+	
+	ld a,(hl)
+	call NormaliseFilenameCharacter
+	or a
+	jr z,FileOpenFilenameApproved
+
+FileOpenSkipEmptyFilenameCheck:
+	push hl
+	call ValidateFilename
+	pop hl
+	jr z,FileOpenFilenameApproved
+	
+	ld (ix+3),0
+	jp Host.BadString
+
+FileOpenFilenameApproved:
+
 	; Data storage for opened files:
 	; 11 bytes of filename (CR-terminated)
 	; 2 bytes for current block number
