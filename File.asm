@@ -461,6 +461,53 @@ DoneGetPointer:
 	pop bc
 	pop ix
 	ret
+
+; ==========================================================================
+; SetPointer
+; --------------------------------------------------------------------------
+; Update the sequential pointer of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     A: The file handle (channel number).
+;             DEHL: The new file pointer.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+SetPointer:
+	push ix
+	
+	; Get the handle.
+	call GetHandle
+	
+	; Could we retrieve it?
+	jp nz,Channel
+	
+	; Is it open for reading or writing?
+	ld a,(ix+3)
+	and 3
+	jp z,Channel
+	
+	push bc
+	
+	ld bc,DoneSetPointer
+	push bc
+	
+	ld a,(ix+2)
+	
+	cp FileSystems.Tape1200
+	jp z,Tape.FileSetPointer
+	
+	cp FileSystems.Tape300
+	jp z,Tape.FileSetPointer
+	
+	; Unsupported device.
+	pop bc
+	pop ix
+	jp Host.DeviceFault
+	
+DoneSetPointer:
+	
+	pop bc
+	pop ix
+	ret
 	
 ; ==========================================================================
 ; Channel

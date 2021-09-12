@@ -2297,4 +2297,70 @@ FileGetPointer:
 	pop ix
 	ret
 
+; ==========================================================================
+; SetPointer
+; --------------------------------------------------------------------------
+; Update the sequential pointer of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+;             DEHL: the new 32-bit pointer.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileSetPointer:
+	
+	; We can't seek inside files being written.
+	bit 0,(ix+3)
+	jp nz,Host.DeviceFault
+	
+	push de
+	push hl
+	
+	call FileGetPointer
+	
+	ld c,l
+	ld b,h
+	
+	pop hl
+	or a
+	sbc hl,bc
+	
+	ld c,e
+	ld b,d
+	
+	pop de
+	ex de,hl
+	sbc hl,bc
+	ex de,hl
+	
+	; Are we trying to seek backwards?
+	bit 7,d
+	jp nz,Host.DeviceFault
+	
+	; Are we seeking nowhere?
+-:	ld a,l
+	or h
+	or e
+	or d
+	ret z
+	
+	; Seek by reading dummy bytes.
+	push hl
+	push de
+	call FileGetByte
+	pop de
+	pop hl
+	
+	ld bc,1
+	or a
+	sbc hl,bc
+	ex de,hl
+	dec bc
+	sbc hl,bc
+	ex de,hl
+	jr -
+
 .endmodule
