@@ -623,53 +623,7 @@ GetFile.CheckEscapeLoop:
 	call GetBlock
 	jr z,GetFile.AwaitNextBlock
 	
-	; Check the header CRC16.
-	ld de,(TempPtr)
-	inc d
-	scf
-	dec hl
-	sbc hl,de
-	ld c,l
-	ld b,h
-	call CRC16
-	
-	ld d,(ix+Header.CRC+0) ; \ Intentionally byte-swapped.
-	ld e,(ix+Header.CRC+1) ; /
-	or a
-	sbc hl,de
-	jr z,+
-	
-	ld a,217
-	ld (LoadBlockError),a
-	ld hl,HeaderError
-	ld (LoadBlockReport),hl	
-+:
-
-	; Check the data CRC16.
-	ld c,(ix+Header.DataBlockLength+0)
-	ld b,(ix+Header.DataBlockLength+1)
-	ld a,b
-	or c
-	jr z,GetFile.NoDataCRC
-	
-	ld de,(TempPtr)
-	call CRC16
-	
-	ld d,(ix+Header.DataCRC+0) ; \ Intentionally byte-swapped.
-	ld e,(ix+Header.DataCRC+1) ; / 
-	or a
-	sbc hl,de
-	jr z,+
-	
-	ld a,216
-	ld (LoadBlockError),a
-	ld hl,DataError
-	ld (LoadBlockReport),hl
-	
-+:
-
-
-GetFile.NoDataCRC:
+	call CheckBlockCRCs
 
 	; Are we loading a file?
 	
@@ -1005,6 +959,67 @@ BlockError:
 .db "\rBlock?\r",0
 RewindTape:
 .db "Rewind tape\r\r",0
+
+; ==========================================================================
+; CheckBlockCRCs
+; --------------------------------------------------------------------------
+; Check CRCs of a just-received block.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to block data.
+;             HL: Pointer to one byte past the end of the block header.
+;             IX and HL will be set up correctly after GetBlock.
+;             TempPtr: Pointer to block data.
+;                      Block header must appear 256 bytes after block data.
+; Outputs:    LoadBlockError: Error number if there was a CRC error.
+;             LoadBlockReport: Error message if there was a CRC error.
+; Destroyed:  AF, BC, HL, DE.
+; ==========================================================================
+CheckBlockCRCs:
+	; Check the header CRC16.
+	ld de,(TempPtr)
+	inc d
+	scf
+	dec hl
+	sbc hl,de
+	ld c,l
+	ld b,h
+	call CRC16
+	
+	ld d,(ix+Header.CRC+0) ; \ Intentionally byte-swapped.
+	ld e,(ix+Header.CRC+1) ; /
+	or a
+	sbc hl,de
+	jr z,+
+	
+	ld a,217
+	ld (LoadBlockError),a
+	ld hl,HeaderError
+	ld (LoadBlockReport),hl	
++:
+
+	; Check the data CRC16.
+	ld c,(ix+Header.DataBlockLength+0)
+	ld b,(ix+Header.DataBlockLength+1)
+	ld a,b
+	or c
+	ret z
+	
+	ld de,(TempPtr)
+	call CRC16
+	
+	ld d,(ix+Header.DataCRC+0) ; \ Intentionally byte-swapped.
+	ld e,(ix+Header.DataCRC+1) ; / 
+	or a
+	sbc hl,de
+	jr z,+
+	
+	ld a,216
+	ld (LoadBlockError),a
+	ld hl,DataError
+	ld (LoadBlockReport),hl
+	
++:
+	ret
 
 ; ==========================================================================
 ; ValidateFilename
@@ -1855,6 +1870,235 @@ PrintedEndOfFilename:
 PrintBlockDetailsNameNumberOnly:	
 	pop de
 	pop bc
+	ret
+
+; ==========================================================================
+; Open
+; --------------------------------------------------------------------------
+; Opens a file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+;             HL: Pointer to CR-terminated filename.
+; Destroyed:  AF, HL.
+; ==========================================================================
+Open:
+	ld a,(ix+3)
+	cp 3
+	jr nz,+
+	ld (ix+3),0
+	jp Host.DeviceFault
++:
+	; Data storage for opened files:
+	; 11 bytes of filename (CR-terminated)
+	; 2 bytes for current block number
+	; 2 bytes for current read/write pointer inside the block
+	; 1 byte padding
+	; 256 bytes block data storage
+	; 30 bytes of block header storage
+	
+	ld e,(ix+0)
+	ld d,(ix+1)
+	ld bc,11
+	ldir
+	
+	; Reset block number and access pointers to 0.
+	xor a	
+	ld b,4
+-:	ld (de),a
+	inc de
+	djnz -
+	
+	; At this point, are we reading or writing?
+	bit 1,(ix+3)
+	jp nz,GetSpecificBlock
+	
+	ld (ix+3),0
+	jp Host.DeviceFault
+
+; ==========================================================================
+; GetSpecificBlock
+; --------------------------------------------------------------------------
+; Gets a specific block from a file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data for an open file.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+GetSpecificBlock:
+	
+	call MotorOn
+
+GetSpecificBlock.SearchLoop:
+
+	.bcall "VDU.BeginBlinkingCursor"
+
+GetSpecificBlock.CheckEscapeLoop:
+	ei
+	halt
+	ld a,(ix+3)
+	push af
+	ld (ix+3),0
+	call KeyboardBuffer.GetDeviceKey
+	call Host.CheckEscape
+	pop af
+	ld (ix+3),a
+	.bcall "VDU.DrawBlinkingCursor"
+	
+	ld b,10
+-:	push bc
+	call GetBit
+	pop bc
+	jr z,GetSpecificBlock.CheckEscapeLoop  ; No bit.
+	jr nc,GetSpecificBlock.CheckEscapeLoop ; Zero bit, not carrier.
+	djnz -
+	
+	; If we get this far, we just received a long string of "1" bits in a row.
+	; It's the carrier!
+	.bcall "VDU.EndBlinkingCursor"
+	
+	; Set up HL->header, DE->data
+	
+	ld e,(ix+0)
+	ld d,(ix+1)
+	
+	ld hl,16
+	add hl,de
+	push hl
+	ld (TempPtr),hl
+	
+	ld hl,16+256
+	add hl,de
+	pop de
+	
+	; Assume there are no errors.
+	xor a
+	ld (LoadBlockError),a
+	
+	push ix
+	call GetBlock
+	jr nz,GetSpecificBlock.GotBlock
+	pop ix
+	jr GetSpecificBlock.SearchLoop ; Block couldn't be read, try again.
+
+GetSpecificBlock.GotBlock:
+
+	; Check the CRCs.
+	call CheckBlockCRCs
+	
+	ld a,(LoadBlockError)
+	or a
+	jr z,GetSpecificBlock.NoCRCError
+	
+	; Trigger an error if necessary.
+	pop ix
+	ld (ix+3),0
+	ld hl,(LoadBlockReport)
+	inc hl
+	push hl
+	jp Basic.BBCBASIC_EXTERR
+
+GetSpecificBlock.NoCRCError:
+	
+	; Is this the right block/file?
+	ld (TempPtr),ix
+	ld c,(ix+Header.BlockNumber+0)
+	ld b,(ix+Header.BlockNumber+1)
+	ld (TempSize),bc
+	pop ix
+	
+	; DE->desired filename
+	ld e,(ix+0)
+	ld d,(ix+1)
+	
+	; HL->block name
+	ld hl,256+16
+	add hl,de
+	
+	; Is the desired filename ""?
+	ld a,(de)
+	call NormaliseFilenameCharacter
+	or a
+	jr nz,GetSpecificBlock.NotEmptyFilename
+	
+	; Is this the first block?
+	ld bc,(TempSize)
+	ld a,b
+	or c
+	jr nz,GetSpecificBlock.NotEmptyFilename
+	
+	; It is, so copy the block name to the loaded filename.
+	push hl
+	push de
+	ld bc,11
+	ldir
+	pop de
+	pop hl
+
+GetSpecificBlock.NotEmptyFilename:
+
+	; Is that the right file?
+	call CompareFilename
+	
+	; Try the next block...
+	jp nz,GetSpecificBlock.SearchLoop
+	
+	; Is this the right block?
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld de,11
+	add hl,de
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	
+	; DE = desired block number.
+	ld hl,(TempSize)
+	or a
+	sbc hl,de
+	jr z,GetSpecificBlock.GotCorrectBlock
+	
+	; Block number mismatch, oh dear.
+	ld (ix+3),0
+	ld a,218
+	ld hl,BlockError+1
+	push hl
+	jp Basic.BBCBASIC_EXTERR
+
+GetSpecificBlock.GotCorrectBlock:
+
+	call MotorOff
+	
+	; For simplicity, shunt the block header << by the length of the filename.
+	ld e,(ix+0)
+	ld d,(ix+1)
+	ld hl,16+256
+	add hl,de
+	ld e,l
+	ld d,h
+	
+-:	ld a,(hl)
+	inc hl
+	or a
+	jr nz,-
+	
+	; 19 bytes to shift.
+	ld bc,19
+	ldir
+	
+	; Reset the data pointer to 0.
+	ld l,(ix+0)
+	ld h,(ix+1)
+	
+	ld de,11+2 ; Filename, block number
+	add hl,de
+	ld (hl),0
+	inc hl
+	ld (hl),0
+	
+	; All done!
 	ret
 
 .endmodule

@@ -118,9 +118,9 @@ GetHandle:
 ; Destroyed:  AF.
 ; ==========================================================================
 IsHandleVariableOpen:
-	ld a,(ix+2)
+	ld a,(ix+3)
 	srl a
-	or (ix+2)
+	or (ix+3)
 	and 1
 	xor 1
 	ret
@@ -237,20 +237,43 @@ CouldNotCreateHandle:
 ; Destroyed:  AF, BC, DE, HL.
 ; ==========================================================================
 Open:
-	cp 1 ; OPENUP
-	jr nz,+
-	
-	xor a
-	ret
-
-+:	add a,2 ; 1 = OPENOUT, 2 = OPENIN, 3 = OPENUP
+	add a,2 ; 1 = OPENOUT, 2 = OPENIN, 3 = OPENUP
+	push ix
 	push af
 	call CreateHandle
 	pop bc
-	ld (ix+2),b
+	ld (ix+3),b
+	ld b,a
+	ld a,(FileSystem)
+	ld (ix+2),a
+	ld a,b
 	push af
 	
+	ld bc,DoneOpen
+	push bc
+	
+	ld a,(FileSystem)
+	cp FileSystems.Tape1200
+	jp z,Tape.Open
+	cp FileSystems.Tape300
+	jp z,Tape.Open
+	
+	pop bc
+	ld (ix+3),0 ; Close
+	jp Host.DeviceFault
+
+DoneOpen:
+	
+	; Is the file still open?
+	ld a,(ix+3)
+	or a
+	jr nz,+
 	pop af
+	xor a
+	push af
++:	
+	pop af
+	pop ix
 	ret
 
 ; ==========================================================================
@@ -270,7 +293,7 @@ Close:
 	push ix
 	call GetHandle
 	jp nz,Channel
-	ld (ix+2),0
+	ld (ix+3),0
 	pop ix
 	
 	ret
