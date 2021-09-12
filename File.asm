@@ -279,7 +279,7 @@ DoneOpen:
 ; ==========================================================================
 ; Close
 ; --------------------------------------------------------------------------
-; Close a file previously opened with OSOPEN.
+; Close a file previously opened with Open.
 ; --------------------------------------------------------------------------
 ; Inputs:     E: The file handle (channel number) to close.
 ;                If E is 0 then all open files (if any) are closed.
@@ -293,7 +293,21 @@ Close:
 	push ix
 	call GetHandle
 	jp nz,Channel
+	
+	
+	ld bc,Closed
+	push bc
+	
+	ld a,(ix+2)
+	cp FileSystems.Tape1200
+	jp z,Tape.FileClose
+	
+	cp FileSystems.Tape300
+	jp z,Tape.FileClose
+
+Closed:
 	ld (ix+3),0
+	
 	pop ix
 	
 	ret

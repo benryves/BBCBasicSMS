@@ -871,28 +871,7 @@ GetFile.EndOfFile:
 	.bcall "VDU.PutChar"
 +:
 	
-	; Wait for the carrier tone to finish.
-	.bcall "VDU.BeginBlinkingCursor"
-
-GetFile.WaitCarrierEnd:
-	ei
-	halt
-	
-	pop ix
-	call KeyboardBuffer.GetDeviceKey
-	call Host.CheckEscape
-	push ix
-	
-	.bcall "VDU.DrawBlinkingCursor"
-	
-	call GetBit
-	jr z,GetFile.FinalCarrierEnded  ; No bit.
-	jr nc,GetFile.FinalCarrierEnded  ; Zero bit, not carrier!
-	jr GetFile.WaitCarrierEnd
-
-GetFile.FinalCarrierEnded:	
-
-	.bcall "VDU.EndBlinkingCursor"
+	call WaitCarrierEnd
 	
 	call MotorOff
 	
@@ -1019,6 +998,34 @@ CheckBlockCRCs:
 	ld (LoadBlockReport),hl
 	
 +:
+	ret
+
+
+; ==========================================================================
+; WaitCarrierEnd
+; --------------------------------------------------------------------------
+; Wait for the carrier tone to finish.
+; --------------------------------------------------------------------------
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+WaitCarrierEnd:
+	; Wait for the carrier tone to finish.
+	.bcall "VDU.BeginBlinkingCursor"
+
+-:	ei
+	halt
+	
+	call KeyboardBuffer.GetDeviceKey
+	call Host.CheckEscape
+	
+	.bcall "VDU.DrawBlinkingCursor"
+	
+	call GetBit
+	jr z,+  ; No bit.
+	jr nc,+ ; Zero bit, not carrier!
+	jr -
+
++:	.bcall "VDU.EndBlinkingCursor"
 	ret
 
 ; ==========================================================================
@@ -2121,6 +2128,29 @@ GetSpecificBlock.GotCorrectBlock:
 	ld (hl),0
 	
 	; All done!
+	ret
+
+; ==========================================================================
+; FileClose
+; --------------------------------------------------------------------------
+; Close a file previously opened with FileOpen.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileClose:
+	bit 1,(ix+3)
+	jr nz,FileClose.Read
+	ret
+
+FileClose.Read:
+	call MotorOn
+	call WaitCarrierEnd
+	call MotorOff
 	ret
 
 ; ==========================================================================
