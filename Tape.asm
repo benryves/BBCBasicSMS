@@ -2231,6 +2231,7 @@ FileIsEOF:
 ;             IX+1: MSB of pointer to block storage data.
 ;             IX+2: File system.
 ;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Outputs:    A: The byte read from the file.
 ; Destroyed:  AF, BC, DE, HL.
 ; ==========================================================================
 FileGetByte:
@@ -2256,6 +2257,44 @@ FileGetByte:
 	ld (hl),e
 	
 	pop af
+	ret
+
+; ==========================================================================
+; FileGetPointer
+; --------------------------------------------------------------------------
+; Read the sequential pointer of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Outputs:    DEHL: the 32-bit pointer.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileGetPointer:
+	push ix
+	
+	ld l,(ix+0)
+	ld h,(ix+1)
+	
+	push hl
+	pop ix
+	
+	; DEHL = block number * 256
+	ld l,0
+	ld h,(ix+11+0)
+	ld e,(ix+11+1)
+	ld d,0
+	
+	ld c,(ix+11+2)
+	ld b,(ix+11+3)
+	
+	add hl,bc
+	jr nc,+
+	inc de
++:
+	pop ix
 	ret
 
 .endmodule

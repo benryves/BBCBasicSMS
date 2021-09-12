@@ -415,6 +415,54 @@ DoneIsEOF:
 	ret
 
 ; ==========================================================================
+; GetPointer
+; --------------------------------------------------------------------------
+; Read the sequential pointer of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     E: The file handle (channel number).
+; Outputs:    DEHL: the 32-bit pointer.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+GetPointer:
+	push ix
+	
+	; Get the handle.
+	ld a,e
+	call GetHandle
+	
+	; Could we retrieve it?
+	jp nz,Channel
+	
+	; Is it open for reading or writing?
+	ld a,(ix+3)
+	and 3
+	jp z,Channel
+	
+	push bc
+	
+	ld bc,DoneGetPointer
+	push bc
+	
+	ld a,(ix+2)
+	
+	cp FileSystems.Tape1200
+	jp z,Tape.FileGetPointer
+	
+	cp FileSystems.Tape300
+	jp z,Tape.FileGetPointer
+	
+	; Unsupported device.
+	pop bc
+	pop ix
+	jp Host.DeviceFault
+	
+DoneGetPointer:
+	
+	pop bc
+	pop ix
+	ret
+	
+; ==========================================================================
 ; Channel
 ; --------------------------------------------------------------------------
 ; Triggers the "Channel" error.
