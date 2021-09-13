@@ -313,6 +313,67 @@ GetOnOff.GotOff:
 	or a
 	ret
 
+; ==========================================================================
+; GetFilename
+; --------------------------------------------------------------------------
+; Gets a filename with optional "quotation marks" around it.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to command line.
+; Outputs:    HL: Pointer to next character in the command.
+;             DE: Pointer to string containing filename.
+; Destroyed:  AF.
+; ==========================================================================
+GetFilename:
+	call SkipWhitespace
+	
+	ld de,16
+	call Host.GetSafeScratchMemoryDE
+	ret c
+	
+	ld a,(hl)
+	cp '"'
+	jr z,GetFilenameWithQuotationMarks
+	
+	push de
+	
+-:	ld a,(hl)
+	ld (de),a
+	cp ' '
+	jr z,+
+	cp '\r'
+	jr z,+
+	inc hl
+	inc de
+	jr -
+
++:	ld a,'\r'
+	ld (de),a
+	pop de
+	ret
+
+GetFilenameWithQuotationMarks:
+	push de
+	inc hl
+	
+-:	ld a,(hl)
+	cp '"'
+	jr z,+
+	ld (de),a
+	inc de
+	inc hl
+	cp '\r'
+	jr nz,-
+	pop de
+	jp Host.BadString
+	
++:	ld a,'\r'
+	ld (de),a
+	inc hl
+	pop de
+	ret
+	
+	
+
 Terminal:
 	call CheckCommandEnd
 	ld hl,SerialTerminal
@@ -775,13 +836,76 @@ Options:
 	ld a,139
 	jp FX.SpecificFunction
 
+Spool:
+	ld a,(Host.SpoolHandle)
+	or a
+	jr z,Spool.FileNotOpen
+	
+	; Close the handle.
+	call CheckCommandEnd
+	ld de,(Host.SpoolHandle)
+	call File.Close
+	xor a
+	ld (Host.SpoolHandle),a
+	scf
+	ret
+
+Spool.FileNotOpen:
+	call SkipWhitespace
+	ld a,(hl)
+	cp '\r'
+	jr nz,+
+	scf
+	ret
+	
++:	call GetFilename
+	call CheckCommandEnd
+	ex de,hl
+	
+	ld a,-1
+	or a
+	call File.Open
+	
+	ld (Host.SpoolHandle),a
+	or a
+	jp z,Host.DeviceFault
+	scf
+	ret
+
+Exec:
+	ld a,(Host.ExecHandle)
+	or a
+	jr z,Exec.FileNotOpen
+	
+	ld a,(Host.ExecHandle)
+	call File.Close
+	xor a
+	ld (Host.ExecHandle),a
+
+Exec.FileNotOpen:
+
+	call GetFilename
+	call CheckCommandEnd
+	ex de,hl
+	
+	xor a
+	scf
+	call File.Open
+	
+	ld (Host.ExecHandle),a
+	or a
+	jp z,Host.DeviceFault
+	scf
+	ret
+
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
 	osclicommand("DIR", Catalogue)
 	osclicommand(".", Catalogue)
 	osclicommand("EDIT", Edit)
-	osclicommand("E.", Edit)
+	osclicommand("ED.", Edit)
 	osclicommand("SERIAL", Serial)
 	osclicommand("FX", FX)
 	osclicommand("TAPE", Tape)
@@ -794,6 +918,10 @@ Commands:
 	osclicommand("H.", Help)
 	osclicommand("OPT", Options)
 	osclicommand("O.", Options)
+	osclicommand("SPOOL", Spool)
+	osclicommand("SP.", Spool)
+	osclicommand("EXEC", Exec)
+	osclicommand("EX.", Exec)
 	.db 0
 
 .endmodule

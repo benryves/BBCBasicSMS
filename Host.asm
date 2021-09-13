@@ -25,6 +25,9 @@ Loading = 6
 OSLINE.Override = allocVar(2)
 OSWRCH.Override = allocVar(2)
 
+ExecHandle = allocVar(1)
+SpoolHandle = allocVar(1)
+
 ; ==========================================================================
 ; Subroutine environment
 ; --------------------------------------------------------------------------
@@ -50,6 +53,11 @@ OSINIT:
 	ld hl,0
 	ld (TIME+0),hl
 	ld (TIME+2),hl
+	
+	; Clear the exec/spool handles.
+	xor a
+	ld (ExecHandle),a
+	ld (SpoolHandle),a
 	
 	; Clear the flags.
 	xor a
@@ -864,9 +872,12 @@ OSLINE.Prefilled:
 ; Destroyed:  Nothing.
 ; ==========================================================================
 OSASCI:
-	.bcall "VDU.PutChar"
-	ei
-	ret
+	cp '\r'
+	jr nz,OSWRCH
+	ld a,'\n'
+	call OSWRCH
+	ld a,'\r'
+	jr OSWRCH
 
 ; ==========================================================================
 ; PROMPT
@@ -878,7 +889,8 @@ OSASCI:
 ; ==========================================================================
 PROMPT:
 	ld a,'>'
-	; Fall-through to OSWRCH
+	.bcall "VDU.PutChar"
+	ret
 
 ; ==========================================================================
 ; OSWRCH
@@ -891,6 +903,27 @@ PROMPT:
 OSWRCH:
 	push hl
 	push af
+	
+	ld a,(SpoolHandle)
+	or a
+	jr z,+
+	
+	pop af
+	push af
+	
+	push hl
+	push de
+	push bc
+	
+	ld de,(SpoolHandle)
+	call File.WriteByte
+	
+	pop bc
+	pop de
+	pop hl
+	
+	
++:
 	
 	ld hl,(OSWRCH.Override)
 	ld a,h
@@ -1036,6 +1069,18 @@ RESET:
 	push hl
 	push de
 	push bc
+	
+	ld a,(SpoolHandle)
+	or a
+	jr z,+
+	
+	ld b,a
+	xor a
+	ld (SpoolHandle),a
+	ld a,b
+	call File.Close
+	
++:
 	
 	; No custom OSLINE/OSWRCH handlers.
 	ld hl,0

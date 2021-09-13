@@ -336,6 +336,39 @@ GetKey:
 	push de
 	push bc
 	
+	ld a,(Host.ExecHandle)
+	or a
+	jr z,GetKey.Keyboard
+	
+	call File.GetHandle
+	jr nz,GetKey.HandleClosed
+	
+	ld de,(Host.ExecHandle)
+	call File.IsEOF
+	jr nz,+
+	
+	ld de,(Host.ExecHandle)
+	xor a
+	ld (Host.ExecHandle),a
+	call File.Close
+	
+	jr GetKey.Keyboard
+
++:	ld de,(Host.ExecHandle)
+	call File.GetByte
+
+	pop bc
+	pop de
+	pop hl
+	ret
+
+GetKey.HandleClosed:
+	xor a
+	ld (Host.ExecHandle),a
+
+GetKey.Keyboard:
+	
+	
 	; First things first, always process the incoming key.
 	; We do this even if the buffer is full.
 	call GetDeviceKey
