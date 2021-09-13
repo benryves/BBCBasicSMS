@@ -381,6 +381,64 @@ DoneGetByte:
 	ret
 
 ; ==========================================================================
+; WriteByte
+; --------------------------------------------------------------------------
+; Write a single byte to an open file.
+; --------------------------------------------------------------------------
+; Inputs:     E: The file handle (channel number).
+;             A: The value to write to the file.
+; Destroyed:  AF, BC.
+; ==========================================================================
+WriteByte:
+	push ix
+	
+	ld b,a
+	
+	; Get the handle.
+	ld a,e
+	call GetHandle
+	
+	; Could we retrieve it?
+	jp nz,Channel
+	
+	; Is it open for writing?
+	bit 0,(ix+3)
+	jp z,Channel
+	
+	push hl
+	push de
+	
+	ld a,b
+	
+	ld bc,DoneWriteByte
+	push bc
+	
+	ld b,a
+	
+	ld a,(ix+2)
+	
+	cp FileSystems.Tape1200
+	ld a,b
+	jp z,Tape.FileWriteByte
+	
+	cp FileSystems.Tape300
+	ld a,b
+	jp z,Tape.FileWriteByte
+	
+	; Unsupported device.
+	pop de
+	pop hl
+	pop ix
+	jp Host.DeviceFault
+	
+DoneWriteByte:
+
+	pop de
+	pop hl
+	pop ix
+	ret
+
+; ==========================================================================
 ; IsEOF
 ; --------------------------------------------------------------------------
 ; Determines whether an open file pointer is at the end-of-file.

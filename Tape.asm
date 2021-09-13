@@ -1120,6 +1120,25 @@ NormaliseFilenameCharacter:
 	and ~('a'-'A')
 	ret
 
+BeginWrite:
+	; Make the data output pin an output and hold it high by default.
+	di
+	ld a,(IOControl)
+	and ~(1 << (OutputBit - 4))
+	or 1 << OutputBit
+	ld (IOControl),a
+	out ($3F),a
+	ret
+
+EndWrite:
+	; Release the data output pin.
+	di
+	ld a,(IOControl)
+	or (1 << OutputBit) | (1 << (OutputBit - 4)) 
+	ld (IOControl),a
+	out ($3F),a
+	ret
+
 InvertOutput:
 	ld a,(IOControl)
 	xor 1 << OutputBit
@@ -1569,11 +1588,7 @@ WriteFile:
 	di
 	
 	; Make the data output pin an output and hold it high by default.
-	ld a,(IOControl)
-	and ~(1 << (OutputBit - 4))
-	or 1 << OutputBit
-	ld (IOControl),a
-	out ($3F),a
+	call BeginWrite
 
 WriteBlock:
 
@@ -1732,11 +1747,8 @@ FinishedWriteFile:
 	pop iy
 	pop ix
 	
-	; Release the data output pin.
-	ld a,(IOControl)
-	or (1 << OutputBit) | (1 << (OutputBit - 4)) 
-	ld (IOControl),a
-	out ($3F),a
+	; Release the data line.
+	call EndWrite
 	
 	ld a,(File.Options)
 	and %0000011
@@ -1945,8 +1957,21 @@ FileOpenFilenameApproved:
 	bit 1,(ix+3)
 	jp nz,GetSpecificBlock
 	
-	ld (ix+3),0
-	jp Host.DeviceFault
+	; Display the writing prompt.
+	ld a,(File.Options)
+	and %00000011
+	jr z,+
+	
+	; Display the "RECORD then RETURN" prompt.
+	ld hl,RecordThenReturn
+	.bcall "VDU.PutString"
+-:	call Host.CheckEscape
+	call Host.OSRDCH
+	cp '\r'
+	jr nz,-
+	.bcall "VDU.Console.NewLine"
++:
+	ret
 
 ; ==========================================================================
 ; GetSpecificBlock
@@ -2145,6 +2170,10 @@ GetSpecificBlock.GotCorrectBlock:
 FileClose:
 	bit 1,(ix+3)
 	jr nz,FileClose.Read
+
+FileClose.Write:
+	ld (ix+3),0
+	call FlushBlock
 	ret
 
 FileClose.Read:
@@ -2287,6 +2316,331 @@ FileGetByte:
 	ld (hl),e
 	
 	pop af
+	ret
+
+; ==========================================================================
+; FileWriteByte
+; --------------------------------------------------------------------------
+; Writes a byte to a file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+;             A: The byte to write to the file.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileWriteByte:
+	ld e,(ix+0)
+	ld d,(ix+1)
+	ld hl,11+2 ; Filename, block number
+	
+	add hl,de
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	
+	; DE = write pointer.
+	
+	; Have we filled the block?
+	push hl
+	
+	ld hl,256
+	or a
+	sbc hl,de
+	
+	push af
+	call z,FlushBlock
+	pop af
+	
+	pop hl
+	
+	; We have now flushed the block. Do we need to reset any pointers?
+	jr nz,FileWriteNotJustFlushed
+	
+	; Reset the data pointer and increment the block number.
+	ld (hl),0
+	dec hl
+	ld (hl),0
+	dec hl
+	ld d,(hl)
+	dec hl
+	ld e,(hl)
+	inc de
+	ld (hl),e
+	inc hl
+	ld (hl),d
+	
+	ld de,0 ; Reset the write pointer to 0.
+	
+FileWriteNotJustFlushed:
+	
+	; Store the data in the buffer.
+	ld l,(ix+0)
+	ld h,(ix+1)
+	push hl
+	
+	add hl,de
+	ld bc,16
+	add hl,bc
+	
+	ld (hl),a
+	
+	; Increment the write pointer.
+	inc de
+	pop hl
+	ld bc,11+2
+	add hl,bc
+	ld (hl),e
+	inc hl
+	ld (hl),d
+	ret
+
+; ==========================================================================
+; FlushBlock
+; --------------------------------------------------------------------------
+; Flushes a block to the tape.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FlushBlock:
+	
+	ld e,(ix+0)
+	ld d,(ix+1)
+	
+	ld hl,11
+	add hl,de
+	
+	; Block number
+	ld c,(hl)
+	inc hl
+	ld b,(hl)
+	inc hl
+	
+	ld (TempCapacity),bc
+	
+	; Block size
+	ld c,(hl)
+	inc hl
+	ld b,(hl)
+	
+	ld (TempSize),bc
+	
+	; Move to where we'll be storing the block header.
+	ld hl,16+256
+	add hl,de
+	ld (TempPtr),hl
+	
+	; HL->header storage area
+	; DE->filename
+
+	; First, the sync byte.
+	ld (hl),'*'
+	inc hl
+	
+	; Start writing the filename.
+-:	ld a,(de)
+	cp '\r'
+	jr nz,+
+	xor a
++:	ld (hl),a
+	inc hl
+	inc de
+	jr nz,-
+	
+	; Dummy load address and execution address.
+	xor a
+	ld b,8
+-:	ld (hl),a
+	inc hl
+	djnz -
+	
+	; Block number
+	ld bc,(TempCapacity)
+	ld (hl),c
+	inc hl
+	ld (hl),b
+	inc hl
+	
+	; Block size
+	ld bc,(TempSize)
+	ld (hl),c
+	inc hl
+	ld (hl),b
+	inc hl
+	
+	; Block flag
+	ld a,b
+	or c
+	ld a,0
+	jr nz,+
+	set 6,a
++:
+	; If the file is no longer open for writing, mark this as the final block.
+	bit 0,(ix+3)
+	jr nz,+
+	set 7,a
++:
+	ld (hl),a
+	inc hl
+	
+	; Address of next file.
+	xor a
+	ld b,4
+-:	ld (hl),a
+	inc hl
+	djnz -
+	
+	; How big is the header?
+	ld de,(TempPtr)
+	inc de ; sync byte
+	or a
+	sbc hl,de
+	
+	ld c,l
+	ld b,h
+	
+	push bc
+	
+	call CRC16
+	
+	pop bc
+	
+	ex de,hl
+	ld (hl),d ; \
+	inc hl    ;  > Intentionally byte-swapped.
+	ld (hl),e ; /
+	
+	; Start building the bytes list.
+	
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld de,16+256+30
+	add hl,de
+
+	ld de,(TempPtr)
+	ld (TempPtr),hl
+	
+	ld (hl),e
+	inc hl
+	ld (hl),d
+	inc hl
+	
+	inc bc ; sync byte
+	inc bc ; CRC
+	inc bc ; CRC
+	
+	ld (hl),c
+	inc hl
+	ld (hl),b
+	inc hl
+	
+	; Do we have any data for the bytes list?
+	ld de,(TempSize)
+	ld a,d
+	or e
+	ld b,1 ; List contents = header
+	jr z,FlushBytesList
+	
+	; We have data!
+	push hl
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld de,16
+	add hl,de
+	ex de,hl
+	pop hl
+	
+	; DE -> data
+	
+	ld (hl),e
+	inc hl
+	ld (hl),d
+	inc hl
+	
+	ld bc,(TempSize)
+	ld (hl),c
+	inc hl
+	ld (hl),b
+	inc hl
+
+	; We now need to append the CRC.
+	push de
+	
+	ld e,l
+	ld d,h
+	
+	inc de
+	inc de
+	inc de
+	inc de
+	
+	ld (hl),e
+	inc hl
+	ld (hl),d
+	inc hl
+	ld (hl),2
+	inc hl
+	ld (hl),0
+	inc hl
+	
+	pop de
+	
+	push hl
+	call CRC16
+	ex de,hl
+	pop hl
+	
+	ld (hl),d ; \
+	inc hl    ;  > Intentionally byte-swapped.
+	ld (hl),e ; /
+	
+	ld b,3 ; List contents = header, data, CRC.
+	
+FlushBytesList:
+
+	call MotorOn
+	call BeginWrite
+
+	; How long should the carrier lead-in be?
+	
+	; Is the block = 0?
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld de,11
+	add hl,de
+	ld a,(hl)
+	inc hl
+	or (hl)
+	
+	ld d,63 ; 1.26s.
+	jr nz,+
+	ld d,255 ; 5.1s
++:
+
+	; How long should the carrier lead-out be?
+	ld e,63 ; 1.26s
+	
+	; Is the file being closed?s
+	bit 0,(ix+3)
+	jr nz,+
+	ld e,255 ; 5.1s
++:
+
+	ld hl,(TempPtr)
+	call WriteBytesListWithCarrier
+	
+	call EndWrite
+	call MotorOff
+	
+	ei
+	
 	ret
 
 ; ==========================================================================
