@@ -23,9 +23,11 @@
 ; MIC-> = 7 Port B TH ($3F.7)
 ; <-EAR = 2 Port B Down ($DC.7)
 ; MOTOR = 9 Port B TR ($3F.6)
+; PHASE = 1 Port B Up ($DC.6)
 
 InputPort = $DC
 InputBit  = 7
+PhaseBit  = 6
 
 OutputPort = $3F
 OutputBit  = 7
@@ -142,9 +144,15 @@ GetWaveLength:
 	di
 	ld b,0
 	
+	; Get the phase bit.
+	in a,(InputPort)
+	add a,a
+	ld c,a
+	
 	; Wait for the level to go low.
 -:	in a,(InputPort)
-	bit InputBit,a
+	xor c
+	and 1 << InputBit
 	jr nz,+
 	inc b
 	jr nz,-
