@@ -198,6 +198,17 @@ GetWaveLength:
 	inc a ; Force NZ if Z before.
 	ret
 
+; ==========================================================================
+; GetInitialCarrier
+; --------------------------------------------------------------------------
+; Detects the initial carrier before a transmission and calibrates the
+; WaveLengthThreshold value to handle the incoming data.
+; --------------------------------------------------------------------------
+; Outputs:    F: Z if there was a timeout, NZ if the carrier was detected.
+;             WaveLengthThreshold: Set to the appropriate value.
+; Destroyed:  AF, BC, DE, HL.
+; Interrupts: Disabled.
+; ==========================================================================
 GetInitialCarrier:
 
 	; We must have at least two valid full waves before we continue.
