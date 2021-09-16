@@ -888,7 +888,11 @@ OSASCI:
 ; Destroyed:  AF, DE, HL.
 ; ==========================================================================
 PROMPT:
+	ld hl,(OSWRCH.Override)
+	ld a,h
+	or l
 	ld a,'>'
+	jr nz,OSWRCH
 	.bcall "VDU.PutChar"
 	ret
 
