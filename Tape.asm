@@ -144,16 +144,10 @@ GetWaveLength:
 	di
 	ld b,0
 	
-	; Get the phase bit.
-	in a,(InputPort)
-	add a,a
-	ld c,a
-	
 	; Wait for the level to go low.
 -:	in a,(InputPort)
-	xor c
-	and 1 << InputBit
-	jr nz,+
+	bit InputBit,a
+	jr z,+
 	inc b
 	jr nz,-
 	
@@ -220,7 +214,7 @@ GetInitialCarrier:
 	ld hl,0
 	
 	; B = number of full waves to test.
-	ld b,64
+	ld b,32
 	
 -:	push bc
 	call GetWaveLength
@@ -253,7 +247,7 @@ GetInitialCarrier:
 	
 	djnz -
 	
-	ld b,6
+	ld b,5
 -:	srl h \ rr l
 	djnz -
 	
@@ -262,8 +256,6 @@ GetInitialCarrier:
 	add a,l
 	
 	ld (WaveLengthThreshold),a
-	
-	or a
 	ret
 
 ; ==========================================================================
