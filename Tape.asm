@@ -31,8 +31,6 @@ OutputPort = $3F
 OutputBit  = 7
 MotorBit   = 6
 
-FullWaveLengthThreshold = 45
-
 Header.LoadAddress      = 0
 Header.ExecutionAddress = 4
 Header.BlockNumber      = 8
@@ -49,6 +47,7 @@ LoadBlockNumber     = $DDEE
 LoadBlockName       = $DDE3
 LoadBlockError      = $DDE2
 LoadBlockReport     = $DDE0
+WaveLengthThreshold = $DDDF
 
 ; ==========================================================================
 ; Reset
@@ -146,7 +145,7 @@ GetWaveLength:
 	; Wait for the level to go low.
 -:	in a,(InputPort)
 	bit InputBit,a
-	jr z,+
+	jr nz,+
 	inc b
 	jr nz,-
 	
@@ -189,11 +188,74 @@ GetWaveLength:
 +:
 	
 	; Convert bit length to bit value.
-	ld a,b
-	cp FullWaveLengthThreshold
+	ld a,(WaveLengthThreshold)
+	cp b
+	ccf
 	ret nz
 	
 	inc a ; Force NZ if Z before.
+	ret
+
+GetInitialCarrier:
+
+	; We must have at least two valid full waves before we continue.
+	call GetWaveLength
+	ret z
+	
+	call GetWaveLength
+	ret z
+	
+	; C = last wave length.
+	ld c,b
+
+	; HL = all wave lengths.
+	ld hl,0
+	
+	; B = number of full waves to test.
+	ld b,64
+	
+-:	push bc
+	call GetWaveLength
+	ld e,b
+	pop bc
+	
+	ret z ; No bit
+	
+	; How much did the wave length differ?
+	ld a,e
+	sub c
+	jp p,+
+	neg
++:
+
+	; A = difference in length between last wave and current wave.
+	cp 8
+	jr c,+
+	
+	; Wave length differs too much. Not carrier!
+	xor a
+	ret
+	
++:	; Remember the wave length for next time.
+	ld c,e
+	
+	; Add to the current wave length counter.
+	ld d,0
+	add hl,de
+	
+	djnz -
+	
+	ld b,6
+-:	srl h \ rr l
+	djnz -
+	
+	ld a,l
+	srl h \ rr l
+	add a,l
+	
+	ld (WaveLengthThreshold),a
+	
+	or a
 	ret
 
 ; ==========================================================================
@@ -597,13 +659,8 @@ GetFile.CheckEscapeLoop:
 	push ix
 	.bcall "VDU.DrawBlinkingCursor"
 	
-	ld b,10
--:	push bc
-	call GetBit
-	pop bc
-	jr z,GetFile.CheckEscapeLoop  ; No bit.
-	jr nc,GetFile.CheckEscapeLoop ; Zero bit, not carrier.
-	djnz -
+	call GetInitialCarrier
+	jr z,GetFile.CheckEscapeLoop  ; No carrier.
 	
 	; If we get this far, we just received a long string of "1" bits in a row.
 	; It's the carrier!
@@ -2001,13 +2058,8 @@ GetSpecificBlock.CheckEscapeLoop:
 	ld (ix+3),a
 	.bcall "VDU.DrawBlinkingCursor"
 	
-	ld b,10
--:	push bc
-	call GetBit
-	pop bc
-	jr z,GetSpecificBlock.CheckEscapeLoop  ; No bit.
-	jr nc,GetSpecificBlock.CheckEscapeLoop ; Zero bit, not carrier.
-	djnz -
+	call GetInitialCarrier
+	jr z,GetSpecificBlock.CheckEscapeLoop  ; No carrier.
 	
 	; If we get this far, we just received a long string of "1" bits in a row.
 	; It's the carrier!
