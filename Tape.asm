@@ -64,11 +64,8 @@ Reset:
 	di
 	ld a,(IOControl)
 	
-	; Weakly pull the data output high.
-	or (1 << OutputBit) | (1 << (OutputBit - 4))
-	
-	; Drive the motor output low.
-	and ~((1 << MotorBit) | (1 << (MotorBit - 4)))
+	; Weakly pull the data output and motor control lines high.
+	or (1 << OutputBit) | (1 << (OutputBit - 4)) | (1 << MotorBit) | (1 << (MotorBit - 4))
 	
 	ld (IOControl),a
 	out ($3F),a
@@ -106,8 +103,7 @@ SetMotorState:
 MotorOn:
 	di
 	ld a,(IOControl)
-	or 1 << MotorBit
-	and ~(1 << (MotorBit - 4))
+	and ~((1 << MotorBit) | (1 << (MotorBit - 4)))
  	ld (IOControl),a
 	out ($3F),a
 	ei
@@ -124,7 +120,7 @@ MotorOn:
 MotorOff:
 	di
 	ld a,(IOControl)
-	and ~((1 << MotorBit) | (1 << (MotorBit - 4)))
+	or (1 << MotorBit) | (1 << (MotorBit - 4))
 	ld (IOControl),a
 	out ($3F),a
 	ei
@@ -147,7 +143,6 @@ GetWaveLength:
 	; Set the initial phase inverter.
 	in a,(InputPort)
 	add a,a
-	cpl
 	ld c,a
 	
 	; Wait for the level to go low.
