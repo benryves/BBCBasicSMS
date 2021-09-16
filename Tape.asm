@@ -144,17 +144,25 @@ GetWaveLength:
 	di
 	ld b,0
 	
+	; Set the initial phase inverter.
+	in a,(InputPort)
+	add a,a
+	cpl
+	ld c,a
+	
 	; Wait for the level to go low.
 -:	in a,(InputPort)
-	bit InputBit,a
-	jr z,+
+	xor c
+	and 1 << InputBit
+	jr nz,+
 	inc b
 	jr nz,-
 	
 	; Time out.
 	ret
 	
-+:	ld c,a
++:	xor c
+	ld c,a
 	ld b,0
 	
 	; Get the first half of the wave.
