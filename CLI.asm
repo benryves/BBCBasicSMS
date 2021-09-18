@@ -376,44 +376,31 @@ GetFilenameWithQuotationMarks:
 
 Terminal:
 	call CheckCommandEnd
-	ld hl,SerialTerminal
-	.bcall "VDU.PutString"
-	
+
 	.bcall "VDU.Console.BeginBlinkingCursor"
 
 Terminal.Loop:
-	call Serial.GetByte
-	jr z,Terminal.GotByte
+-:	ld de,1
+	call Serial.GetByteWithTimeout
+	jr nz,+
+	.bcall "VDU.PutChar"
+	jr -
++:
 	
-	ei
-	halt
-	call Host.TrapFileTransfers
-	jr c,Terminal.Loop
+	call Host.CheckEscape
 	
-	.bcall "VDU.Console.EndBlinkingCursor"
+	.bcall "VDU.DrawBlinkingCursor"
+
+-:	call KeyboardBuffer.GetKeyImmediate
+	jr z,Terminal.Loop
+	call Serial.SendByte
+	jr -
+	
 	scf
 	ret
 
 Terminal.GotByte:
 	
-	push af
-	call Serial.SendByte
-	pop af
-	
-	push af
-	.bcall "VDU.PutChar"
-	pop af
-	
-	cp '\r'
-	jr nz,Terminal.Loop
-	
-	ld a,'\n'
-	call Serial.SendByte
-	
-	jr Terminal.Loop
-
-SerialTerminal:
-	.db "Testing serial port...\r", 0
 
 Catalogue:
 	call SkipWhitespace

@@ -245,6 +245,7 @@ GetSingleByte:
 	di
 	ld a,(Status)
 	res Status.ReadBuffer.Enabled,a
+	ld de,0 ; Longest timeout
 	jr GetByte.SetReadBufferStatus
 
 ; ---------------------------------------------------------
@@ -256,8 +257,20 @@ GetSingleByte:
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
 GetByte:
-	di
 	
+	ld de,0 ; Longest timeout
+
+; ---------------------------------------------------------
+; GetByteWithTimeout -> Gets a byte with a custom timeout.
+; ---------------------------------------------------------
+; Inputs:   de = timeout.
+; Outputs:  z if a byte was received, nz if it timed out.
+;           a = the received byte.
+; Destroys: af, bc, de, hl
+; ---------------------------------------------------------
+GetByteWithTimeout:
+
+	di
 	ld a,(Status)
 	set Status.ReadBuffer.Enabled,a
 
@@ -352,7 +365,8 @@ SerialReadBufferEmpty:
 	out ($3F),a
 
 	; Get a byte with a long timeout.
-	ld bc,0       ; 10
+	ld b,d
+	ld c,e
 	
 	; Try to get the byte
 	call GetByteBuffered
