@@ -337,7 +337,7 @@ GotFileName:
 	
 -:	push hl
 	push bc
-	call Serial.GetSingleByte
+	call Serial.GetByte
 	pop bc
 	pop hl
 	ret nz
@@ -345,7 +345,7 @@ GotFileName:
 	inc hl
 	djnz -
 	
-	call Serial.GetSingleByte
+	call Serial.GetByte
 	ret nz
 	cp '\r'
 	jp nz,FlushSerialToCR
