@@ -433,12 +433,6 @@ GetByteBuffered:
 
 GotStart:
 	
-	; De-assert RTS
-	ld (IOControl),a ; 13
-	or %01000000     ; 7
-	out ($3F),a      ; 11
-	ld (IOControl),a ; 13
-	
 	; Now we need to delay for around half a bit.
 	; This is so we sample in the middle of the bit, not at the transitions.
 
@@ -466,8 +460,16 @@ GotStart:
 	; Ensure that we receive a stop bit
 	
 	call BitDelay
+	
+	; De-assert RTS
+	ld (IOControl),a ; 13
+	or %01000000     ; 7
+	out ($3F),a      ; 11
+	ld (IOControl),a ; 13
+	
 	in a,($DC)
 	add a,a
+	
 	jr c,+
 	
 	; No stop bit: failure!
