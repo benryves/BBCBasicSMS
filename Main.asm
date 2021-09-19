@@ -174,6 +174,7 @@ FinishedFrameInterrupt:
 .include "CLI.asm"
 .include "Tape.asm"
 .include "Sound.asm"
+.include "VDrive.asm"
 .include "File.asm"
 
 Boot:

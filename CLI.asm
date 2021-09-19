@@ -383,6 +383,10 @@ Terminal.Loop:
 -:	ld de,1
 	call Serial.GetByteWithTimeout
 	jr nz,+
+	
+	push af
+	.bcall "VDU.EndBlinkingCursor"
+	pop af
 	.bcall "VDU.PutChar"
 	jr -
 +:
@@ -395,6 +399,8 @@ Terminal.Loop:
 	jr z,Terminal.Loop
 	call Serial.SendByte
 	jr -
+	
+	.bcall "VDU.EndBlinkingCursor"
 	
 	scf
 	ret
@@ -761,6 +767,7 @@ TapeSubcommands:
 	.db 0
 
 PCLink2:
+	call CheckCommandEnd
 	ld a,File.FileSystems.PCLink2
 	call File.SetFileSystem
 	
@@ -886,6 +893,18 @@ Exec.FileNotOpen:
 	ret
 
 
+VDrive:
+	call CheckCommandEnd
+	
+	call VDrive.Reset
+	call VDrive.SyncOrDeviceFault
+	
+	ld a,File.FileSystems.VDrive
+	call File.SetFileSystem
+	
+	scf
+	ret
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
@@ -909,6 +928,7 @@ Commands:
 	osclicommand("SP.", Spool)
 	osclicommand("EXEC", Exec)
 	osclicommand("EX.", Exec)
+	osclicommand("VDRIVE", VDrive)
 	.db 0
 
 .endmodule
