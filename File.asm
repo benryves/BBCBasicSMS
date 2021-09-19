@@ -602,4 +602,27 @@ EOF:
 	call BASIC.BBCBASIC_EXTERR
 	.db "EOF",0
 
+; ==========================================================================
+; NormaliseFilenameCharacter
+; --------------------------------------------------------------------------
+; Converts lowercase characters to uppercase and CR to NUL to assist in 
+; filename comparisons.
+; --------------------------------------------------------------------------
+; Inputs:     A: Character to normalise.
+; Destroyed:  F.
+; ==========================================================================
+NormaliseFilenameCharacter:
+	or a
+	ret z
+	cp '\r'
+	jr nz,+
+	xor a
+	ret
++:	cp 'a'
+	ret c
+	cp 'z'*1+1
+	ret nc
+	and ~('a'-'A')
+	ret
+
 .endmodule

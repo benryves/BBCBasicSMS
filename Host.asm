@@ -1141,8 +1141,14 @@ OSLOAD:
 	jr z,OSLOAD.Tape
 	cp File.FileSystems.PCLink2
 	jr z,OSLOAD.PCLink
+	cp File.FileSystems.VDrive
+	jr z,OSLOAD.VDrive
 	
 	jp DeviceFault
+
+OSLOAD.VDrive:
+	call VDrive.GetFile
+	jr +
 	
 OSLOAD.PCLink:
 	.bcall "VDU.BeginBlinkingCursor"

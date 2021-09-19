@@ -1113,7 +1113,7 @@ ValidateFilename:
 	
 	; Check that the name is not empty.
 	ld a,(hl)
-	call NormaliseFilenameCharacter
+	call File.NormaliseFilenameCharacter
 	or a
 	jr z,ValidateFilename.Invalid
 	
@@ -1121,7 +1121,7 @@ ValidateFilename:
 	ld b,11
 -:	ld a,(hl)
 	inc hl
-	call NormaliseFilenameCharacter
+	call File.NormaliseFilenameCharacter
 	or a
 	jr z,ValidateFilename.Valid
 	jp m,ValidateFilename.Invalid
@@ -1154,10 +1154,10 @@ CompareFilename:
 	push bc
 	ld b,11
 -:	ld a,(hl)
-	call NormaliseFilenameCharacter
+	call File.NormaliseFilenameCharacter
 	ld c,a
 	ld a,(de)
-	call NormaliseFilenameCharacter
+	call File.NormaliseFilenameCharacter
 	cp c
 	jr nz,+
 	or a
@@ -1166,29 +1166,6 @@ CompareFilename:
 	inc de
 	djnz -
 +:	pop bc
-	ret
-
-; ==========================================================================
-; NormaliseFilenameCharacter
-; --------------------------------------------------------------------------
-; Converts lowercase characters to uppercase and CR to NUL to assist in 
-; filename comparisons.
-; --------------------------------------------------------------------------
-; Inputs:     A: Character to normalise.
-; Destroyed:  F.
-; ==========================================================================
-NormaliseFilenameCharacter:
-	or a
-	ret z
-	cp '\r'
-	jr nz,+
-	xor a
-	ret
-+:	cp 'a'
-	ret c
-	cp 'z'*1+1
-	ret nc
-	and ~('a'-'A')
 	ret
 
 BeginWrite:
@@ -1989,7 +1966,7 @@ FileOpen:
 	jr z,FileOpenSkipEmptyFilenameCheck
 	
 	ld a,(hl)
-	call NormaliseFilenameCharacter
+	call File.NormaliseFilenameCharacter
 	or a
 	jr z,FileOpenFilenameApproved
 
@@ -2139,7 +2116,7 @@ GetSpecificBlock.NoCRCError:
 	
 	; Is the desired filename ""?
 	ld a,(de)
-	call NormaliseFilenameCharacter
+	call File.NormaliseFilenameCharacter
 	or a
 	jr nz,GetSpecificBlock.NotEmptyFilename
 	

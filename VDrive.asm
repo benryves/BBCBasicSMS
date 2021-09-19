@@ -65,6 +65,35 @@ SendCommandByte:
 	jp Serial.SendByte
 
 ; ==========================================================================
+; SendCommandString
+; --------------------------------------------------------------------------
+; Sends a command byte followed by a space, a string parameter, then CR.
+; --------------------------------------------------------------------------
+; Inputs:     A: Command byte to send.
+;             HL: Pointer to string argument to send.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+SendCommandString:
+	push hl
+	call Serial.SendByte
+	ld a,' '
+	call Serial.SendByte
+	
+-:	pop hl
+	ld a,(hl)
+	inc hl
+	or a
+	jr z,+
+	cp '\r'
+	jr z,+
+	push hl
+	call Serial.SendByte
+	jr -
+	
++:	ld a,'\r'
+	jp Serial.SendByte
+
+; ==========================================================================
 ; CheckCommandResponseByte
 ; --------------------------------------------------------------------------
 ; Gets a command response byte, checks that is it valid, then checks that it
@@ -99,6 +128,23 @@ FlushSerialToCR:
 	cp '\r'
 	jr nz,-
 +:	pop af
+	ret
+
+; ==========================================================================
+; GetByteSkipCR
+; --------------------------------------------------------------------------
+; Read from the serial port, but ignore the byte if it's CR.
+; --------------------------------------------------------------------------
+; Outputs:    F: Z if a non-CR byte was received, NZ otherwise.
+;             A: The non-CR byte that was read.
+; Destroyed:  BC, DE, HL.
+; ==========================================================================
+GetByteSkipCR:
+	call Serial.GetByte
+	ret nz
+	cp '\r'
+	jr z,GetByteSkipCR
+	cp a
 	ret
 
 ; ==========================================================================
@@ -238,5 +284,152 @@ SyncOrDeviceFault:
 	call Sync
 	ret z
 	jp Host.DeviceFault
+
+; ==========================================================================
+; GetFileSize
+; --------------------------------------------------------------------------
+; Gets a size of a file from the VDrive.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to file name NUL/CR terminated.
+; Outputs:    F: NZ if there was an error.
+;             DEHL: Size of the file if there was no error.
+; Destroyed:  AF, BC, DE, HL.
+; Interrupts: Disabled.
+; ==========================================================================
+GetFileSize:
+	push hl
+	call Sync
+	pop hl
+	ret nz
+	
+	ld a,Commands.ListDirectory
+	push hl
+	call SendCommandString
+	
+	; Check we get the supplied file name back.
+	call GetByteSkipCR
+	
+-:	pop hl
+	ret nz
+	
+	cp ' '
+	jr z,GotFileName
+	
+	call File.NormaliseFilenameCharacter
+	ld b,a
+	
+	ld a,(hl)
+	call File.NormaliseFilenameCharacter
+	cp b
+	
+	inc hl
+	jp nz,FlushSerialToCR
+	
+	push hl
+	call Serial.GetByte
+	jr -
+
+GotFileName:
+	
+	; After the file name, four bytes of file size data.
+	ld b,4
+	ld hl,VDU.TempTile
+	
+-:	push hl
+	push bc
+	call Serial.GetSingleByte
+	pop bc
+	pop hl
+	ret nz
+	ld (hl),a
+	inc hl
+	djnz -
+	
+	call Serial.GetSingleByte
+	ret nz
+	cp '\r'
+	jp nz,FlushSerialToCR
+	
+	ld hl,(VDU.TempTile+0)
+	ld de,(VDU.TempTile+2)
+	ret
+
+; ==========================================================================
+; GetFile
+; --------------------------------------------------------------------------
+; Gets a file from the VDrive.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to file name NUL/CR terminated.
+;             DE: Pointer to RAM to store the file in.
+;             BC: Maximum file size that can be loaded.
+; Outputs:    F: NZ if there was a protocol/receive error.
+;                If no error, C is set if the transfer was cancelled.
+;                If there is an error, C is set if the error is "No room".
+; Destroyed:  AF, BC, DE, HL.
+; Interrupts: Disabled.
+; ==========================================================================
+GetFile:
+	ld (TempPtr),hl
+	ld (TempCapacity),bc
+	ld (TempSize),de
+	
+	; Get the file size.
+	ld hl,(TempPtr)
+	call GetFileSize
+	jr z,+
+	scf
+	ccf
+	ret
++:
+
+	; Ensure that files are under 64KB.
+	ld a,d
+	or e
+	jr z,+
+	scf
+	ret
++:
+	
+	; Do we have enough room?
+	ld de,(TempCapacity)
+	or a
+	ex de,hl
+	sbc hl,de
+	ret c
+	
+	; Store the actual size.
+	ld (TempCapacity),de
+	
+	; Start reading the file.
+	call Sync
+	ret nz
+	
+	ld a,Commands.ReadFile
+	ld hl,(TempPtr)
+	call SendCommandString
+	
+	; Retrieve the size and capacity.
+	ld hl,(TempSize)
+	ld bc,(TempCapacity)
+	
+-:	push hl
+	push bc
+	call Serial.GetByte
+	pop bc
+	pop hl
+	jr z,+
+	
+	scf
+	ccf
+	ret
+	
++:	ld (hl),a
+	inc hl
+	dec bc
+	ld a,b
+	or c
+	jr nz,-
+	
+	ret
 
 .endmodule
