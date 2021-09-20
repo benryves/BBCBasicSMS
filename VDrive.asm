@@ -92,6 +92,19 @@ SendCommandString:
 	
 +:	ld a,'\r'
 	jp Serial.SendByte
+	
+; ==========================================================================
+; CheckForPrompt
+; --------------------------------------------------------------------------
+; Checks that we've received the prompt.
+; --------------------------------------------------------------------------
+; Outputs:    F: Z set if the response was a '>' prompt, NZ if not.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+CheckForPrompt:
+	ld a,'>'
+	
+	; Fall-through to CheckCommandResponseByte
 
 ; ==========================================================================
 ; CheckCommandResponseByte
@@ -268,8 +281,13 @@ SingleSyncAttempt:
 	; Switch to the short command set and check we get a > prompt back.
 	ld a,Commands.ShortCommandSet
 	call SendCommandByte
-	ld a,'>'
-	call CheckCommandResponseByte
+	call CheckForPrompt
+	ret nz
+	
+	; Switch to binary mode.
+	ld a,Commands.MonitorBinary
+	call SendCommandByte
+	call CheckForPrompt
 	ret
 
 ; ==========================================================================
@@ -284,6 +302,56 @@ SyncOrDeviceFault:
 	call Sync
 	ret z
 	jp Host.DeviceFault
+
+; ==========================================================================
+; Catalogue
+; --------------------------------------------------------------------------
+; Displays a file and directory listing.
+; --------------------------------------------------------------------------
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+Catalogue:
+	call SyncOrDeviceFault
+	
+	; Request a directory listing.
+	ld a,Commands.ListDirectory
+	call SendCommandByte
+	
+	; CR before the file listing.
+	ld a,'\r'
+	call GetAndCheckByte
+	ret nz
+	
+-:	call Serial.GetByte
+	jp nz,Host.DeviceFault
+	
+	; Is it the end of the file list?
+	cp '>'
+	jp z,FlushSerialToCR
+	
+	.bcall "VDU.PutChar"
+	jr -
+	
+	ret
+
+; ==========================================================================
+; ChangeDirectory
+; --------------------------------------------------------------------------
+; Changes the current directory.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to new directory name NUL/CR terminated.
+; Outputs:    F: NZ if there was an error.
+; Destroyed:  AF, BC, DE, HL.
+; Interrupts: Disabled.
+; ==========================================================================
+ChangeDirectory:
+	call SyncOrDeviceFault
+	
+	ld a,Commands.ChangeDirectory
+	call SendCommandString
+	call CheckForPrompt
+	ret z
+	jp File.BadDirectory
 
 ; ==========================================================================
 ; GetFileSize

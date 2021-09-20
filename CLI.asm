@@ -418,6 +418,8 @@ Catalogue:
 	jp z,Catalogue.Tape
 	cp File.FileSystems.PCLink2
 	jp z,Catalogue.PCLink2
+	cp File.FileSystems.VDrive
+	jp z,Catalogue.VDrive
 	
 	jp BadCommand
 
@@ -541,7 +543,15 @@ Catalogue.PrintEndOfList:
 	ret
 
 Catalogue.Tape:
+	call CheckCommandEnd
 	call Tape.Catalogue
+	scf
+	ret
+
+
+Catalogue.VDrive:
+	call CheckCommandEnd
+	call VDrive.Catalogue
 	scf
 	ret
 
@@ -905,6 +915,21 @@ VDrive:
 	scf
 	ret
 
+ChangeDirectory:
+	ld a,(File.FileSystem)
+	cp File.FileSystems.VDrive
+	jr z,ChangeDirectory.VDrive
+	or a
+	ret
+
+ChangeDirectory.VDrive:
+	call GetFilename
+	call CheckCommandEnd
+	ex de,hl
+	call VDrive.ChangeDirectory
+	scf
+	ret
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
@@ -929,6 +954,8 @@ Commands:
 	osclicommand("EXEC", Exec)
 	osclicommand("EX.", Exec)
 	osclicommand("VDRIVE", VDrive)
+	osclicommand("CHDIR", ChangeDirectory)
+	osclicommand("CD", ChangeDirectory)
 	.db 0
 
 .endmodule
