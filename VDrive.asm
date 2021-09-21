@@ -639,6 +639,14 @@ WriteFile:
 	call CheckForPrompt
 	jp nz,TriggerError
 	
+	; Seek to the start of the file.
+	ld a,Commands.Seek
+	ld de,0
+	ld hl,0
+	call SendCommandInt
+	call CheckForPrompt
+	jp nz,TriggerError
+	
 	; How much data are we writing?
 	ld hl,(TempSize)
 	ld a,l
