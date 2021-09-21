@@ -92,7 +92,43 @@ SendCommandString:
 	
 +:	ld a,'\r'
 	jp Serial.SendByte
+
+
+; ==========================================================================
+; SendCommandInt
+; --------------------------------------------------------------------------
+; Sends a command byte followed by a space, a 32-bit integer, then CR.
+; --------------------------------------------------------------------------
+; Inputs:     A: Command byte to send.
+;             DEHL: 32-bit integer to send.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+SendCommandInt:
+	push hl
+	push de
 	
+	call Serial.SendByte
+	ld a,' '
+	call Serial.SendByte
+	
+	pop af
+	push af
+	call Serial.SendByte
+	pop de
+	ld a,e
+	call Serial.SendByte
+	
+	pop af
+	push af
+	call Serial.SendByte
+	pop hl
+	ld a,l
+	call Serial.SendByte
+	
+	ld a,'\r'
+	jp Serial.SendByte
+	
+
 ; ==========================================================================
 ; CheckForPrompt
 ; --------------------------------------------------------------------------
@@ -576,4 +612,66 @@ GetFile:
 	
 	ret
 
+; ==========================================================================
+; WriteFile
+; --------------------------------------------------------------------------
+; Writes a file to the VDrive.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Pointer to the file name NUL/CR terminated.
+;             DE: Pointer to RAM to get the file data from.
+;             BC: Size of the file to write.
+; Destroyed:  AF, BC, DE, HL.
+; Interrupts: Disabled.
+; ==========================================================================
+WriteFile:
+	
+	; We'll need to remember the file location and size.
+	ld (TempCapacity),hl
+	ld (TempPtr),de
+	ld (TempSize),bc
+	
+	call SyncOrDeviceFault
+	
+	; Open the file for writing.
+	ld a,Commands.OpenFileWriting
+	ld hl,(TempCapacity)
+	call SendCommandString
+	call CheckForPrompt
+	jp nz,TriggerError
+	
+	; How much data are we writing?
+	ld hl,(TempSize)
+	ld a,l
+	or h
+	jr z,WriteFile.Empty
+	ld de,0
+	ld a,Commands.WriteFileData
+	call SendCommandInt
+	
+	; Write the file data.
+	ld de,(TempPtr)
+	ld bc,(TempSize)
+	
+-:	ld a,(de)
+	inc de
+	push de
+	push bc
+	call Serial.SendByte
+	pop bc
+	pop de
+	dec bc
+	ld a,b
+	or c
+	jr nz,-
+
+WriteFile.Empty:
+
+	; Close the file.
+	ld a,Commands.CloseFile
+	ld hl,(TempCapacity)
+	call SendCommandString
+	call CheckForPrompt
+	ret z
+	jp TriggerError
+	
 .endmodule

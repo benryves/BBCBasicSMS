@@ -1270,6 +1270,8 @@ OSSAVE:
 	jr z,OSSAVE.Tape
 	cp File.FileSystems.PCLink2
 	jr z,OSSAVE.PCLink2
+	cp File.FileSystems.VDrive
+	jr z,OSSAVE.VDrive
 	
 	jp DeviceFault
 
@@ -1285,6 +1287,10 @@ OSSAVE.PCLink2:
 
 OSSAVE.Tape:
 	call Tape.WriteFile
+	ret
+
+OSSAVE.VDrive:
+	call VDrive.WriteFile
 	ret
 
 ; ==========================================================================
