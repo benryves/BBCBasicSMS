@@ -181,6 +181,13 @@ SendByteRaw:
 	call BitDelay
 
 SendByte.SkipBitDelay:
+
+	
+	; Is CTS asserted?
+-:	in a,($DC)
+	bit 6,a
+	jr nz,-
+
 	ld b,10
 	
 	; Send the start bit
