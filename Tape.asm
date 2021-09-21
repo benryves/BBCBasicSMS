@@ -569,7 +569,7 @@ GetFile:
 	jr z,GetFile.ValidFilename
 	
 	call ValidateFilename
-	jp nz,Host.BadString
+	jp nz,File.BadName
 	
 
 GetFile.ValidFilename:
@@ -1457,7 +1457,7 @@ WriteFile:
 	push hl
 	call ValidateFilename
 	pop hl
-	jp nz,Host.BadString
+	jp nz,File.BadName
 
 	; We'll need to remember the file location and size.
 	ld (TempPtr),de
@@ -1977,7 +1977,7 @@ FileOpenSkipEmptyFilenameCheck:
 	jr z,FileOpenFilenameApproved
 	
 	ld (ix+3),0
-	jp Host.BadString
+	jp File.BadName
 
 FileOpenFilenameApproved:
 

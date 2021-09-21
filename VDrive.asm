@@ -136,10 +136,15 @@ CheckCommandResponseByte:
 FlushSerialToCR:
 	push af
 -:	ld de,1
+	push bc
 	call Serial.GetByteWithTimeout
+	pop bc
 	jr nz,+
 	cp '\r'
-	jr nz,-
+	jr z,+
+	ld b,c
+	ld c,a
+	jr -
 +:	pop af
 	ret
 
@@ -165,14 +170,16 @@ GetByteSkipCR:
 ; --------------------------------------------------------------------------
 ; Gets a single byte from the serial port and checks the value.
 ; --------------------------------------------------------------------------
-; Inputs:     A: Command byte to check.
+; Inputs:     A: Response byte to check.
 ; Outputs:    F: Z if the expected value was received, NZ if not.
+;             C: The value that was received.
 ; Destroyed:  AF, BC, DE, HL.
 ; ==========================================================================
 GetAndCheckByte:
 	push af
 	call Serial.GetByte
 	pop bc
+	ld c,a
 	ret nz
 	cp b
 	ret
@@ -303,6 +310,70 @@ SyncOrDeviceFault:
 	ret z
 	jp Host.DeviceFault
 
+
+; ==========================================================================
+; TriggerDirectoryError
+; --------------------------------------------------------------------------
+; Triggers a directory-related error based on an error code.
+; --------------------------------------------------------------------------
+; Inputs:     BC: Error code.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+TriggerDirectoryError:
+	ld hl,'C'*256+'F'*1
+	or a
+	sbc hl,bc
+	jr nz,TriggerError
+	ld bc,'F'*256+'I'*1
+	
+	; Fall-through to TriggerError
+
+; ==========================================================================
+; TriggerError
+; --------------------------------------------------------------------------
+; Triggers an error based on an error code.
+; --------------------------------------------------------------------------
+; Inputs:     BC: Error code.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+TriggerError:
+	ld hl,Errors
+
+	ld a,(hl)
+-:	inc hl
+	cp b
+	ld a,(hl)
+	inc hl
+	
+	jr nz,+
+	cp c
+	jr nz,+
+	
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	ex de,hl
+	jp (hl)
+
++:	inc hl
+	inc hl
+	ld a,(hl)
+	or a
+	jr nz,-
+	jp Host.DeviceFault
+
+Errors:
+	.db "BC" \ .dw Host.DeviceFault
+	.db "CF" \ .dw File.FileNotFound
+	.db "DF" \ .dw File.DiskFull
+	.db "FI" \ .dw File.BadDirectory
+	.db "RO" \ .dw File.AccessDenied
+	.db "FO" \ .dw File.TooManyOpenFiles
+	.db "NE" \ .dw File.BadDirectory
+	.db "FN" \ .dw File.FileNotFound
+	.db "ND" \ .dw File.DiskFault
+	.db 0
+
 ; ==========================================================================
 ; Catalogue
 ; --------------------------------------------------------------------------
@@ -320,8 +391,11 @@ Catalogue:
 	; CR before the file listing.
 	ld a,'\r'
 	call GetAndCheckByte
-	ret nz
-	
+	jr z,+
+	call FlushSerialToCR
+	jp TriggerError
++:	
+
 -:	call Serial.GetByte
 	jp nz,Host.DeviceFault
 	
@@ -351,7 +425,7 @@ ChangeDirectory:
 	call SendCommandString
 	call CheckForPrompt
 	ret z
-	jp File.BadDirectory
+	jp TriggerDirectoryError
 
 ; ==========================================================================
 ; GetFileSize
@@ -375,20 +449,26 @@ GetFileSize:
 	call SendCommandString
 	
 	; Check we get the supplied file name back.
+	push bc
 	call GetByteSkipCR
+	pop bc
+	ld c,a
 	
 -:	pop hl
 	ret nz
+	
+	ld b,c
+	ld c,a
 	
 	cp ' '
 	jr z,GotFileName
 	
 	call File.NormaliseFilenameCharacter
-	ld b,a
+	ld d,a
 	
 	ld a,(hl)
 	call File.NormaliseFilenameCharacter
-	cp b
+	cp d
 	
 	inc hl
 	jp nz,FlushSerialToCR
@@ -444,11 +524,7 @@ GetFile:
 	; Get the file size.
 	ld hl,(TempPtr)
 	call GetFileSize
-	jr z,+
-	scf
-	ccf
-	ret
-+:
+	jp nz,TriggerError
 
 	; Ensure that files are under 64KB.
 	ld a,d
