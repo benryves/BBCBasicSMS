@@ -2,6 +2,20 @@
 ; VDrive
 ; --------------------------------------------------------------------------
 ; Provides access to files on a Vinculum device (e.g. VDrive/VMusic)
+; --------------------------------------------------------------------------
+; Pin connections are similar to the RS-232 adaptor:
+;
+; SMS        VDrive
+; 1 Up   <- 2 RTS#
+; 2 Down <- 5 TxD
+; 5 Vcc  -- 3 5V0
+; 7 TH   -> 4 RxD
+; 8 GND  -- 1 GND
+; 9 TR   -> 6 CTS#
+;
+; SMS pins 3 (Left), 4 (Right) and 6 (TL) are not connected.
+; VDrive pins 7 (NC) and 8 (RI#/WU) are not connected.
+; VDrive jumper must be in default UART position.
 ; ==========================================================================
 .module VDrive
 
