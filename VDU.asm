@@ -886,7 +886,11 @@ NotPlotBy:
 ; ==========================================================================
 ResetViewports:
 	call Graphics.ResetViewport
+	call Graphics.ResetOrigin
+	call Graphics.ReturnCursorToOrigin
+	
 	call Console.ResetViewport
+	call Console.HomeUp
 	ret
 
 ; ==========================================================================
