@@ -784,16 +784,9 @@ SetCursorEnabled:
 GraphicsViewportCommand:
 	
 	; Bottom left corner:
-	ld hl,(VDUQ(2, 8))
-	ld bc,(Graphics.OriginY)
-	add hl,bc
-	ex de,hl
-	
 	ld hl,(VDUQ(0, 8))
-	ld bc,(Graphics.OriginX)
-	add hl,bc
-	
-	call Graphics.TransformPoint
+	ld de,(VDUQ(2, 8))
+	call Graphics.TransformPointAroundOrigin
 	
 	call Graphics.ClampTransformedHLX
 	ret c
@@ -804,16 +797,9 @@ GraphicsViewportCommand:
 	push de
 	
 	; Top right corner:
-	ld hl,(VDUQ(6, 8))
-	ld bc,(Graphics.OriginY)
-	add hl,bc
-	ex de,hl
-	
 	ld hl,(VDUQ(4, 8))
-	ld bc,(Graphics.OriginX)
-	add hl,bc
-	
-	call Graphics.TransformPoint
+	ld de,(VDUQ(6, 8))
+	call Graphics.TransformPointAroundOrigin
 	
 	call Graphics.ClampTransformedHLX
 	jr nc,+

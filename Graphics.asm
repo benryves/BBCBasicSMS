@@ -9,8 +9,11 @@ MinX = allocVar(1)
 MaxX = allocVar(1)
 MinY = allocVar(1)
 MaxY = allocVar(1)
+
 OffsetX = allocVar(1)
 OffsetY = allocVar(1)
+MaxWidth = allocVar(1)
+MaxHeight = allocVar(1)
 
 g_wndXMin = MinX ; The g_wnd* variables must appear
 g_wndXMax = MaxX ; in this order.
@@ -104,6 +107,19 @@ ResetViewport:
 	; Now invoke the driver-specific version.
 	ld a,Driver.Execute.ResetGraphicsViewport
 	call Driver.Execute
+	
+	; Calculate the maximum bounds from the maximum coordinate - offset.
+	ld a,(OffsetX)
+	ld b,a
+	ld a,(MaxX)
+	sub b
+	ld (MaxWidth),a
+	
+	ld a,(OffsetY)
+	ld b,a
+	ld a,(MaxY)
+	sub b
+	ld (MaxHeight),a
 	ret
 	
 
@@ -2001,17 +2017,42 @@ PlotTriangle:
 	call TransformPoints
 	jp Triangle.Fill
 
+
 ; ==========================================================================
 ; ClampTransformedHLX
 ; --------------------------------------------------------------------------
-; Clamps transformed HL X value to physical screen coordinates.
+; Clamps transformed HL X value to be within the mode's bounds defined by
+; the OffsetX and the MaxWidth.
 ; --------------------------------------------------------------------------
 ; Inputs:     HL: X value to clamp.
-; Outputs:    L: Clamped value 0..255.
+; Outputs:    L: Clamped value between OffsetX and MaxWidth-OffsetX.
 ;             F: C set if value was out of range and had to be clamped.
 ; Destroyed:  AF.
 ; ==========================================================================
 ClampTransformedHLX:
+	push de
+	ld de,(OffsetX)
+	ld d,0
+	or a
+	sbc hl,de
+	call ClampTransformedHLXWidth
+	push af
+	add hl,de
+	pop af
+	pop de
+	ret
+
+; ==========================================================================
+; ClampTransformedHLXWidth
+; --------------------------------------------------------------------------
+; Clamps transformed HL X value to mode maximum width.
+; --------------------------------------------------------------------------
+; Inputs:     HL: X value to clamp.
+; Outputs:    L: Clamped value between 0 and MaxWidth inclusive.
+;             F: C set if value was out of range and had to be clamped.
+; Destroyed:  AF.
+; ==========================================================================
+ClampTransformedHLXWidth:
 	bit 7,h
 	jr z,+
 	ld l,0
@@ -2019,22 +2060,56 @@ ClampTransformedHLX:
 	ret
 +:	ld a,h
 	or a
-	ret z
-	ld l,255
+	jr z,+
+	ld hl,(MaxWidth)
 	scf
+	ret
++:	ld a,(MaxWidth)
+	cp l	
+	ret nc
+	ld l,a
 	ret
 
 ; ==========================================================================
 ; ClampTransformedDEY
 ; --------------------------------------------------------------------------
-; Clamps transformed DE Y value to physical screen coordinates.
+; Clamps transformed DE Y value to be within the mode's bounds defined by
+; the OffsetY and the MaxHeight.
 ; --------------------------------------------------------------------------
 ; Inputs:     DE: Y value to clamp.
-; Outputs:    E: Clamped value 0..191.
+; Outputs:    E: Clamped value between OffsetY and MaxHeight-OffsetY.
 ;             F: C set if value was out of range and had to be clamped.
 ; Destroyed:  AF.
 ; ==========================================================================
 ClampTransformedDEY:
+	push hl
+	
+	ex de,hl
+	ld de,(OffsetY)
+	ld d,0
+	or a
+	sbc hl,de
+	ex de,hl
+	
+	call ClampTransformedDEYHeight
+	push af
+	add hl,de
+	ex de,hl
+	pop af
+	pop hl
+	ret
+
+; ==========================================================================
+; ClampTransformedDEYHeight
+; --------------------------------------------------------------------------
+; Clamps transformed DE Y value to mode maximum height.
+; --------------------------------------------------------------------------
+; Inputs:     DE: Y value to clamp.
+; Outputs:    E: Clamped value between 0 and MaxHeight inclusive.
+;             F: C set if value was out of range and had to be clamped.
+; Destroyed:  AF.
+; ==========================================================================
+ClampTransformedDEYHeight:
 	bit 7,d
 	jr z,+
 	ld e,0
@@ -2043,13 +2118,13 @@ ClampTransformedDEY:
 +:	ld a,d
 	or a
 	jr z,+
-	ld e,191
+	ld de,(MaxHeight)
 	scf
 	ret
-+:	ld a,191
++:	ld a,(MaxHeight)
 	cp e
 	ret nc
-	ld e,191
+	ld e,a
 	ret
 	
 .endmodule
