@@ -796,7 +796,9 @@ GraphicsViewportCommand:
 	call Graphics.TransformPoint
 	
 	call Graphics.ClampTransformedHLX
+	ret c
 	call Graphics.ClampTransformedDEY
+	ret c
 	
 	ld d,l
 	push de
@@ -814,7 +816,15 @@ GraphicsViewportCommand:
 	call Graphics.TransformPoint
 	
 	call Graphics.ClampTransformedHLX
+	jr nc,+
+	pop hl
+	ret
++:
 	call Graphics.ClampTransformedDEY
+	jr nc,+
+	pop hl
+	ret
++:
 	
 	ld d,l
 	pop hl
@@ -824,12 +834,12 @@ GraphicsViewportCommand:
 	; Is left edge > right edge?
 	ld a,d
 	cp h
-	jp c,Graphics.ResetViewport
+	ret c
 	
 	; Is top edge > bottom edge?
 	ld a,l
 	cp e
-	jp c,Graphics.ResetViewport
+	ret c
 	
 	ld a,h
 	ld (Graphics.MinX),a

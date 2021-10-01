@@ -2008,17 +2008,20 @@ PlotTriangle:
 ; --------------------------------------------------------------------------
 ; Inputs:     HL: X value to clamp.
 ; Outputs:    L: Clamped value 0..255.
+;             F: C set if value was out of range and had to be clamped.
 ; Destroyed:  AF.
 ; ==========================================================================
 ClampTransformedHLX:
 	bit 7,h
 	jr z,+
 	ld l,0
+	scf
 	ret
 +:	ld a,h
 	or a
 	ret z
 	ld l,255
+	scf
 	ret
 
 ; ==========================================================================
@@ -2028,21 +2031,24 @@ ClampTransformedHLX:
 ; --------------------------------------------------------------------------
 ; Inputs:     DE: Y value to clamp.
 ; Outputs:    E: Clamped value 0..191.
+;             F: C set if value was out of range and had to be clamped.
 ; Destroyed:  AF.
 ; ==========================================================================
 ClampTransformedDEY:
 	bit 7,d
 	jr z,+
 	ld e,0
+	scf
 	ret
 +:	ld a,d
 	or a
 	jr z,+
 	ld e,191
+	scf
 	ret
-+:	ld a,e
-	cp 192
-	ret c
++:	ld a,191
+	cp e
+	ret nc
 	ld e,191
 	ret
 	
