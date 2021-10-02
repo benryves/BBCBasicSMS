@@ -459,6 +459,65 @@ Catalogue:
 	ret
 
 ; ==========================================================================
+; ValidateDirectoryName
+; --------------------------------------------------------------------------
+; Checks that a directory name is valid.
+; --------------------------------------------------------------------------
+; Inputs:     HL: The directory name to validate.
+; Outputs:    F: Z set if the directory name is valid, NZ if it is not.
+; Destroyed:  AF.
+; ==========================================================================
+ValidateDirectoryName:
+	ld a,(hl)
+	cp '.'
+	jr z,ValidateDirectoryName.Dot
+	cp '/'
+	jr z,ValidateDirectoryName.Slash
+	jr ValidateFilename
+
+ValidateDirectoryName.Dot:
+	push hl
+	push bc
+
+	; Check for a maximum of 2 dots (+terminator).
+	ld b,2+1
+-:	ld a,(hl)
+	call File.NormaliseFilenameCharacter
+	or a
+	jr z,+
+	cp '.'
+	jr nz,+
+	inc hl
+	djnz -
+	dec b	
++:
+	pop bc
+	pop hl
+	ret
+
+ValidateDirectoryName.Slash:
+	push hl
+	inc hl
+	ld a,(hl)
+	call File.NormaliseFilenameCharacter
+	or a ; Slash MUST be followed by a terminator.
+	pop hl
+	ret
+
+; ==========================================================================
+; ValidateDirectoryNameOrBadDirectory
+; --------------------------------------------------------------------------
+; Checks that a directory name is valid, or triggers "Bad directory" if not.
+; --------------------------------------------------------------------------
+; Inputs:     HL: The directory name to validate.
+; Destroyed:  AF.
+; ==========================================================================
+ValidateDirectoryNameOrBadDirectory:
+	call ValidateDirectoryName
+	ret z
+	jp File.BadName
+
+; ==========================================================================
 ; ValidateFilename
 ; --------------------------------------------------------------------------
 ; Checks that a filename is valid.
@@ -556,11 +615,11 @@ ValidateFilenameOrBadName:
 ; Changes the current directory.
 ; --------------------------------------------------------------------------
 ; Inputs:     HL: Pointer to new directory name NUL/CR terminated.
-; Outputs:    F: NZ if there was an error.
 ; Destroyed:  AF, BC, DE, HL.
 ; Interrupts: Disabled.
 ; ==========================================================================
 ChangeDirectory:
+	call ValidateDirectoryNameOrBadDirectory
 	call SyncOrDeviceFault
 	
 	ld a,Commands.ChangeDirectory
