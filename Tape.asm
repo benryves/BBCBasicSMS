@@ -1109,6 +1109,7 @@ WaitCarrierEnd:
 ; Destroyed:  AF.
 ; ==========================================================================
 ValidateFilename:
+	push hl
 	push bc
 	
 	; Check that the name is not empty.
@@ -1133,11 +1134,13 @@ ValidateFilename.Invalid:
 	xor a
 	dec a
 	pop bc
+	pop hl
 	ret
 	
 ValidateFilename.Valid:
 	xor a
 	pop bc
+	pop hl
 	ret
 
 ; ==========================================================================
@@ -1454,9 +1457,7 @@ CarrierDelayShort:
 WriteFile:
 	
 	; Validate the filename.
-	push hl
 	call ValidateFilename
-	pop hl
 	jp nz,File.BadName
 
 	; We'll need to remember the file location and size.
@@ -1971,9 +1972,7 @@ FileOpen:
 	jr z,FileOpenFilenameApproved
 
 FileOpenSkipEmptyFilenameCheck:
-	push hl
 	call ValidateFilename
-	pop hl
 	jr z,FileOpenFilenameApproved
 	
 	ld (ix+3),0
