@@ -459,6 +459,98 @@ Catalogue:
 	ret
 
 ; ==========================================================================
+; ValidateFilename
+; --------------------------------------------------------------------------
+; Checks that a filename is valid.
+; --------------------------------------------------------------------------
+; Inputs:     HL: The filename to validate.
+; Outputs:    F: Z set if the file name is valid, NZ if it is not.
+; Destroyed:  AF.
+; ==========================================================================
+ValidateFilename:
+	
+	; Quick check for filenames that start with a dot.
+	; Technically seem to be allowed as hidden files, but not documented!
+	ld a,(hl)
+	cp '.'
+	jr nz,+
+	or a
+	ret
+
++:	push hl
+	push bc
+	
+	; Check the part before the extension.
+	ld b,8+1
+	call ValidateFilenamePart
+	jr z,+
+	
+	; There's an error. Was it because of a '.'?
+	cp '.'
+	jr nz,+
+	
+	; Check the extension, if there was a '.'
+	inc hl
+	ld b,3+1
+	call ValidateFilenamePart
++:
+	
+	pop bc
+	pop hl
+	ret
+
+ValidateFilenamePart:
+	; The filename part cannot be empty.
+	ld a,(hl)
+	call File.NormaliseFilenameCharacter
+	or a
+	jr nz,+
+	ld b,a
+	inc a
+	ret
++:
+	; Check each character up to the maximum length.
+-:	ld a,(hl)
+	
+	call File.NormaliseFilenameCharacter
+	or a
+	ret z
+	
+	; Check that the character is valid.
+	push hl
+	push bc
+	ld hl,ValidCharacters
+	ld bc,ValidCharacters.Count
+	cpir
+	pop bc
+	pop hl
+	ret nz
+	
+	inc hl
+	djnz -
+	
+	; If we get this far, the part is too long.
+	dec b
+	ret
+
+ValidCharacters:
+.db "$%'-_@~`!(){}^#&ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+ValidCharacters.Count = $-ValidCharacters
+
+; ==========================================================================
+; ValidateFilenameOrBadName
+; --------------------------------------------------------------------------
+; Checks that a filename is valid, and triggers a "Bad name" error if not.
+; --------------------------------------------------------------------------
+; Inputs:     HL: The filename to validate.
+; Destroyed:  AF.
+; ==========================================================================
+ValidateFilenameOrBadName:
+	call ValidateFilename
+	ret z
+	jp File.BadName
+
+; ==========================================================================
 ; ChangeDirectory
 ; --------------------------------------------------------------------------
 ; Changes the current directory.
@@ -567,6 +659,9 @@ GotFileName:
 ; Interrupts: Disabled.
 ; ==========================================================================
 GetFile:
+	
+	call ValidateFilenameOrBadName
+	
 	ld (TempPtr),hl
 	ld (TempCapacity),bc
 	ld (TempSize),de
@@ -638,6 +733,8 @@ GetFile:
 ; Interrupts: Disabled.
 ; ==========================================================================
 WriteFile:
+	
+	call ValidateFilenameOrBadName
 	
 	; We'll need to remember the file location and size.
 	ld (TempCapacity),hl
