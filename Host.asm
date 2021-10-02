@@ -2173,6 +2173,8 @@ OSBYTE:
 	jp z,OSBYTE.KeyboardAutoRepeatDelay
 	cp 12
 	jp z,OSBYTE.KeyboardAutoRepeatRate
+	cp 19
+	jp z,OSBYTE.WaitForVSync
 	
 	cp 124
 	jp z,ClearEscape
@@ -2240,6 +2242,7 @@ OSBYTE.NotSoundBell:
 
 	ret
 
+; *FX 0
 OSBYTE.ReadHostOS:	
 	ld a,l
 	or a
@@ -2253,6 +2256,7 @@ OSBYTE.ReadHostOS:
 	xor a
 	ret
 
+; *FX 4
 OSBYTE.CursorEditing:
 	di
 	
@@ -2285,7 +2289,7 @@ OSBYTE.CursorEditingExit:
 	ei
 	ret
 	
-
+; *FX 200
 OSBYTE.EscapeErrorDisable:
 	push de
 	push bc
@@ -2296,6 +2300,7 @@ OSBYTE.EscapeErrorDisable:
 	pop de
 	ret
 
+; *FX 229
 OSBYTE.EscapeKeyDisable:
 	push de
 	push bc
@@ -2306,6 +2311,7 @@ OSBYTE.EscapeKeyDisable:
 	pop de
 	ret
 
+; *FX 11
 OSBYTE.KeyboardAutoRepeatDelay:
 	push af
 	push hl
@@ -2347,6 +2353,7 @@ OSBYTE.SendNewKeyboardRate:
 	pop af
 	ret
 
+; *FX 12
 OSBYTE.KeyboardAutoRepeatRate:
 	push af
 	push hl
@@ -2412,6 +2419,12 @@ TypematicRates:
 	.db round(43.47826087)
 	.db round(47.61904762)
 	.db round(50)
+
+; *FX 19
+OSBYTE.WaitForVSync:
+	ei
+	halt
+	ret
 
 OSBYTE.SwitchCassetteRelay:
 	push af
