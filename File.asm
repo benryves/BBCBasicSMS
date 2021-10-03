@@ -258,6 +258,8 @@ Open:
 	jp z,Tape.FileOpen
 	cp FileSystems.Tape300
 	jp z,Tape.FileOpen
+	cp FileSystems.VDrive
+	jp z,VDrive.FileOpen
 	
 	pop bc
 	ld (ix+3),0 ; Close
@@ -305,6 +307,9 @@ Close:
 	
 	cp FileSystems.Tape300
 	jp z,Tape.FileClose
+	
+	cp FileSystems.VDrive
+	jp z,VDrive.FileClose
 
 Closed:
 	ld (ix+3),0
@@ -347,8 +352,9 @@ GetByte:
 	; Could we retrieve it?
 	jp nz,Channel
 	
-	; Is it open for reading?
-	bit 1,(ix+3)
+	; Is it open?
+	ld a,(ix+3)
+	and 3
 	jp z,Channel
 	
 	push hl
@@ -404,7 +410,7 @@ WriteByte:
 	
 	; Is it open for writing?
 	bit 0,(ix+3)
-	jp z,Channel
+	jp z,ReadOnly
 	
 	push hl
 	push de
@@ -459,8 +465,9 @@ IsEOF:
 	; Could we retrieve it?
 	jp nz,Channel
 	
-	; Is it open for reading?
-	bit 1,(ix+3)
+	; Is it open?
+	ld a,(ix+3)
+	and 3
 	jp z,Channel
 	
 	push bc
@@ -475,6 +482,9 @@ IsEOF:
 	
 	cp FileSystems.Tape300
 	jp z,Tape.FileIsEOF
+	
+	cp FileSystems.VDrive
+	jp z,VDrive.FileIsEOF
 	
 	; Unsupported device.
 	pop bc
@@ -524,6 +534,9 @@ GetPointer:
 	cp FileSystems.Tape300
 	jp z,Tape.FileGetPointer
 	
+	cp FileSystems.VDrive
+	jp z,VDrive.FileGetPointer
+	
 	; Unsupported device.
 	pop bc
 	pop ix
@@ -571,6 +584,9 @@ SetPointer:
 	cp FileSystems.Tape300
 	jp z,Tape.FileSetPointer
 	
+	cp FileSystems.VDrive
+	jp z,VDrive.FileSetPointer
+	
 	; Unsupported device.
 	pop bc
 	pop ix
@@ -579,6 +595,48 @@ SetPointer:
 DoneSetPointer:
 	
 	pop bc
+	pop ix
+	ret
+
+; ==========================================================================
+; GetLength
+; --------------------------------------------------------------------------
+; Return the length of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     E: The file handle (channel number).
+; Outputs:    DEHL: File size (bytes).
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+GetLength:
+	push ix
+	
+	; Get the handle.
+	ld a,e
+	call GetHandle
+	
+	; Could we retrieve it?
+	jp nz,Channel
+	
+	; Is it open for reading or writing?
+	ld a,(ix+3)
+	and 3
+	jp z,Channel
+	
+	ld hl,DoneGetLength
+	push hl
+	
+	ld a,(ix+2)
+	
+	cp FileSystems.VDrive
+	jp z,VDrive.FileGetLength
+	
+	; Unsupported device.
+	pop hl
+	pop ix
+	jp Host.DeviceFault
+	
+DoneGetLength:
+	
 	pop ix
 	ret
 
@@ -601,6 +659,16 @@ TooManyOpenFiles:
  	ld a,192
 	call Basic.BBCBASIC_EXTERR
 	.db "Too many open files",0
+
+; ==========================================================================
+; ReadOnly
+; --------------------------------------------------------------------------
+; Triggers the "Read only" error.
+; ==========================================================================
+ReadOnly:
+ 	ld a,193
+	call Basic.BBCBASIC_EXTERR
+	.db "Read only",0
 
 ; ==========================================================================
 ; DiskFull

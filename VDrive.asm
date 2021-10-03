@@ -851,5 +851,269 @@ WriteFile.Empty:
 	call CheckForPrompt
 	ret z
 	jp TriggerError
+
+
+; ==========================================================================
+; FileOpen
+; --------------------------------------------------------------------------
+; Opens a file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+;             HL: Pointer to CR-terminated filename.
+; Outputs:    The file should be opened, if not IX+3 should be set to 0.
+; Destroyed:  AF, HL.
+; ==========================================================================
+FileOpen:
+	call ValidateFilename
+	jr z,FileOpen.FilenameApproved
 	
+	ld (ix+3),0
+	jp File.BadName
+
+FileOpen.FilenameApproved:
+	
+	; Data storage for opened files:
+	; 16 bytes of filename (CR-terminated)
+	; 4 bytes for current EXT#
+	; 4 bytes for current PTR#
+	; 4 bytes for block address currently fetched into RAM
+	; 256 bytes block data storage
+	
+	ld e,(ix+0)
+	ld d,(ix+1)
+	ld bc,16
+	push hl
+	ldir
+	
+	; Clear EXT# and PTR#
+	xor a
+	ld (de),a
+	ld l,e
+	ld h,d
+	inc de
+	ld bc,8
+	ldir
+	
+	; Set block address to -1
+	dec a
+	ld (hl),a
+	ld bc,4
+	ldir
+	
+	pop hl
+
+	bit 1,(ix+3)
+	jr nz,FileOpen.Read
+	bit 0,(ix+3)
+	jr nz,FileOpen.Write
+	ld (ix+3),0
+	ret
+
+FileOpen.Read:
+	; OPENIN or OPENUP require that the file already exists.
+	call GetFileSize
+	jr z,+
+	ld (ix+3),0
+	ret
++:	; DEHL = file size
+	push hl
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld bc,16+3
+	add hl,bc
+	ld (hl),d
+	dec hl
+	ld (hl),e
+	dec hl
+	pop de
+	ld (hl),d
+	dec hl
+	ld (hl),e
+	ret
+
+FileOpen.Write:
+	; OPENOUT will create a new blank file.
+	
+	; Pretend the write fails.
+	ld a,(ix+3)
+	push af
+	ld (ix+3),0
+	
+	; Write a dummy blank file.
+	ld bc,0
+	call WriteFile
+	
+	; Now restore the file handle.
+	pop af
+	ld (ix+3),a
+	ret
+
+
+
+; ==========================================================================
+; FileClose
+; --------------------------------------------------------------------------
+; Close a file previously opened with FileOpen.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileClose:
+	bit 1,(ix+3)
+	jr nz,FileClose.Read
+
+FileClose.Write:
+	ld (ix+3),0
+	ret
+
+FileClose.Read:
+	ld (ix+3),0
+	ret
+
+; ==========================================================================
+; GetLength
+; --------------------------------------------------------------------------
+; Return the length of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Outputs:    DEHL: File size (bytes).
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileGetLength:
+	push ix
+	ld l,(ix+0)
+	ld h,(ix+1)
+	push hl
+	pop ix
+	ld l,(ix+16+0)
+	ld h,(ix+16+1)
+	ld e,(ix+16+2)
+	ld d,(ix+16+3)
+	pop ix
+	ret
+
+; ==========================================================================
+; FileGetPointer
+; --------------------------------------------------------------------------
+; Read the sequential pointer of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Outputs:    DEHL: the 32-bit pointer.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileGetPointer:
+	push ix
+	ld l,(ix+0)
+	ld h,(ix+1)
+	push hl
+	pop ix
+	ld l,(ix+16+4+0)
+	ld h,(ix+16+4+1)
+	ld e,(ix+16+4+2)
+	ld d,(ix+16+4+3)
+	pop ix
+	ret
+
+; ==========================================================================
+; SetPointer
+; --------------------------------------------------------------------------
+; Update the sequential pointer of an open file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+;             DEHL: the new 32-bit pointer.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileSetPointer:
+	
+	push ix
+	ld c,(ix+0)
+	ld b,(ix+1)
+	push bc
+	pop ix
+	
+	; DEHL must be <= file size
+	ld a,(ix+16+3)
+	cp d
+	jr c,FileSetPointer.IncreasingSize
+	ld a,(ix+16+2)
+	cp e
+	jr c,FileSetPointer.IncreasingSize
+	ld a,(ix+16+1)
+	cp h
+	jr c,FileSetPointer.IncreasingSize
+	ld a,(ix+16+0)
+	cp l
+	jr c,FileSetPointer.IncreasingSize
+	
+	; We're not increasing the size, just moving the pointer.
+	ld (ix+16+4+0),l
+	ld (ix+16+4+1),h
+	ld (ix+16+4+2),e
+	ld (ix+16+4+3),d
+	pop ix
+	ret
+	
+FileSetPointer.IncreasingSize:
+	pop ix
+	bit 1,(ix+0)
+	jp z,File.ReadOnly ; EOF would seem more sensible...
+	
+	; TODO: Allow file size to be increased.
+	jp Host.DeviceFault
+
+; ==========================================================================
+; FileIsEOF
+; --------------------------------------------------------------------------
+; Determines whether an open file pointer is at the end-of-file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Outputs:    F: Z if at the end-of-file, NZ if not.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileIsEOF:
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld bc,16
+	add hl,bc
+	ld e,l
+	ld d,h
+	ld bc,4
+	add hl,bc
+	
+	; HL->PTR
+	; DE->EXT
+	ld b,4
+-:	ld a,(de)
+	cp (hl)
+	ret nz
+	inc hl
+	inc de
+	djnz -
+	ret
+
+
 .endmodule
