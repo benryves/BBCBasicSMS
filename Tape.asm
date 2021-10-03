@@ -2289,6 +2289,10 @@ IsEndOfBlock:
 ; Destroyed:  AF, BC, DE, HL.
 ; ==========================================================================
 FileIsEOF:
+	; If we're not open for reading, we are implicitly at the end of the file.
+	bit 1,(ix+3)
+	ret z
+
 	call IsEndOfBlock
 	ret nz
 	
