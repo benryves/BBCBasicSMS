@@ -372,6 +372,9 @@ GetByte:
 	cp FileSystems.Tape300
 	jp z,Tape.FileGetByte
 	
+	cp FileSystems.VDrive
+	jp z,VDrive.FileGetByte
+	
 	; Unsupported device.
 	pop bc
 	pop de

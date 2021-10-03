@@ -1055,16 +1055,20 @@ FileSetPointer:
 	ld a,(ix+16+3)
 	cp d
 	jr c,FileSetPointer.IncreasingSize
+	jr nz,FileSetPointer.WithinSize
 	ld a,(ix+16+2)
 	cp e
 	jr c,FileSetPointer.IncreasingSize
+	jr nz,FileSetPointer.WithinSize
 	ld a,(ix+16+1)
 	cp h
 	jr c,FileSetPointer.IncreasingSize
+	jr nz,FileSetPointer.WithinSize
 	ld a,(ix+16+0)
 	cp l
 	jr c,FileSetPointer.IncreasingSize
-	
+
+FileSetPointer.WithinSize:
 	; We're not increasing the size, just moving the pointer.
 	ld (ix+16+4+0),l
 	ld (ix+16+4+1),h
@@ -1115,5 +1119,201 @@ FileIsEOF:
 	djnz -
 	ret
 
+; ==========================================================================
+; FileGetByte
+; --------------------------------------------------------------------------
+; Gets a byte from a file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Outputs:    A: The byte read from the file.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileGetByte:
+	
+	; First check for EOF.
+	call FileIsEOF
+	jp z,File.EOF
+	
+
+	; Is the block we wish to read from the file loaded into memory?
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld bc,16+4+1
+	add hl,bc
+	ld e,l
+	ld d,h
+	ld bc,4
+	add hl,bc
+	
+	; HL->block we've read into RAM (+1)
+	; DE->PTR (+1)
+	; (We skip the LSB as it can be assumed to be 0).
+	
+	push de
+	ld b,3
+-:	ld a,(de)
+	cp (hl)
+	jr nz,FileGetByte.FetchBlock
+	inc hl
+	inc de
+	djnz -
+	pop de
+	
+	jp FileGetByte.ReadByte
+
+FileGetByte.FetchBlock:
+	pop de
+	ld (TempPtr),de
+	
+	; Ensure we can talk to the VDrive.
+	call SyncOrDeviceFault
+	
+	; Open a file for reading.
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld a,Commands.OpenFileReading
+	call SendCommandString
+	call CheckForPrompt
+	jp nz,TriggerError
+	
+	; Seek to the appropriate location within the file.
+	ld l,(ix+0)
+	ld h,(ix+1)
+	push ix
+	push hl
+	pop ix
+	
+	; Amount of data to read = size - pointer
+	ld a,(ix+16+0)
+	sub 0
+	ld l,a
+	
+	ld a,(ix+16+1)
+	sbc a,(ix+16+4+1)
+	ld h,a
+	
+	ld a,(ix+16+2)
+	sbc a,(ix+16+4+2)
+	ld e,a
+	
+	ld a,(ix+16+3)
+	sbc a,(ix+16+4+3)
+	ld d,a
+	
+	; We want to read up to 256 bytes.
+	ld bc,256
+	
+	ld a,d
+	or e
+	or h
+	jr nz,+
+	
+	ld b,0
+	ld c,l
++:
+
+	; Sanity check!
+	ld a,b
+	or c
+	jp z,File.EOF
+	ld (TempSize),bc
+	
+	ld l,0
+	ld h,(ix+16+4+1)
+	ld e,(ix+16+4+2)
+	ld d,(ix+16+4+3)
+	pop ix
+	
+	ld a,Commands.Seek
+	call SendCommandInt
+	call CheckForPrompt
+	jp nz,TriggerError
+	
+	; Now we need to read from the file.
+	ld a,Commands.ReadFileData
+	ld de,0
+	ld hl,(TempSize)
+	call SendCommandInt
+	
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld de,32
+	add hl,de
+	
+	ld bc,(TempSize-1)
+
+-:	push hl
+	push bc
+	call Serial.GetByte
+	pop bc
+	pop hl
+	jp nz,Host.DeviceFault
+	ld (hl),a
+	inc hl
+	djnz -
+	
+	call CheckForPrompt
+	jp nz,TriggerError
+	
+	; Close the file.
+	ld a,Commands.CloseFile
+	ld l,(ix+0)
+	ld h,(ix+1)
+	call SendCommandString
+	call CheckForPrompt
+	jp nz,TriggerError
+	
+	; If we get this far, we can set the correct file pointer.
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld bc,16+4+1
+	add hl,bc
+	ld e,l
+	ld d,h
+	ld bc,4-1
+	add hl,bc
+	
+	ld (hl),0
+	inc hl
+	
+	ex de,hl
+	ld bc,3
+	ldir
+
+FileGetByte.ReadByte:
+	
+	ld l,(ix+0)
+	ld h,(ix+1)
+	
+	push hl
+	
+	; Get the LSB of PTR.
+	ld de,16+4
+	add hl,de
+	ld a,(hl)
+	
+	; Advance PTR.
+	ld b,4
+-:	inc (hl)
+	jr nz,+
+	inc hl
+	djnz -
++:
+
+	; Get the offset into the data buffer.
+	ld l,a
+	ld h,0
+	ld de,32
+	add hl,de
+
+	pop de
+	add hl,de
+	ld a,(hl)
+	
+	ret
 
 .endmodule
