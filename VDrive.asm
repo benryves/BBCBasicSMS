@@ -947,12 +947,10 @@ FileOpen.Write:
 	ld bc,0
 	call WriteFile
 	
-	; Now restore the file handle.
+	; Now restore the file mode.
 	pop af
 	ld (ix+3),a
 	ret
-
-
 
 ; ==========================================================================
 ; FileClose
@@ -971,6 +969,28 @@ FileClose:
 	jr nz,FileClose.Read
 
 FileClose.Write:
+	bit 7,(ix+3)
+	jr z,FileClose.NotDirty
+	
+	; Pretend we're about to fetch some new data by setting PTR#=-1
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld de,16+4
+	add hl,de
+	
+	ld b,4
+-:	ld (hl),$FF
+	inc hl
+	djnz -
+	
+	; Mark the file as closed so we don't actually fetch any data.
+	res 0,(ix+3)
+	res 1,(ix+3)
+	
+	; Update the current block to flush the data to disk.
+	call UpdateCurrentBlock
+
+FileClose.NotDirty:
 	ld (ix+3),0
 	ret
 
@@ -1120,25 +1140,20 @@ FileIsEOF:
 	ret
 
 ; ==========================================================================
-; FileGetByte
+; UpdateCurrentBlock
 ; --------------------------------------------------------------------------
-; Gets a byte from a file.
+; Ensures that the currently-addressed block is loaded into RAM, flushing
+; any previous modifications to disk in the previously-loaded block if
+; necessary.
 ; --------------------------------------------------------------------------
 ; Inputs:     IX: Pointer to the file variable data, where
 ;             IX+0: LSB of pointer to block storage data.
 ;             IX+1: MSB of pointer to block storage data.
 ;             IX+2: File system.
 ;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
-; Outputs:    A: The byte read from the file.
 ; Destroyed:  AF, BC, DE, HL.
 ; ==========================================================================
-FileGetByte:
-	
-	; First check for EOF.
-	call FileIsEOF
-	jp z,File.EOF
-	
-
+UpdateCurrentBlock:
 	; Is the block we wish to read from the file loaded into memory?
 	ld l,(ix+0)
 	ld h,(ix+1)
@@ -1157,17 +1172,147 @@ FileGetByte:
 	ld b,3
 -:	ld a,(de)
 	cp (hl)
-	jr nz,FileGetByte.FetchBlock
+	jr nz,FetchBlock
 	inc hl
 	inc de
 	djnz -
 	pop de
 	
-	jp FileGetByte.ReadByte
+	; If we can get this far, we already have the correct block loaded.
+	ret
 
-FileGetByte.FetchBlock:
+FetchBlock:
+
+	; Do we need to commit the old block to disk?
+	bit 7,(ix+3)
+	jp z,NoFlushBlock
+	
+	; Ensure we can talk to the VDrive.
+	call SyncOrDeviceFault
+	
+	; Open a file for writing.
+	ld l,(ix+0)
+	ld h,(ix+1)
+	ld a,Commands.OpenFileWriting
+	call SendCommandString
+	call CheckForPrompt
+	jp nz,TriggerError
+	
+	; Seek to the appropriate location within the file.
+	ld l,(ix+0)
+	ld h,(ix+1)
+	push ix
+	push hl
+	pop ix
+	
+	; Amount of data to write = size - pointer
+	ld a,(ix+16+0)
+	sub 0
+	ld l,a
+	
+	ld a,(ix+16+1)
+	sbc a,(ix+16+8+1)
+	ld h,a
+	
+	ld a,(ix+16+2)
+	sbc a,(ix+16+8+2)
+	ld e,a
+	
+	ld a,(ix+16+3)
+	sbc a,(ix+16+8+3)
+	ld d,a
+	
+	; Sanity check!
+	ld a,d
+	or e
+	or h
+	or l
+	jr nz,+
+
+	pop ix
+	jp z,FlushBlock.Empty
+
++:	; DEHL = amount of data to write.
+	ld (TempCapacity),de
+	ld (TempSize),hl
+	
+	ld l,0
+	ld h,(ix+16+8+1)
+	ld e,(ix+16+8+2)
+	ld d,(ix+16+8+3)
+	pop ix
+	
+	ld a,Commands.Seek
+	call SendCommandInt
+	call CheckForPrompt
+	jp nz,TriggerError
+	
+	; Now we need to write to the file.
+	ld a,Commands.WriteFileData
+	ld de,(TempCapacity)
+	ld hl,(TempSize)
+	call SendCommandInt
+	
+	ld l,(ix+0)
+	ld h,(ix+1)
+	
+	ld de,32
+	add hl,de
+	
+	ld de,(TempCapacity)
+	ld bc,(TempSize)
+
+-:	ld a,(hl)
+	ld a,(hl)
+	push hl
+	push de
+	push bc
+	call Serial.SendByte
+	pop bc
+	pop de
+	pop hl
+	
+	inc hl
+	
+	dec bc
+	ld a,b
+	and c
+	cpl
+	or a
+	jr nz,+
+	dec de
++:
+	ld a,b
+	or c
+	or d
+	or e
+	jr nz,-
+	
+	call CheckForPrompt
+	jp nz,TriggerError
+
+FlushBlock.Empty:
+
+	; Close the file.
+	ld a,Commands.CloseFile
+	ld l,(ix+0)
+	ld h,(ix+1)
+	call SendCommandString
+	call CheckForPrompt
+	jp nz,TriggerError
+	
+	; If we get this far, we can mark the block as clean.
+	res 7,(ix+3)
+
+NoFlushBlock:
+	
 	pop de
 	ld (TempPtr),de
+	
+	; Is the file still open for reading/writing?
+	ld a,(ix+3)
+	and 3
+	ret z
 	
 	; Ensure we can talk to the VDrive.
 	call SyncOrDeviceFault
@@ -1219,8 +1364,12 @@ FileGetByte.FetchBlock:
 	; Sanity check!
 	ld a,b
 	or c
-	jp z,File.EOF
-	ld (TempSize),bc
+	jr nz,+
+
+	pop ix
+	jp z,FetchBlock.Empty
+
++:	ld (TempSize),bc
 	
 	ld l,0
 	ld h,(ix+16+4+1)
@@ -1259,6 +1408,8 @@ FileGetByte.FetchBlock:
 	call CheckForPrompt
 	jp nz,TriggerError
 	
+FetchBlock.Empty:
+	
 	; Close the file.
 	ld a,Commands.CloseFile
 	ld l,(ix+0)
@@ -1283,8 +1434,30 @@ FileGetByte.FetchBlock:
 	ex de,hl
 	ld bc,3
 	ldir
+	
+	ret
 
-FileGetByte.ReadByte:
+; ==========================================================================
+; FileGetByte
+; --------------------------------------------------------------------------
+; Gets a byte from a file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+; Outputs:    A: The byte read from the file.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileGetByte:
+	
+	; First check for EOF.
+	call FileIsEOF
+	jp z,File.EOF
+	
+	; Now, ensure we have the correct block loaded.
+	call UpdateCurrentBlock
 	
 	ld l,(ix+0)
 	ld h,(ix+1)
@@ -1313,6 +1486,97 @@ FileGetByte.ReadByte:
 	pop de
 	add hl,de
 	ld a,(hl)
+	
+	ret
+
+; ==========================================================================
+; FileWriteByte
+; --------------------------------------------------------------------------
+; Writes a byte to a file.
+; --------------------------------------------------------------------------
+; Inputs:     IX: Pointer to the file variable data, where
+;             IX+0: LSB of pointer to block storage data.
+;             IX+1: MSB of pointer to block storage data.
+;             IX+2: File system.
+;             IX+3: File status (0:closed, 1:OPENOUT, 2:OPENIN, 3:OPENUP).
+;             A: The byte to write to the file.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+FileWriteByte:
+	
+	push af
+	
+	; Ensure we have the correct block loaded.
+	call UpdateCurrentBlock
+	
+	; Are we currently at the end of the file?
+	call FileIsEOF
+	
+	ld l,(ix+0)
+	ld h,(ix+1)
+	
+	push hl
+	
+	; Get the LSB of PTR.
+	ld de,16+4
+	add hl,de
+	ld a,(hl)
+	
+	; Remember whether we're at EOF or not.
+	push af
+	
+	; Advance PTR.
+	ld b,4
+-:	inc (hl)
+	jr nz,+
+	inc hl
+	djnz -
++:
+
+	pop af
+	jr nz,FileWriteByte.NotEOF
+	
+	; As we're writing to the EOF, we'll need to copy the new PTR to EXT.
+	
+	pop de
+	push de
+	
+	ld hl,16
+	add hl,de
+	ex de,hl
+	; DE -> EXT
+	
+	ld hl,4
+	add hl,de
+	; HL -> PTR
+	
+	ld bc,4
+	ldir
+	
+	; Mark the current block as dirty as we're changing the EXT.
+	set 7,(ix+3)
+
+FileWriteByte.NotEOF:
+
+	; Get the offset into the data buffer.
+	ld l,a
+	ld h,0
+	ld de,32
+	add hl,de
+
+	pop de
+	add hl,de
+	
+	; Now we can write the data.
+	pop af
+	
+	; No change to the data.
+	cp (hl)
+	ret z
+	
+	; Store the data and mark the current block as dirty.
+	ld (hl),a
+	set 7,(ix+3)
 	
 	ret
 

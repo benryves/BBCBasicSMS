@@ -426,14 +426,19 @@ WriteByte:
 	ld b,a
 	
 	ld a,(ix+2)
-	
 	cp FileSystems.Tape1200
 	ld a,b
 	jp z,Tape.FileWriteByte
 	
+	ld a,(ix+2)
 	cp FileSystems.Tape300
 	ld a,b
 	jp z,Tape.FileWriteByte
+
+	ld a,(ix+2)
+	cp FileSystems.VDrive
+	ld a,b
+	jp z,VDrive.FileWriteByte
 	
 	; Unsupported device.
 	pop de
