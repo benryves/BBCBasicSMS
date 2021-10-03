@@ -1105,20 +1105,34 @@ PutStringWithNewLines:
 	jr -
 
 ; ==========================================================================
-; PutHexNybble
+; PutHexInt
 ; --------------------------------------------------------------------------
-; Puts a hex nybble (0..F) on the screen.
+; Puts a hex int (00000000..FFFFFFFF) on the VDU.
 ; --------------------------------------------------------------------------
-; Inputs:     A: Hex nybble (must only be in the range 0..F).
+; Inputs:     DEHL: Hex int.
 ; Destroyed:  AF.
 ; ==========================================================================
-PutHexNybble:
-	cp 10
-	jr c,+
-	add a,'A'-10
-	jp VDU.PutChar
-+:	add a,'0'
-	jp VDU.PutChar
+PutHexInt:
+	ex de,hl
+	call PutHexWord
+	ex de,hl
+	; Fall-through to PutHexWord
+
+; ==========================================================================
+; PutHexWord
+; --------------------------------------------------------------------------
+; Puts a hex word (0000..FFFF) on the VDU.
+; --------------------------------------------------------------------------
+; Inputs:     HL: Hex word.
+; Destroyed:  AF.
+; ==========================================================================
+PutHexWord:
+	push hl
+	ld a,h
+	call PutHexByte
+	pop hl
+	ld a,l
+	; Fall-through to PutHexByte
 
 ; ==========================================================================
 ; PutHexByte
@@ -1137,23 +1151,23 @@ PutHexByte:
 	call PutHexNybble
 	pop af
 	and %1111
-	jr PutHexNybble
+	; Fall-through to PutHexNybble
 
 ; ==========================================================================
-; PutHexWord
+; PutHexNybble
 ; --------------------------------------------------------------------------
-; Puts a hex word (0000..FFFF) on the VDU.
+; Puts a hex nybble (0..F) on the screen.
 ; --------------------------------------------------------------------------
-; Inputs:     HL: Hex word.
+; Inputs:     A: Hex nybble (must only be in the range 0..F).
 ; Destroyed:  AF.
 ; ==========================================================================
-PutHexWord:
-	push hl
-	ld a,h
-	call PutHexByte
-	pop hl
-	ld a,l
-	jr PutHexByte
+PutHexNybble:
+	cp 10
+	jr c,+
+	add a,'A'-10
+	jp VDU.PutChar
++:	add a,'0'
+	jp VDU.PutChar
 
 ; ==========================================================================
 ; PutDecimalWord
