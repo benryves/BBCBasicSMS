@@ -1198,15 +1198,17 @@ PutMap.BeginPlot:
 	
 PutMap.NoClipLeft:
 
-	ld de,8
+	ld de,7
 	add hl,de
 	ld de,(MaxX)
 	ld d,0
 	call SignedCPHLDE
 	jr c,PutMap.NoClipRight
+	jr z,PutMap.NoClipRight
 	
 	; We need to clip the RIGHT edge.	
 	ld a,l
+	inc a
 	sub e
 	ld b,a
 	xor a
@@ -1604,7 +1606,10 @@ PlotTransformedSprite.Loop:
 	jr z,+
 	
 	ld b,a
+	ld l,c
 -:	srl h
+	srl l
+	jr z,++
 	djnz -
 +:	ld a,h
 	cpl
@@ -1615,6 +1620,8 @@ PlotTransformedSprite.Loop:
 	call Driver.SetAlignedHorizontalLineSegment
 	pop bc
 	pop de
+	
+++:
 	
 	ld a,d
 	and 7
@@ -1631,6 +1638,8 @@ PlotTransformedSprite.Loop:
 	ld h,a
 	
 -:	sla h
+	sla c
+	jr z,++
 	djnz -
 	
 	ld a,h
@@ -1645,6 +1654,8 @@ PlotTransformedSprite.Loop:
 	call Driver.SetAlignedHorizontalLineSegment
 	pop bc
 	pop de
+
+++:
 
 PlotTransformedSprite.Aligned:
 	
