@@ -1,5 +1,7 @@
 .module MasterSystem16ColoursReduced
 
+UserDefinedChars = MasterSystem16Colours.NameTable - 128 * 8
+
 Vectors:
 	jp Execute
 	jp PutMap
@@ -12,8 +14,8 @@ Execute:
 	dec a \ ret z
 	dec a \ jp z,ScrollDown
 	dec a \ jp z,ScrollUp
-	dec a \ jp z,MasterSystem16Colours.GetUserDefinedCharacter
-	dec a \ jp z,MasterSystem16Colours.SetUserDefinedCharacter
+	dec a \ jp z,GetUserDefinedCharacter
+	dec a \ jp z,SetUserDefinedCharacter
 	dec a \ jp z,PreserveUnderCursor
 	dec a \ jp z,RestoreUnderCursor
 	dec a \ jp z,MasterSystem16Colours.SelectPalette
@@ -310,4 +312,84 @@ ScrollFromRow:
 	ei
 	ret
 
+
+; ---------------------------------------------------------
+; GetUserDefinedCharacterAddress -> Gets address in VRAM
+; ---------------------------------------------------------
+; Inputs:   a = character to get the address of.
+; Outputs:  nc if the character is out of range.
+;           hl = address of the character otherwise.
+; Destroys: af, de.
+; ---------------------------------------------------------
+; ==========================================================================
+; GetUserDefinedCharacterAddress
+; --------------------------------------------------------------------------
+; Gets address in VRAM.
+; --------------------------------------------------------------------------
+; Inputs:     A: Character to get the address of.
+; Outputs:    F: NC if the character is out of range, C if character is in range
+;             HL: Address of the character if it's in range.
+; Destroyed:  F, DE.
+; ==========================================================================
+GetUserDefinedCharacterAddress:
+	add a,a
+	ret nc
+	
+	ld h,0
+	ld l,a
+	add hl,hl
+	add hl,hl
+	
+	ld de,UserDefinedChars
+	add hl,de
+	
+	scf
+	ret
+
+SetUserDefinedCharacter:
+	push hl
+	ld a,c
+	call GetUserDefinedCharacterAddress
+	jr c,+
+	
+	pop hl
+	jp MasterSystem16Colours.SetUserDefinedCharacter
+	
++:	call Video.SetWriteAddress
+	
+	pop de
+	ld b,8
+-:	ld a,(de)           ; 7
+	out (Video.Data),a  ; 11
+	inc de              ; 6
+	djnz -              ; 13 = 37 clocks
+	
+	ei
+	ret
+
+GetUserDefinedCharacter:
+	push hl
+	ld a,c
+	call GetUserDefinedCharacterAddress
+	jr c,+
+	
+	pop hl
+	jp MasterSystem16Colours.GetUserDefinedCharacter
+
++:	call Video.SetReadAddress
+	ld b,8
+	
+	pop hl
+	push hl
+	
+-:	in a,(Video.Data)   ; 11
+	ld (hl),a           ; 7
+	inc hl              ; 6
+	djnz -              ; 13 = 37 clocks
+	
+	pop hl
+	scf
+	ei
+	ret
+	
 .endmodule
