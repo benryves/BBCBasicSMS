@@ -228,7 +228,7 @@ GetInitialCarrier:
 	ld hl,0
 	
 	; B = number of full waves to test.
-	ld b,32
+	ld b,48
 	
 -:	push bc
 	call GetWaveLength
@@ -244,30 +244,26 @@ GetInitialCarrier:
 	neg
 +:
 
-	; A = difference in length between last wave and current wave.
-	cp 8
+	; A = difference in length between first wave and current wave.
+	cp 4
 	jr c,+
 	
 	; Wave length differs too much. Not carrier!
 	xor a
 	ret
 	
-+:	; Remember the wave length for next time.
-	ld c,e
-	
-	; Add to the current wave length counter.
++:	; Add to the current wave length counter.
 	ld d,0
 	add hl,de
 	
 	djnz -
 	
+	; Divide by 32, as sample length * 48 samples / 32 = sample length * 1.5
 	ld b,5
 -:	srl h \ rr l
 	djnz -
 	
 	ld a,l
-	srl h \ rr l
-	add a,l
 	
 	ld (WaveLengthThreshold),a
 	ret
