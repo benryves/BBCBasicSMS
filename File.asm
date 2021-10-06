@@ -5,10 +5,12 @@
 ; ==========================================================================
 .module File
 
-FileSystem = allocVar(1)
-Options    = allocVar(1)
+FileSystem        = allocVar(1)
+Options           = allocVar(1)
+PersistentHandles = allocVar(1)
+
 MaxHandles = 27
-HandleDataSize = 256 + 128
+HandleDataSize = 256 + 64
 
 .module FileSystems
 	None = 0
@@ -28,6 +30,7 @@ HandleDataSize = 256 + 128
 Reset:
 	xor a
 	ld (FileSystem),a
+	ld (PersistentHandles),a
 	ret
 
 ; ==========================================================================
@@ -53,10 +56,37 @@ SetFileSystem:
 ; Destroyed:  AF, BC, DE, HL, IX, IY.
 ; ==========================================================================
 GetHandleVariable:
+	; Quick check for invalid handle A=0.
+	or a
+	jr nz,+
+	dec a
+	ret
++:	
+	
+	; Is it a persistent handle?
+	ld b,a
+	ld a,(PersistentHandles)
+	cp b
+	jr c,GetHandleVariable.NotPersistent
+
+	; It's a persistent handle!
+	ld hl,HIMEM
+	ld de,-(HandleDataSize+4)
+-:	add hl,de
+	djnz -
+	
+	push hl
+	pop ix
+	
+	xor a
+	ret
+
+GetHandleVariable.NotPersistent:
+	
 	ld hl,HandleVariableName
 	ld de,VDU.TempTile
 	
-	push af
+	push bc ; B = handle
 	
 -:	ld a,(hl)
 	or a
@@ -196,7 +226,13 @@ FoundFreeHandle:
 	jr nz,CouldNotCreateHandle
 
 ReuseClosedHandle:
-
+	
+	; If this is a persistent variable, then we've already
+	; allocated memory for it so can skip the next part.
+	ld a,(PersistentHandles)
+	cp c
+	jr nc,FinishedAllocatingHandle
+	
 	; We have now created the variable.
 	; Store a pointer to its data.
 	ld hl,(Basic.BBCBASIC_FREE)
@@ -209,6 +245,8 @@ ReuseClosedHandle:
 	add hl,de
 	ld (Basic.BBCBASIC_FREE),hl
 	
+FinishedAllocatingHandle:
+
 	ld a,c
 	cp a ; Z, NC.
 	
@@ -218,6 +256,172 @@ CouldNotCreateHandle:
 	pop de
 	pop hl
 	pop iy
+	ret
+
+; ==========================================================================
+; SetPersistentHandleLimit
+; --------------------------------------------------------------------------
+; Sets the number of persistent handles.
+; --------------------------------------------------------------------------
+; Inputs:     A: Number of persistent handles to permit.
+; Destroyed:  AF, BC, DE, HL.
+; ==========================================================================
+SetPersistentHandleLimit:
+	; Start by closing all existing handles.
+	push af
+	
+	ld e,0
+	call Close
+	
+	; Do we already have any persistent handles?
+	ld a,(PersistentHandles)
+	or a
+	jr z,NoPersistentHandlesToFree
+	
+	; We will need to move data from SP..(HIMEM)-1 back up to end at HIMEM-1
+	ld hl,(Basic.BBCBASIC_HIMEM)
+	or a
+	sbc hl,sp
+	ld c,l
+	ld b,h
+	
+	; BC = amount of data on stack.
+	
+	ld hl,(Basic.BBCBASIC_HIMEM)
+	dec hl
+	ld de,HIMEM-1
+	
+	lddr
+	
+	; Now move SP to where it should be.
+	ld hl,HIMEM
+	ld de,(Basic.BBCBASIC_HIMEM)
+	or a
+	sbc hl,de
+	add hl,sp
+	ld sp,hl
+
+NoPersistentHandlesToFree:
+	
+	; Set BASIC HIMEM to match actual HIMEM.
+	ld hl,HIMEM
+	ld (Basic.BBCBASIC_HIMEM),hl
+	
+	pop af
+	
+	; If the number of persistent handles = 0, we're done.
+	or a
+	jr nz,+
+	ld (PersistentHandles),a
+	ret
++:
+		
+	; How much space will the persistent handles take?
+	ld b,a
+	ld c,a
+	ld hl,0
+	ld de,HandleDataSize+4
+-:	add hl,de
+	jr c,SetPersistentHandlesNoRoom
+	djnz -
+	ex de,hl
+	ld (TempSize),de
+	
+	; Is there enough room for all those handles?
+	ld hl,(Basic.BBCBASIC_FREE)
+	add hl,de
+	ret c
+	sbc hl,sp
+	jr c,SetPersistentHandlesEnoughRoom
+	; No room.
+	
+SetPersistentHandlesNoRoom:
+	scf
+	ret
+
+SetPersistentHandlesEnoughRoom:
+
+	; Will the new HIMEM be below $C100?
+	ld hl,HIMEM-$C100
+	ld de,(TempSize)
+	sbc hl,de
+	ret c
+
+	; We have enough room!
+	ld a,c
+	ld (PersistentHandles),a
+	
+	; Now move HIMEM down.
+	; We'll need to move between SP..HIMEM-1
+	
+	ld hl,0
+	add hl,sp
+	; HL = source
+	
+	ld (TempPtr),hl
+	
+	ld de,HIMEM
+	ex de,hl
+	or a
+	
+	sbc hl,de
+	
+	ld c,l
+	ld b,h
+	
+	; BC = number of bytes between SP and HIMEM.
+	
+	ld hl,(TempPtr)  ; SP
+	ld de,(TempSize) ; size of persistent file storage
+	or a
+	sbc hl,de
+	ld sp,hl
+	ex de,hl
+	
+	; DE = new SP.
+	
+	ld hl,(TempPtr)
+	ldir
+	
+	; Finally, update HIMEM variable.
+	ld hl,HIMEM
+	ld de,(TempSize)
+	or a
+	sbc hl,de
+	ld (Basic.BBCBASIC_HIMEM),hl
+	
+	; Now the space is allocated, fill it with dummy closed handles.
+	ld a,(PersistentHandles)
+	ld b,a
+	
+	ld hl,HIMEM
+	ld de,-(HandleDataSize+4)
+	
+	xor a
+	
+-:	add hl,de
+	push de
+	push hl
+	
+	; We need to set the data area for the handle to be HL+4
+	ex de,hl
+	ld hl,4
+	add hl,de
+	ex de,hl
+	
+	ld (hl),e
+	inc hl
+	ld (hl),d
+	inc hl
+	ld (hl),a
+	inc hl
+	ld (hl),a
+	
+	pop hl
+	pop de
+	djnz -
+	
+	xor a
 	ret
 	
 ; ==========================================================================

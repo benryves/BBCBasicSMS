@@ -251,9 +251,9 @@ GetDecimalWord:
 	jr -
 
 ; ==========================================================================
-; GetDecimalWord
+; GetDecimalByte
 ; --------------------------------------------------------------------------
-; Gets a value between 0..6556255.
+; Gets a value between 0..255.
 ; --------------------------------------------------------------------------
 ; Inputs:     HL: Pointer to command line.
 ; Outputs:    HL: Pointer to next character in the command.
@@ -930,6 +930,17 @@ ChangeDirectory.VDrive:
 	scf
 	ret
 
+SetPersistentFiles:	
+	call CheckCommandInteractive
+	call GetDecimalByte
+	ld c,a
+	call CheckCommandEnd
+	ld a,c
+	call File.SetPersistentHandleLimit
+	jp c,Host.NoRoom
+	scf
+	ret
+
 Commands:
 	osclicommand("TERM", Terminal)
 	osclicommand("CAT", Catalogue)
@@ -956,6 +967,7 @@ Commands:
 	osclicommand("VDRIVE", VDrive)
 	osclicommand("CHDIR", ChangeDirectory)
 	osclicommand("CD", ChangeDirectory)
+	osclicommand("FILES", SetPersistentFiles)
 	.db 0
 
 .endmodule
