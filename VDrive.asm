@@ -714,6 +714,7 @@ GotFileName:
 ; Outputs:    F: NZ if there was a protocol/receive error.
 ;                If no error, C is set if the transfer was cancelled.
 ;                If there is an error, C is set if the error is "No room".
+;             BC: Actual size of the loaded file.
 ; Destroyed:  AF, BC, DE, HL.
 ; Interrupts: Disabled.
 ; ==========================================================================
@@ -778,6 +779,8 @@ GetFile:
 	or c
 	jr nz,-
 	
+	; Return the actual file size.
+	ld bc,(TempCapacity)
 	ret
 
 ; ==========================================================================

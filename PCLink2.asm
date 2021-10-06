@@ -536,6 +536,7 @@ List.NotEscapeCode:
 ; Outputs:  nz if there was a protocol/receive error.
 ;           if no error, c set if transfer was cancelled.
 ;           if error, c is set if the error is "No room".
+;           bc = actual size of the loaded file.
 ; Destroys: af, bc, de, hl
 ; ---------------------------------------------------------
 GetFile:
@@ -581,6 +582,9 @@ GetFile.PathSent:
 	jr nz,GetFile.ProtocolError
 	
 	; Start reading the file.
+	
+	ld hl,0
+	ld (TempSize),hl
 
 GetFile.ReceiveFileLoop:
 
@@ -611,6 +615,8 @@ GetFile.CanCarry:
 	cp 'Z' ; End of file.
 	jr nz,GetFile.ProtocolError
 	
+	ld bc,(TempSize)
+	
 	xor a ; Set z, clear carry.
 	ret
 
@@ -629,6 +635,10 @@ GetFile.NotEscapeCode:
 	ld (hl),e
 	inc hl
 	ld (TempPtr),hl
+	
+	ld hl,(TempSize)
+	inc hl
+	ld (TempSize),hl
 	
 	jr GetFile.ReceiveFileLoop
 

@@ -545,6 +545,7 @@ Catalogue:
 ; Outputs:    F: NZ if there was a protocol/receive error.
 ;                If no error, C is set if the transfer was cancelled.
 ;                If there is an error, C is set if the error is "No room".
+;             BC: Actual size of the loaded file.
 ; Destroyed:  AF, BC, DE, HL.
 ; Interrupts: Disabled.
 ; ==========================================================================
@@ -941,6 +942,15 @@ GetFile.EndOfFile:
 	call WaitCarrierEnd
 	
 	call MotorOff
+	
+	; Get the final file size.
+	ld l,(ix+Header.DataBlockLength+0)
+	ld h,(ix+Header.DataBlockLength+1)
+	ld e,0
+	ld d,(ix+Header.BlockNumber)
+	add hl,de
+	ld c,l
+	ld b,h
 	
 	pop ix
 	xor a

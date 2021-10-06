@@ -1177,13 +1177,37 @@ OSLOAD.Error:
 	ret
 
 RepairProgram:
-	ld c,l
-	ld b,h
+
+	; If the file is zero bytes long, bail out.
+	ld a,b
+	or c
+	ret z
 	
--:	ld a,(hl) ; Start of line
+	; If the first byte of the file is not CR then it definitely isn't an Acorn program.
+	ld a,(hl)
 	cp '\r'
 	ret nz
 	
+	; Append a crude footer.
+	push hl
+
+	add hl,bc
+	ld de,Footer
+	ld bc,Footer.Length
+	ex de,hl
+	ldir
+	
+	pop hl
+	push hl
+	
+-:	ld a,(hl) ; Start of line
+	cp '\r'
+	jr z,+
+	pop hl
+	ret
+	
++:	
+
 	inc hl
 	ld a,(hl)
 	cp -1
@@ -1199,11 +1223,14 @@ RepairProgram:
 	dec hl
 	jr -
 
+Footer:
+	.db 0, Footer.Length, '\r', $FF
+Footer.Length = $-Footer
+
 CanConvert:
 
 	; If we get this far, there's a valid Acorn BBC BASIC program in memory.
-	ld l,c
-	ld h,b
+	pop hl
 	
 -:	ld a,(hl)
 	cp '\r'
