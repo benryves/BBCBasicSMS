@@ -356,7 +356,13 @@ GetKey:
 
 +:	ld de,(Host.ExecHandle)
 	call File.GetByte
-
+	
+	; Force NZ
+	or a
+	jr z,+
+	cp $FF
++:
+	
 	pop bc
 	pop de
 	pop hl
