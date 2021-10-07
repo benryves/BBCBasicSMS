@@ -21,6 +21,8 @@ Execute:
 	jp z,RestoreUnderCursor
 	cp Driver.Execute.ResetConsoleViewport
 	jp z,ResetConsoleViewport
+	cp Driver.Execute.SelectPalette
+	jp z,SelectPalette
 	ret
 
 Initialise:
@@ -279,24 +281,18 @@ SelectDefaultPalette:
 ; ---------------------------------------------------------
 ; SelectPalette -> Selects the palette.
 ; ---------------------------------------------------------
-; Inputs:   a = "physical" colour (from BBC BASIC palette).
-;           b = "physical" colour.
+; Inputs:   b = "physical" colour.
 ;           c = logical colour.
 ;           hl = pointer to RGB colour (if applicable).
 ; Destroys: af, hl, bc.
 ; ---------------------------------------------------------
 SelectPalette:
-	ret ; TODO
+	
 	; Pretend we're setting the palette normally in our 2-colour palette.
-	ld a,c
-	and 1
-	ld c,a
-	ld a,b
-;	call MasterSystem16Colours.SelectPalette
+	call MasterSystem2Colours.SelectPalette
 	
 	; Convert the console colour to a TMS9918 pair.
 	ld a,(VDU.Console.Colour)
-	and $11
 	call VDU.Palettes.ConvertColourPairToTMS9918
 	
 	; Set the text colour.
