@@ -204,4 +204,62 @@ _ltZero16:  add     hl, de          ; [11] restore remainder
 			djnz    _sqrt16         ; [13/8]
 			ret                     ; [10]
 
+	
+MulDEBC: ; DEHL = DE*BC (unsigned)
+	ld hl,0
+	.rept 16
+		add hl,hl
+		rl e
+		rl d
+		jp nc,+
+		add hl,bc
+		jp nc,+
+		inc de
++:
+	.loop
+	ret
+
+SMulDEBC: ; DEHL = DE*BC (signed)
+	ld l,0
+	bit 7,d
+	jp z,+
+	; DE is -ve
+	inc l
+	
+	dec de
+	ld a,d \ cpl \ ld d,a
+	ld a,e \ cpl \ ld e,a
++:
+
+	bit 7,b
+	jp z,+
+	; BC is signed.
+	inc l
+	dec bc
+	ld a,b \ cpl \ ld b,a
+	ld a,c \ cpl \ ld c,a
++:
+	ld a,l
+	call MulDEBC
+
+	and 1
+	ret z ; No need to flip sign of DEHL
+	
+	ld a,d \ cpl \ ld d,a
+	ld a,e \ cpl \ ld e,a
+	ld a,h \ cpl \ ld h,a
+	ld a,l \ cpl \ ld l,a
+
+	; inc dehl
+	
+	inc l
+	jr nz,+
+	inc h
+	jr nz,+
+	inc e
+	jr nz,+
+	inc d
++:
+	ret	
+
 .endmodule

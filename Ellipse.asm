@@ -21,6 +21,8 @@
 ;-------------------------------------------------------------------------------
 
 ellipseFlags        =    0
+fClipArcBigAngle    =    1
+fClipArc            =    2
 fRejectC            =    3
 fRejectB            =    4
 fRejectL            =    5
@@ -42,6 +44,12 @@ g_ellipseXChange      = allocVar(6)
 g_ellipseYChange      = allocVar(6)
 g_ellipseError        = allocVar(6)
 g_finishEllipseX      = allocVar(2)
+
+g_ellipseClipADX      = allocVar(2)
+g_ellipseClipADY      = allocVar(2)
+
+g_ellipseClipBDX      = allocVar(2)
+g_ellipseClipBDY      = allocVar(2)
 
 ;-------------------------------------------------------------------------------
 ; === DrawEllipse ===
@@ -649,7 +657,9 @@ _putPixel:
 	push bc
 	push hl
 	push ix
-	call SetPixel
+	bit fClipArc,(iy+ellipseFlags)
+	call nz,ClipArc
+	call z,SetPixel
 	pop ix
 	pop hl
 	pop bc
@@ -1058,3 +1068,121 @@ _sqrDone32:
 	;-------------------------------------------------------------------------------
 	; End of SquareBC
 	;-------------------------------------------------------------------------------
+
+
+.define ClipArcDX TempTile+0
+.define ClipArcDY TempTile+2
+
+; ==========================================================================
+; ClipArc
+; --------------------------------------------------------------------------
+; Clips a pixel between the two lines that define a circular arc.
+; --------------------------------------------------------------------------
+; Inputs:     D: X coordinate.
+;             E: Y coordinate.
+; Outputs:    F: Z if the pixel can be drawn, NZ if not.
+; ==========================================================================
+ClipArc:
+	push de
+	
+	; Get the pixel DX/DY
+	
+	ld l,d
+	ld h,0
+	ld bc,(g_ellipseCX)
+	or a
+	sbc hl,bc
+	ld (ClipArcDX),hl
+	
+	ld l,e
+	ld h,0
+	ld bc,(g_ellipseCY)
+	or a
+	sbc hl,bc
+	ld (ClipArcDY),hl
+	
+	; Do we have a big angle or a small angle?
+	bit fClipArcBigAngle,(iy+ellipseFlags)
+	jr nz,ClipArcBig
+
+ClipArcSmall: ; Result = correct side of A AND correct side of B.
+
+	; Are we on the correct side of clip line A?
+	call ClipArcLineSideA
+	jr nz,+
+	; Are we on the correct side of clip line B?
+	call ClipArcLineSideB
++:	pop de
+	ret
+
+ClipArcBig: ; Result = correct side of A OR correct side of B.
+
+	; Are we on the correct side of clip line A?
+	call ClipArcLineSideA
+	jr z,+
+	; Are we on the correct side of clip line B?
+	call ClipArcLineSideB
++:	pop de
+	ret
+	
+ClipArcLineSideA:
+
+	; Calculate pixel DY * clip line DX
+	
+	ld bc,(ClipArcDY)
+	ld de,(g_ellipseClipADX)
+	call Maths.SMulDEBC
+	
+	push de
+	push hl
+	
+	; Calculate pixel DX * clip DY
+	
+	ld bc,(ClipArcDX)
+	ld de,(g_ellipseClipADY)
+	call Maths.SMulDEBC
+	
+	; Subtract previous product.
+	
+	or a
+	pop bc
+	sbc hl,bc
+	
+	ex de,hl
+	pop bc
+	sbc hl,bc
+	
+	; We're on the correct side if HL>=0
+	bit 7,h
+	ret
+
+ClipArcLineSideB:
+
+	; Calculate pixel DX * clip DY
+	
+	ld bc,(ClipArcDX)
+	ld de,(g_ellipseClipBDY)
+	call Maths.SMulDEBC
+	
+	push de
+	push hl
+	
+	; Calculate pixel DY * clip line DX
+	
+	ld bc,(ClipArcDY)
+	ld de,(g_ellipseClipBDX)
+	call Maths.SMulDEBC
+	
+	; Subtract previous product.
+	
+	or a
+	pop bc
+	sbc hl,bc
+	
+	ex de,hl
+	pop bc
+	sbc hl,bc
+	
+	; We're on the correct side if HL>=0
+	bit 7,h
+	ret

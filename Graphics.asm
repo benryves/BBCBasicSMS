@@ -676,9 +676,9 @@ PlotCommands:
 .dw Stub              ; 136..143: Flood fill to foreground.
 .dw PlotDrawCircle    ; 144..151: Circle outline.
 .dw PlotFillCircle    ; 152..159: Circle fill.
-.dw Stub              ; 160..167: Draw circular arc.
+.dw PlotDrawArc       ; 160..167: Draw circular arc.
 .dw Stub              ; 168..175: Draw solid segment.
-.dw Stub              ; 176..183: Draw solid sector.
+.dw PlotFillSector    ; 176..183: Draw solid sector.
 .dw Stub              ; 184..191: Block transfer operations.
 .dw PlotDrawEllipse   ; 192..199: Ellipse outline.
 .dw PlotFillEllipse   ; 200..207: Ellipse fill.
@@ -1854,7 +1854,7 @@ PlotTransformedRectangle:
 ; --------------------------------------------------------------------------
 ; Inputs:     PlotShape: Circle type to plot.
 ;             VisitedPoint0: Point on circumference.
-;             VisitedPoint1: Center.
+;             VisitedPoint1: Centre.
 ; Destroyed:  AF, HL, DE, BC.
 ; ==========================================================================
 PlotDrawCircle:
@@ -1870,7 +1870,7 @@ PlotDrawCircle:
 ; --------------------------------------------------------------------------
 ; Inputs:     PlotShape: Circle type to plot.
 ;             VisitedPoint0: Point on circumference.
-;             VisitedPoint1: Center.
+;             VisitedPoint1: Centre.
 ; Destroyed:  AF, HL, DE, BC.
 ; ==========================================================================
 PlotFillCircle:
@@ -1879,7 +1879,8 @@ PlotFillCircle:
 	set fFillEllipse,(iy+ellipseFlags)
 
 PlotCircle:
-	; <center>, <radius>
+	res fClipArc,(iy+ellipseFlags)
+	; <centre>, <radius>
 	ld b,2
 	call TransformPoints
 	
@@ -1984,7 +1985,7 @@ CircleFoundRadius:
 ; Inputs:     PlotShape: Ellipse type to plot.
 ;             VisitedPoint0: Point on h tangent (v radius)
 ;             VisitedPoint1: Point on v tangent (h radius)
-;             VisitedPoint2: Center.
+;             VisitedPoint2: Centre.
 ; Destroyed:  AF, HL, DE, BC.
 ; ==========================================================================
 PlotDrawEllipse:
@@ -2001,7 +2002,7 @@ PlotDrawEllipse:
 ; Inputs:     PlotShape: Ellipse type to plot.
 ;             VisitedPoint0: Point on h tangent (v radius)
 ;             VisitedPoint1: Point on v tangent (h radius)
-;             VisitedPoint2: Center.
+;             VisitedPoint2: Centre.
 ; Destroyed:  AF, HL, DE, BC.
 ; ==========================================================================
 PlotFillEllipse:
@@ -2010,7 +2011,9 @@ PlotFillEllipse:
 	set fFillEllipse,(iy+ellipseFlags)
 
 PlotEllipse:
-	; <center>, <horizontal radius>, <vertical radius>
+	res fClipArc,(iy+ellipseFlags)
+	
+	; <centre>, <horizontal radius>, <vertical radius>
 	ld b,3
 	call TransformPoints
 	
@@ -2042,6 +2045,200 @@ PlotEllipse:
 	call DrawEllipse
 	
 	pop iy
+	ret
+
+; ==========================================================================
+; PlotDrawArc
+; --------------------------------------------------------------------------
+; Draws a circular arc.
+; --------------------------------------------------------------------------
+; Inputs:     VisitedPoint0: End of the arc
+;             VisitedPoint1: Start of the arc (providing the radius)
+;             VisitedPoint2: Centre
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
+PlotDrawArc:	
+	push iy
+	call InitialiseCircleArc
+	res fFillEllipse,(iy+ellipseFlags)
+	call DrawEllipse
+	pop iy
+	ret
+
+; ==========================================================================
+; PlotFillSector
+; --------------------------------------------------------------------------
+; Fills a circular sector.
+; --------------------------------------------------------------------------
+; Inputs:     VisitedPoint0: End of the sector
+;             VisitedPoint1: Start of the sector (providing the radius)
+;             VisitedPoint2: Centre
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
+PlotFillSector:
+	push iy
+	call InitialiseCircleArc
+	set fFillEllipse,(iy+ellipseFlags)
+	call DrawEllipse
+	pop iy
+	ret
+
+; ==========================================================================
+; InitialiseCircleArc
+; --------------------------------------------------------------------------
+; Prepares to draw a circle arc or sector.
+; --------------------------------------------------------------------------
+; Inputs:     VisitedPoint0: End of the arc
+;             VisitedPoint1: Start of the arc (providing the radius)
+;             VisitedPoint2: Centre
+; Outputs:    g_ellipseCX: Centre X coordinate.
+;             g_ellipseCY: Centre Y coordinate.
+;             g_ellipseRX: Horizontal radius.
+;             g_ellipseRY: Horizontal radius.
+;             IY: Set to PlotShape.
+; Destroyed:  AF, HL, DE, BC, IY.
+; ==========================================================================
+InitialiseCircleArc:
+	
+	; Set up the plotting flags to clip the ellipse.
+	ld iy,PlotShape
+	set fClipArc,(iy+ellipseFlags)
+	
+	; We have three points to work with.
+	ld b,3
+	call TransformPoints
+	
+	; Store the slope for the line pointing to the end of the arc.
+	
+	ld hl,(TransformedPoint0X)
+	ld de,(TransformedPoint2X)
+	or a
+	sbc hl,de
+	ld (g_ellipseClipBDX),hl
+	
+	ld hl,(TransformedPoint0Y)
+	ld de,(TransformedPoint2Y)
+	or a
+	sbc hl,de
+	ld (g_ellipseClipBDY),hl
+	
+	; Now calculate the radius and slope for the start of the arc.
+	
+	; dx = ?
+	ld hl,(TransformedPoint1X)
+	ld de,(TransformedPoint2X)
+	or a
+	sbc hl,de
+	ld (g_ellipseClipADX),hl
+	ld a,h
+	or l
+	jr z,CircleArcRadiusZeroWidth
+	ld c,l
+	ld b,h
+	
+	; dy = ?
+	ld hl,(TransformedPoint1Y)
+	ld de,(TransformedPoint2Y)
+	or a
+	sbc hl,de
+	ld (g_ellipseClipADY),hl
+	ld a,h
+	or l
+	jr z,CircleArcRadiusZeroHeight
+	
+	; If we get this far, the radius is defined by a point on the radius that is
+	; not on the same axis as the centre.
+	push hl
+	
+	call Maths.AbsBC
+	call SquareBC
+	
+	pop bc
+	push hl
+	push de
+	
+	call Maths.AbsBC
+	call SquareBC
+	
+	ex de,hl
+	
+	pop bc
+	add hl,bc
+	jr nc,+
+	inc de
++:	ex de,hl
+	pop bc
+	add hl,bc
+	
+	; HL:DE = (dx*dx)+(dy*dy)
+
+	call Maths.Sqrt32 ; DE = SQR(HL:DE)
+	
+	jr CircleArcFoundRadius
+
+CircleArcRadiusZeroWidth:
+	
+	; Get dy
+	ld hl,(TransformedPoint1Y)
+	ld de,(TransformedPoint2Y)
+	or a
+	sbc hl,de
+	ld (g_ellipseClipADY),hl
+	jr CircleArcCalculateRadiusZeroAxis
+
+CircleArcRadiusZeroHeight:
+	
+	; We still have dx in bc
+	ld l,c
+	ld h,b
+	
+CircleArcCalculateRadiusZeroAxis:
+	
+	bit 7,h
+	jr z,+
+	ld a,h \ cpl \ ld h,a
+	ld a,l \ cpl \ ld l,a
+	inc hl
++:	ex de,hl
+
+CircleArcFoundRadius:
+
+	; Copy the centre of the ellipse into the right field.
+	ld hl,(TransformedPoint2X)
+	ld (g_ellipseCX),hl
+	ld hl,(TransformedPoint2Y)
+	ld (g_ellipseCY),hl
+
+	; Store radius.
+	ld (g_ellipseRX),de
+	ld (g_ellipseRY),de
+	
+	; Is the angle between the start and end of the arc >180 degrees?
+	
+	; Assume it isn't by default.
+	res fClipArcBigAngle,(iy+ellipseFlags)
+	
+	ld bc,(g_ellipseClipADY)
+	ld de,(g_ellipseClipBDX)
+	call Maths.SMulDEBC
+	
+	push de
+	push hl
+	
+	ld bc,(g_ellipseClipADX)
+	ld de,(g_ellipseClipBDY)
+	call Maths.SMulDEBC
+	
+	or a
+	pop bc
+	sbc hl,bc
+	
+	ex de,hl
+	pop bc
+	sbc hl,bc
+	
+	ret m
+	set fClipArcBigAngle,(iy+ellipseFlags)
 	ret
 
 ; ==========================================================================
