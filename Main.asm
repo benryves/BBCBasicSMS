@@ -16,7 +16,7 @@
 
 ; BBC BASIC's scratch memory will be in RAM ($DC00..$DEFF)
 EndOfVariables = $DC00
-Variables      = EndOfVariables - 266
+Variables      = EndOfVariables - 272
 
 HIMEM = Variables
 

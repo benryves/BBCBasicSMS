@@ -526,7 +526,9 @@ _hFill:
 	ld d,b
 	ld h,c
 	ld e,a
-	call PlotTransformedHorizontalSpan
+	bit fClipArc,(iy+ellipseFlags)
+	call nz,ClipArcSpan
+	call z,PlotTransformedHorizontalSpan
 	pop ix
 	pop bc
 	ret
@@ -658,7 +660,7 @@ _putPixel:
 	push hl
 	push ix
 	bit fClipArc,(iy+ellipseFlags)
-	call nz,ClipArc
+	call nz,ClipArcPixel
 	call z,SetPixel
 	pop ix
 	pop hl
@@ -1070,11 +1072,13 @@ _sqrDone32:
 	;-------------------------------------------------------------------------------
 
 
-.define ClipArcDX TempTile+0
-.define ClipArcDY TempTile+2
+.define ClipArcDX TempTile+0 ; 2 bytes
+.define ClipArcDY TempTile+2 ; 2 bytes
+ClipSectorACounter = allocVar(4)
+ClipSectorBCounter = allocVar(4)
 
 ; ==========================================================================
-; ClipArc
+; ClipArcPixel
 ; --------------------------------------------------------------------------
 ; Clips a pixel between the two lines that define a circular arc.
 ; --------------------------------------------------------------------------
@@ -1082,7 +1086,7 @@ _sqrDone32:
 ;             E: Y coordinate.
 ; Outputs:    F: Z if the pixel can be drawn, NZ if not.
 ; ==========================================================================
-ClipArc:
+ClipArcPixel:
 	push de
 	
 	; Get the pixel DX/DY
@@ -1185,4 +1189,146 @@ ClipArcLineSideB:
 	
 	; We're on the correct side if HL>=0
 	bit 7,h
+	ret
+
+; ==========================================================================
+; ClipArcSpan
+; --------------------------------------------------------------------------
+; Clips a span between the two lines that define a circular arc.
+; --------------------------------------------------------------------------
+; Inputs:     D, B: X1 coordinate.
+;             H, C: X2 coordinate.
+;             E, A: Y coordinate.
+; Outputs:    F: Z if the span can be drawn, NZ if not.
+; ==========================================================================
+ClipArcSpan:
+	push de
+
+	; How many pixels are we due to draw on the line?
+	ld a,h
+	sub d
+	inc a
+	push af
+	
+	; Get the pixel DX/DY from the centre position.
+	ld l,d
+	ld h,0
+	ld bc,(g_ellipseCX)
+	or a
+	sbc hl,bc
+	ld (ClipArcDX),hl
+	
+	ld l,e
+	ld h,0
+	ld bc,(g_ellipseCY)
+	or a
+	sbc hl,bc
+	ld (ClipArcDY),hl
+	
+	; Calculate the initial line side A counter.
+	
+	call ClipArcLineSideA
+	
+	ld (ClipSectorACounter+0),de
+	ld (ClipSectorACounter+2),hl
+	
+	; Calculate the initial line side B counter.
+	
+	call ClipArcLineSideB
+	
+	ld (ClipSectorBCounter+0),de
+	ld (ClipSectorBCounter+2),hl
+	
+	; Restore number of pixels to try and coordinates.
+	pop bc
+	pop de
+	
+	; Now we can try to clip each pixel in a loop.
+	
+ClipArcSpanLoop:
+	push bc
+	push de
+	
+	; Do we have a big angle or a small angle?
+	bit fClipArcBigAngle,(iy+ellipseFlags)
+	jr nz,ClipArcSpanBig
+
+ClipArcSpanSmall: ; Result = correct side of A AND correct side of B.
+
+	; Are we on the correct side of clip line A?
+	ld a,(ClipSectorACounter+3)
+	bit 7,a
+	jr nz,ClipArcSpanClipped
+	
+	; Are we on the correct side of clip line B?
+	ld a,(ClipSectorBCounter+3)
+	bit 7,a
+	jr ClipArcSpanClipped
+
+ClipArcSpanBig: ; Result = correct side of A OR correct side of B.
+
+	; Are we on the correct side of clip line A?
+	ld a,(ClipSectorACounter+3)
+	bit 7,a
+	jr z,ClipArcSpanClipped
+	
+	; Are we on the correct side of clip line B?
+	ld a,(ClipSectorBCounter+3)
+	bit 7,a
+
+ClipArcSpanClipped:
+	
+	pop de
+	push de
+	call z,SetPixel
+	
+	; Now increment the clipping counters.
+	
+	; Load and sign extend line A clipping Y delta into BCDE
+	
+	ld de,(g_ellipseClipADY)
+	ld a,d
+	add a,a
+	sbc a,a
+	ld b,a
+	ld c,a
+	
+	; Add to A counter.
+	
+	ld hl,(ClipSectorACounter+0)
+	add hl,de
+	ld (ClipSectorACounter+0),hl
+	
+	ld hl,(ClipSectorACounter+2)
+	adc hl,bc
+	ld (ClipSectorACounter+2),hl
+	
+	; Load and sign extend line B clipping Y delta into BCDE
+	
+	ld de,(g_ellipseClipBDY)
+	ld a,d
+	add a,a
+	sbc a,a
+	ld b,a
+	ld c,a
+	
+	; Subtract from B counter.
+	
+	or a
+	ld hl,(ClipSectorBCounter+0)
+	sbc hl,de
+	ld (ClipSectorBCounter+0),hl
+	
+	ld hl,(ClipSectorBCounter+2)
+	sbc hl,bc
+	ld (ClipSectorBCounter+2),hl
+	
+	pop de
+	inc d
+	pop bc
+	djnz ClipArcSpanLoop
+	
+	; We've handled clipping/drawing ourselves, so return NZ to skip the standard scanline drawing.
+	xor a
+	inc a
 	ret
