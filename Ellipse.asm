@@ -21,6 +21,8 @@
 ;-------------------------------------------------------------------------------
 
 ellipseFlags        =    0
+
+fClipSegment        =    0
 fClipArcBigAngle    =    1
 fClipArc            =    2
 fRejectC            =    3
@@ -50,6 +52,8 @@ g_ellipseClipADY      = allocVar(2)
 
 g_ellipseClipBDX      = allocVar(2)
 g_ellipseClipBDY      = allocVar(2)
+g_ellipseClipAX       = g_ellipseClipBDX
+g_ellipseClipAY       = g_ellipseClipBDY
 
 ;-------------------------------------------------------------------------------
 ; === DrawEllipse ===
@@ -1210,6 +1214,10 @@ ClipArcSpan:
 	inc a
 	push af
 	
+	; Are we clipping a segment?
+	bit fClipSegment,(iy+ellipseFlags)
+	jr nz,ClipSegmentSpanInitialise
+	
 	; Get the pixel DX/DY from the centre position.
 	ld l,d
 	ld h,0
@@ -1225,19 +1233,40 @@ ClipArcSpan:
 	sbc hl,bc
 	ld (ClipArcDY),hl
 	
-	; Calculate the initial line side A counter.
-	
-	call ClipArcLineSideA
-	
-	ld (ClipSectorACounter+0),de
-	ld (ClipSectorACounter+2),hl
-	
 	; Calculate the initial line side B counter.
 	
 	call ClipArcLineSideB
 	
 	ld (ClipSectorBCounter+0),de
 	ld (ClipSectorBCounter+2),hl
+	
+	jr ClipSegmentArcInitialised
+	
+ClipSegmentSpanInitialise:
+
+	; Get the pixel DX/DY from the start of the segment position.
+	ld l,d
+	ld h,0
+	ld bc,(g_ellipseClipAX)
+	or a
+	sbc hl,bc
+	ld (ClipArcDX),hl
+	
+	ld l,e
+	ld h,0
+	ld bc,(g_ellipseClipAY)
+	or a
+	sbc hl,bc
+	ld (ClipArcDY),hl
+
+ClipSegmentArcInitialised:
+	
+	; Calculate the initial line side A counter.
+	
+	call ClipArcLineSideA
+	
+	ld (ClipSectorACounter+0),de
+	ld (ClipSectorACounter+2),hl
 	
 	; Restore number of pixels to try and coordinates.
 	pop bc
@@ -1272,6 +1301,10 @@ ClipArcSpanFinishedWholeSpan:
 ; ==========================================================================
 ClipArcSpanTest:
 	
+	; Are we only checking the segment?
+	bit fClipSegment,(iy+ellipseFlags)
+	jr nz,ClipSegmentSpan
+	
 	; Do we have a big angle or a small angle?
 	bit fClipArcBigAngle,(iy+ellipseFlags)
 	jr nz,ClipArcSpanBig
@@ -1297,6 +1330,11 @@ ClipArcSpanBig: ; Result = correct side of A OR correct side of B.
 	
 	; Are we on the correct side of clip line B?
 	ld a,(ClipSectorBCounter+3)
+	bit 7,a
+	ret
+
+ClipSegmentSpan: ; Result = correct side of A.
+	ld a,(ClipSectorACounter+3)
 	bit 7,a
 	ret
 
@@ -1328,6 +1366,10 @@ ClipArcSpanIncrement:
 	adc hl,bc
 	ld (ClipSectorACounter+2),hl
 	
+	; If we're drawing a segment, there's only one line to clip against.
+	bit fClipSegment,(iy+ellipseFlags)
+	jr nz,ClipArcSpanIncrementSkipB
+	
 	; Load and sign extend line B clipping Y delta into BCDE
 	
 	ld de,(g_ellipseClipBDY)
@@ -1347,7 +1389,9 @@ ClipArcSpanIncrement:
 	ld hl,(ClipSectorBCounter+2)
 	sbc hl,bc
 	ld (ClipSectorBCounter+2),hl
-	
+
+ClipArcSpanIncrementSkipB:
+
 	pop bc
 	pop de
 	ret

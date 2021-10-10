@@ -677,7 +677,7 @@ PlotCommands:
 .dw PlotDrawCircle    ; 144..151: Circle outline.
 .dw PlotFillCircle    ; 152..159: Circle fill.
 .dw PlotDrawArc       ; 160..167: Draw circular arc.
-.dw Stub              ; 168..175: Draw solid segment.
+.dw PlotFillSegment   ; 168..175: Draw solid segment.
 .dw PlotFillSector    ; 176..183: Draw solid sector.
 .dw Stub              ; 184..191: Block transfer operations.
 .dw PlotDrawEllipse   ; 192..199: Ellipse outline.
@@ -2048,62 +2048,19 @@ PlotEllipse:
 	ret
 
 ; ==========================================================================
-; PlotDrawArc
-; --------------------------------------------------------------------------
-; Draws a circular arc.
-; --------------------------------------------------------------------------
-; Inputs:     VisitedPoint0: End of the arc
-;             VisitedPoint1: Start of the arc (providing the radius)
-;             VisitedPoint2: Centre
-; Destroyed:  AF, HL, DE, BC.
-; ==========================================================================
-PlotDrawArc:	
-	push iy
-	call InitialiseCircleArc
-	res fFillEllipse,(iy+ellipseFlags)
-	call DrawEllipse
-	pop iy
-	ret
-
-; ==========================================================================
-; PlotFillSector
-; --------------------------------------------------------------------------
-; Fills a circular sector.
-; --------------------------------------------------------------------------
-; Inputs:     VisitedPoint0: End of the sector
-;             VisitedPoint1: Start of the sector (providing the radius)
-;             VisitedPoint2: Centre
-; Destroyed:  AF, HL, DE, BC.
-; ==========================================================================
-PlotFillSector:
-	push iy
-	call InitialiseCircleArc
-	set fFillEllipse,(iy+ellipseFlags)
-	call DrawEllipse
-	pop iy
-	ret
-
-; ==========================================================================
 ; InitialiseCircleArc
 ; --------------------------------------------------------------------------
-; Prepares to draw a circle arc or sector.
+; Prepares to draw a circle arc, segment or sector.
 ; --------------------------------------------------------------------------
 ; Inputs:     VisitedPoint0: End of the arc
 ;             VisitedPoint1: Start of the arc (providing the radius)
 ;             VisitedPoint2: Centre
-; Outputs:    g_ellipseCX: Centre X coordinate.
-;             g_ellipseCY: Centre Y coordinate.
-;             g_ellipseRX: Horizontal radius.
-;             g_ellipseRY: Horizontal radius.
+; Outputs:    DE: radius.
 ;             IY: Set to PlotShape.
 ; Destroyed:  AF, HL, DE, BC, IY.
 ; ==========================================================================
-InitialiseCircleArc:
-	
-	; Set up the plotting flags to clip the ellipse.
-	ld iy,PlotShape
-	set fClipArc,(iy+ellipseFlags)
-	
+InitialiseCircleArcSegmentSectorRadius:
+
 	; We have three points to work with.
 	ld b,3
 	call TransformPoints
@@ -2202,7 +2159,33 @@ CircleArcCalculateRadiusZeroAxis:
 +:	ex de,hl
 
 CircleArcFoundRadius:
-
+	
+	ret
+	
+; ==========================================================================
+; InitialiseCircleArcSector
+; --------------------------------------------------------------------------
+; Prepares to draw a circle arc or sector.
+; --------------------------------------------------------------------------
+; Inputs:     VisitedPoint0: End of the arc
+;             VisitedPoint1: Start of the arc (providing the radius)
+;             VisitedPoint2: Centre
+; Outputs:    g_ellipseCX: Centre X coordinate.
+;             g_ellipseCY: Centre Y coordinate.
+;             g_ellipseRX: Horizontal radius.
+;             g_ellipseRY: Horizontal radius.
+;             IY: Set to PlotShape.
+; Destroyed:  AF, HL, DE, BC, IY.
+; ==========================================================================
+InitialiseCircleArcSector:
+	
+	; Set up the plotting flags to clip the ellipse.
+	ld iy,PlotShape
+	set fClipArc,(iy+ellipseFlags)
+	res fClipSegment,(iy+ellipseFlags)
+	
+	call InitialiseCircleArcSegmentSectorRadius
+	
 	; Copy the centre of the ellipse into the right field.
 	ld hl,(TransformedPoint2X)
 	ld (g_ellipseCX),hl
@@ -2239,6 +2222,106 @@ CircleArcFoundRadius:
 	
 	ret m
 	set fClipArcBigAngle,(iy+ellipseFlags)
+	ret
+
+; ==========================================================================
+; PlotDrawArc
+; --------------------------------------------------------------------------
+; Draws a circular arc.
+; --------------------------------------------------------------------------
+; Inputs:     VisitedPoint0: End of the arc
+;             VisitedPoint1: Start of the arc (providing the radius)
+;             VisitedPoint2: Centre
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
+PlotDrawArc:	
+	push iy
+	call InitialiseCircleArcSector
+	res fFillEllipse,(iy+ellipseFlags)
+	call DrawEllipse
+	pop iy
+	ret
+
+; ==========================================================================
+; PlotFillSector
+; --------------------------------------------------------------------------
+; Fills a circular sector.
+; --------------------------------------------------------------------------
+; Inputs:     VisitedPoint0: End of the sector
+;             VisitedPoint1: Start of the sector (providing the radius)
+;             VisitedPoint2: Centre
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
+PlotFillSector:
+	push iy
+	call InitialiseCircleArcSector
+	set fFillEllipse,(iy+ellipseFlags)
+	call DrawEllipse
+	pop iy
+	ret
+
+; ==========================================================================
+; PlotFillSegment
+; --------------------------------------------------------------------------
+; Fills a circular segment.
+; --------------------------------------------------------------------------
+; Inputs:     VisitedPoint0: End of the sector
+;             VisitedPoint1: Start of the sector (providing the radius)
+;             VisitedPoint2: Centre
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
+PlotFillSegment:
+	push iy
+	
+	; Set up the plotting flags to clip the ellipse.
+	ld iy,PlotShape
+	set fClipArc,(iy+ellipseFlags)
+	set fClipSegment,(iy+ellipseFlags)
+	
+	call InitialiseCircleArcSegmentSectorRadius
+	
+	; Save the radius for later.
+	push de
+	
+	; Store the starting coordinate of the clipping chord.
+	
+	ld hl,(TransformedPoint1X)
+	ld (g_ellipseClipAX),hl
+	
+	ld hl,(TransformedPoint1Y)
+	ld (g_ellipseClipAY),hl
+	
+	; Store the slope of the clipping chord.
+	
+	ld hl,(g_ellipseClipAX)
+	ld de,(TransformedPoint0X)
+	or a
+	sbc hl,de
+	ld (g_ellipseClipADX),hl
+	
+	ld hl,(g_ellipseClipAY)
+	ld de,(TransformedPoint0Y)
+	or a
+	sbc hl,de
+	ld (g_ellipseClipADY),hl
+	
+	pop de
+
+	; Copy the centre of the ellipse into the right field.
+	ld hl,(TransformedPoint2X)
+	ld (g_ellipseCX),hl
+	ld hl,(TransformedPoint2Y)
+	ld (g_ellipseCY),hl
+
+	; Store radius.
+	ld (g_ellipseRX),de
+	ld (g_ellipseRY),de
+	
+	
+	set fFillEllipse,(iy+ellipseFlags)
+	call DrawEllipse
+	
+	pop iy
 	ret
 
 ; ==========================================================================
