@@ -2078,7 +2078,9 @@ InitialiseCircleArcSegmentSectorRadius:
 	or a
 	sbc hl,de
 	ld (g_ellipseClipBDY),hl
-	
+
+GetTransformedCircleStartArcSegmentSectorRadius:
+
 	; Now calculate the radius and slope for the start of the arc.
 	
 	; dx = ?
@@ -2268,16 +2270,130 @@ PlotFillSector:
 ; Inputs:     VisitedPoint0: End of the sector
 ;             VisitedPoint1: Start of the sector (providing the radius)
 ;             VisitedPoint2: Centre
-; Destroyed:  AF, HL, DE, BC.
+; Destroyed:  AF, HL, DE, BC, H'L', D'E', B'C', A'F'.
 ; ==========================================================================
 PlotFillSegment:
 	push iy
+	
+	; Preserve the most recent point on the stack.
+	ld hl,(VisitedPoint0X)
+	push hl
+	ld hl,(VisitedPoint0Y)
+	push hl
 	
 	; Set up the plotting flags to clip the ellipse.
 	ld iy,PlotShape
 	set fClipArc,(iy+ellipseFlags)
 	set fClipSegment,(iy+ellipseFlags)
 	
+	; Calculate the untransformed radius of the complete circle.
+	
+	; Midpoint
+	ld hl,(VisitedPoint2X)
+	ld (TransformedPoint2X),hl
+	ld hl,(VisitedPoint2Y)
+	ld (TransformedPoint2Y),hl
+	
+	; Start point + radius
+	ld hl,(VisitedPoint1X)
+	ld (TransformedPoint1X),hl
+	ld hl,(VisitedPoint1Y)
+	ld (TransformedPoint1Y),hl
+	
+	call GetTransformedCircleStartArcSegmentSectorRadius
+	
+	; DE = untransformed starting radius, save that for later.
+	ld (g_ellipseA2),de
+	
+	; Calculate the untransformed radius of the ending point.
+	
+	; End point (radius is set by start point, so can't be trusted).
+	ld hl,(VisitedPoint0X)
+	ld (TransformedPoint1X),hl
+	ld hl,(VisitedPoint0Y)
+	ld (TransformedPoint1Y),hl
+	
+	call GetTransformedCircleStartArcSegmentSectorRadius
+	ld (g_ellipseB2),de
+	
+	; Are we already on the circumference?
+	ld hl,(g_ellipseA2)
+	or a
+	sbc hl,de
+	jp z,PlotFillSegmentEndOnCircumference
+	
+	; Is the ending radius 0?
+	ld a,d
+	or e
+	jr nz,PlotFillSegmentEndRadiusNonZero
+	
+	; If it's zero, move the end to the right hand side.
+	ld hl,(VisitedPoint2X)
+	ld de,(g_ellipseA2)
+	add hl,de
+	ld (VisitedPoint0X),hl
+	
+	ld hl,(VisitedPoint2Y)
+	ld (VisitedPoint0Y),hl
+	jr PlotFillSegmentEndOnCircumference
+
+PlotFillSegmentEndRadiusNonZero:
+
+	; Now we need to scale the radius of the ending point.
+	; To do this, multiply it by start radius / end radius.
+	
+	ld hl,(g_ellipseA2)
+	ld de,(g_ellipseB2)
+	
+	exx
+	
+	ld hl,0
+	ld d,h
+	ld e,l
+	ld b,h
+	ld c,l
+	
+	; Floating point division
+	ld a,15 ; /
+	call Basic.BBCBASIC_FPP
+	
+	ld (g_ellipseError+0),hl
+	ld b,c ; We'll load into DE D'E' B later, so move C to B then zero C.
+	ld c,0
+	ld (g_ellipseError+4),bc
+	exx
+	ld (g_ellipseError+2),hl
+	
+	; Scale the X coordinate.
+	
+	ld hl,(VisitedPoint0X)
+	ld de,(VisitedPoint2X)
+	or a
+	sbc hl,de
+	
+	call ScaleSegmentEndingRadius
+	
+	ld de,(VisitedPoint2X)
+	add hl,de
+	ld (VisitedPoint0X),hl
+	
+	; Scale the Y coordinate.
+	
+	ld hl,(VisitedPoint0Y)
+	ld de,(VisitedPoint2Y)
+	or a
+	sbc hl,de
+	ld de,(g_ellipseError+2)
+	
+	call ScaleSegmentEndingRadius
+	
+	ld de,(VisitedPoint2Y)
+	add hl,de
+	ld (VisitedPoint0Y),hl
+
+PlotFillSegmentEndOnCircumference:
+
+	; Now initialise the circle as normal.
 	call InitialiseCircleArcSegmentSectorRadius
 	
 	; Save the radius for later.
@@ -2317,11 +2433,43 @@ PlotFillSegment:
 	ld (g_ellipseRX),de
 	ld (g_ellipseRY),de
 	
-	
+	; Draw the ellipse (at long last!)
 	set fFillEllipse,(iy+ellipseFlags)
 	call DrawEllipse
 	
+	; Restore the most recent points from the stack.
+	pop hl
+	ld hl,(VisitedPoint0Y)
+	pop hl
+	ld hl,(VisitedPoint0X)
+	
 	pop iy
+	ret
+
+ScaleSegmentEndingRadius:
+
+	ld de,(g_ellipseError+2)
+	
+	ld a,h
+	
+	exx
+	
+	add a,a
+	sbc a,a
+	ld h,a
+	ld l,a
+	
+	ld de,(g_ellipseError+0)
+	ld bc,(g_ellipseError+4)
+	
+	ld a,10 ; *
+	call Basic.BBCBASIC_FPP
+	
+	ld a,23 ; INT
+	call Basic.BBCBASIC_FPP
+	
+	exx
+	
 	ret
 
 ; ==========================================================================
