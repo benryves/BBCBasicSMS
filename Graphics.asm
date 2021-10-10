@@ -670,7 +670,7 @@ PlotCommands:
 .dw Stub              ;   88..95: Horizontal line fill to background right.
 .dw PlotRectangle     ;  96..103: Rectangle fill.
 .dw Stub              ; 104..111: Horizontal line fill to foreground.
-.dw Stub              ; 112..119: Horizontal line fill to foreground.
+.dw PlotParallelogram ; 112..119: Parallelogram plot and fill.
 .dw Stub              ; 120..127: Horizontal line fill to non-foreground right.
 .dw Stub              ; 128..135: Flood fill to non-background.
 .dw Stub              ; 136..143: Flood fill to foreground.
@@ -2340,7 +2340,57 @@ PlotTriangle:
 	call TransformPoints
 	jp Triangle.Fill
 
+; ==========================================================================
+; PlotParallelogram
+; --------------------------------------------------------------------------
+; Fills a parallelogram.
+; --------------------------------------------------------------------------
+; Inputs:     PlotShape: Triangle type to plot.
+;             VisitedPoint0: First coordinate.
+;             VisitedPoint1: Second coordinate.
+;             VisitedPoint2: Third coordinate.
+; Destroyed:  AF, HL, DE, BC.
+; ==========================================================================
+PlotParallelogram:
+	call PlotTriangle
+	
+	; Fourth point = point0-point1+point2
+	ld b,3
+	call TransformPoints
+	
+	
+	; Redraw the central line (fixes overdraw problems).
+	
+	ld hl,TransformedPoint0
+	ld de,TransformedPoint2
+	call Clip.Clip2DLine16
+	jr c,+
+	
+	ld h,b
+	ld l,c
 
+	call SetLine
+
++:
+	
+	ld hl,(TransformedPoint0X)
+	ld de,(TransformedPoint1X)
+	or a
+	sbc hl,de
+	ld de,(TransformedPoint2X)
+	add hl,de
+	ld (TransformedPoint1X),hl
+	
+	ld hl,(TransformedPoint0Y)
+	ld de,(TransformedPoint1Y)
+	or a
+	sbc hl,de
+	ld de,(TransformedPoint2Y)
+	add hl,de
+	ld (TransformedPoint1Y),hl
+	
+	jp Triangle.Fill
+	
 ; ==========================================================================
 ; ClampTransformedHLX
 ; --------------------------------------------------------------------------
