@@ -1243,11 +1243,34 @@ ClipArcSpan:
 	pop bc
 	pop de
 	
-	; Now we can try to clip each pixel in a loop.
+	call ClipArcSpanDrawPartialSection
+	jr z,ClipArcSpanFinishedWholeSpan
 	
-ClipArcSpanLoop:
-	push bc
-	push de
+-:	call ClipArcSpanTest
+	jr z,ClipArcSpanFoundRight
+	inc d
+	call ClipArcSpanIncrement
+	djnz -
+	jr ClipArcSpanFinishedWholeSpan
+
+ClipArcSpanFoundRight:
+
+	call ClipArcSpanDrawPartialSection
+
+ClipArcSpanFinishedWholeSpan:
+	; We've handled clipping/drawing ourselves, so return NZ to skip the standard scanline drawing.
+	xor a
+	inc a
+	ret
+
+; ==========================================================================
+; ClipArcSpanTest
+; --------------------------------------------------------------------------
+; Determines whether the current span coordinate can be drawn or not.
+; --------------------------------------------------------------------------
+; Outputs:    F: Z if the span coordinate can be drawn, NZ if not.
+; ==========================================================================
+ClipArcSpanTest:
 	
 	; Do we have a big angle or a small angle?
 	bit fClipArcBigAngle,(iy+ellipseFlags)
@@ -1258,31 +1281,33 @@ ClipArcSpanSmall: ; Result = correct side of A AND correct side of B.
 	; Are we on the correct side of clip line A?
 	ld a,(ClipSectorACounter+3)
 	bit 7,a
-	jr nz,ClipArcSpanClipped
+	ret nz
 	
 	; Are we on the correct side of clip line B?
 	ld a,(ClipSectorBCounter+3)
 	bit 7,a
-	jr ClipArcSpanClipped
+	ret
 
 ClipArcSpanBig: ; Result = correct side of A OR correct side of B.
 
 	; Are we on the correct side of clip line A?
 	ld a,(ClipSectorACounter+3)
 	bit 7,a
-	jr z,ClipArcSpanClipped
+	ret z
 	
 	; Are we on the correct side of clip line B?
 	ld a,(ClipSectorBCounter+3)
 	bit 7,a
+	ret
 
-ClipArcSpanClipped:
-	
-	pop de
+; ==========================================================================
+; ClipArcSpanIncrement
+; --------------------------------------------------------------------------
+; Increments the arc span clipping counters.
+; ==========================================================================
+ClipArcSpanIncrement:
 	push de
-	call z,SetPixel
-	
-	; Now increment the clipping counters.
+	push bc
 	
 	; Load and sign extend line A clipping Y delta into BCDE
 	
@@ -1323,12 +1348,50 @@ ClipArcSpanClipped:
 	sbc hl,bc
 	ld (ClipSectorBCounter+2),hl
 	
-	pop de
-	inc d
 	pop bc
-	djnz ClipArcSpanLoop
+	pop de
+	ret
 	
-	; We've handled clipping/drawing ourselves, so return NZ to skip the standard scanline drawing.
-	xor a
-	inc a
+; ==========================================================================
+; ClipArcSpanDrawPartialSection
+; --------------------------------------------------------------------------
+; Draws the partial section of a span.
+; --------------------------------------------------------------------------
+; Inputs:     D: X coordinate of start of span.
+;             E: Y coordinate of the span.
+;             B: Width of the span.
+; Outputs:    F: Z if there's potentially more of the span to draw.
+; ==========================================================================
+ClipArcSpanDrawPartialSection:
+
+	ld c,d
+	
+-:	call ClipArcSpanTest
+	jr nz,ClipArcSpanFinishedSection
+	inc c
+	call ClipArcSpanIncrement
+	djnz -
+
+ClipArcSpanFinishedSection:
+
+	; At this point, (D,E) = left side, C = potential right coordinate.
+	ld a,c
+	sub d
+	jr z,+
+
+	; We have a non-zero width for the left hand side, so plot the span!
+	ld h,c
+	dec h
+	
+	push de
+	push bc
+	call PlotTransformedHorizontalSpan
+	pop bc
+	pop de
++:
+	ld d,c
+
+	; Is there any span left?
+	ld a,b
+	or a
 	ret
