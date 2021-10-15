@@ -23,6 +23,8 @@ Execute:
 	jp z,ResetConsoleViewport
 	cp Driver.Execute.SelectPalette
 	jp z,SelectPalette
+	cp Driver.Execute.ResetPalette
+	jp z,ResetPalette
 	ret
 
 Initialise:
@@ -290,6 +292,9 @@ SelectPalette:
 	
 	; Pretend we're setting the palette normally in our 2-colour palette.
 	call MasterSystem2Colours.SelectPalette
+
+
+SelectTMS9918Palette:
 	
 	; Convert the console colour to a TMS9918 pair.
 	ld a,(VDU.Console.Colour)
@@ -308,5 +313,10 @@ ResetConsoleViewport:
 	inc a
 	ld (Console.MaxWidth),a
 	ret
+
+ResetPalette:
+	; Pretend we're setting the palette normally in our 2-colour palette.
+	call MasterSystem2Colours.SelectDefaultPalette
+	jr SelectTMS9918Palette
 
 .endmodule

@@ -33,7 +33,7 @@ Execute:
 	dec a \ jp z,PreserveUnderCursor
 	dec a \ jp z,RestoreUnderCursor
 	dec a \ jp z,MasterSystem16Colours.SelectPalette
-	dec a \ ret z
+	dec a \ jp z,VDU.ResetMasterSystemPalette
 	dec a \ ret z
 	dec a \ ret z
 	ret
